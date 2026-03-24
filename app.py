@@ -1390,14 +1390,20 @@ if run_btn:
                 unsafe_allow_html=True)
 
 else:
-    st.markdown("""
-    <div style="padding:2.5rem 0 1rem 0;">
+    import streamlit.components.v1 as components
+    components.html("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: transparent; }
+    </style>
+    <div style="padding:2.5rem 0 1rem 0; font-family:'IBM Plex Sans',sans-serif;">
 
         <!-- Hero -->
         <div style="text-align:center;margin-bottom:2.5rem;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
                  letter-spacing:.25em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.6rem;">
-                Institutional-grade analysis · Free & open
+                Institutional-grade analysis &amp; Free &amp; open
             </div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
                  color:#e8edf2;letter-spacing:.06em;line-height:1.2;">
@@ -1515,4 +1521,4 @@ else:
         </div>
 
     </div>
-    """, unsafe_allow_html=True)
+    """, height=900, scrolling=True)
