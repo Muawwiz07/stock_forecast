@@ -138,6 +138,16 @@ h2, h3 {
     padding: 0.6rem 2rem;
     letter-spacing: 0.1em;
 }
+.alert-box {
+    background: #1a0d00;
+    border: 1px solid #ff6600;
+    border-left: 4px solid #ff6600;
+    padding: 1rem 1.5rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: #ff6600;
+    margin: 1rem 0;
+}
 .stat-row {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
@@ -172,6 +182,9 @@ with st.sidebar:
     st.markdown('<div class="stat-row">Forecast Horizon (days)</div>', unsafe_allow_html=True)
     future_days = st.slider(" ", 1, 30, 7, label_visibility="collapsed")
     st.markdown("---")
+    st.markdown('<div class="stat-row">Price Alert Target ($)</div>', unsafe_allow_html=True)
+    alert_price = st.number_input("", min_value=0.0, value=0.0, step=1.0, label_visibility="collapsed")
+    st.markdown("---")
     run_btn = st.button("▶  RUN FORECAST", use_container_width=True)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -190,6 +203,16 @@ def generate_signals(actual, predicted):
         else:
             signals.append("HOLD")
     return signals
+
+def compute_rsi(series, period=14):
+    delta = series.diff()
+    gain  = delta.clip(lower=0)
+    loss  = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+    rs  = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="#0a0a0a",
@@ -212,6 +235,90 @@ if run_btn:
 
     st.success(f"✓  {len(df)} trading days loaded for {ticker}")
 
+    # ── Price Alert Check ──────────────────────────────────────────────────────
+    last_close = float(df['Close'].iloc[-1])
+    if alert_price > 0:
+        if last_close >= alert_price:
+            st.markdown(f'<div class="alert-box">🔔 ALERT: {ticker} is currently at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}</div>', unsafe_allow_html=True)
+        else:
+            diff = alert_price - last_close
+            st.markdown(f'<div class="alert-box">🔔 ALERT: {ticker} at ${last_close:.2f} — ${diff:.2f} below your target of ${alert_price:.2f}</div>', unsafe_allow_html=True)
+
+    close_series = df['Close'].squeeze()
+
+    # ── Moving Averages ────────────────────────────────────────────────────────
+    df['MA50']  = close_series.rolling(50).mean()
+    df['MA200'] = close_series.rolling(200).mean()
+
+    # ── RSI ───────────────────────────────────────────────────────────────────
+    df['RSI'] = compute_rsi(close_series)
+
+    # ── Candlestick + Volume + MA ──────────────────────────────────────────────
+    st.subheader("CANDLESTICK CHART")
+    fig_candle = make_subplots(
+        rows=2, cols=1, shared_xaxes=True,
+        row_heights=[0.7, 0.3],
+        vertical_spacing=0.03
+    )
+
+    fig_candle.add_trace(go.Candlestick(
+        x=df.index,
+        open=df['Open'].squeeze(), high=df['High'].squeeze(),
+        low=df['Low'].squeeze(),  close=close_series,
+        name="Price",
+        increasing_line_color='#00cc44',
+        decreasing_line_color='#ff3333',
+    ), row=1, col=1)
+
+    fig_candle.add_trace(go.Scatter(
+        x=df.index, y=df['MA50'].squeeze(),
+        name="MA50", line=dict(color="#ff6600", width=1.2)
+    ), row=1, col=1)
+
+    fig_candle.add_trace(go.Scatter(
+        x=df.index, y=df['MA200'].squeeze(),
+        name="MA200", line=dict(color="#00aaff", width=1.2)
+    ), row=1, col=1)
+
+    colors_vol = ['#00cc44' if c >= o else '#ff3333'
+                  for c, o in zip(close_series, df['Open'].squeeze())]
+    fig_candle.add_trace(go.Bar(
+        x=df.index, y=df['Volume'].squeeze(),
+        name="Volume", marker_color=colors_vol, opacity=0.6
+    ), row=2, col=1)
+
+    fig_candle.update_layout(
+        **PLOTLY_LAYOUT,
+        title=dict(text=f"{ticker} — Candlestick + MA50/MA200 + Volume",
+                   font=dict(color="#ff6600", size=13)),
+        xaxis_rangeslider_visible=False,
+        height=550,
+        yaxis2=dict(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666")),
+    )
+    st.plotly_chart(fig_candle, use_container_width=True)
+
+    # ── RSI Chart ─────────────────────────────────────────────────────────────
+    st.subheader("RSI INDICATOR (14-DAY)")
+    fig_rsi = go.Figure()
+    fig_rsi.add_trace(go.Scatter(
+        x=df.index, y=df['RSI'].squeeze(),
+        name="RSI", line=dict(color="#ff6600", width=1.5)
+    ))
+    fig_rsi.add_hline(y=70, line_dash="dash", line_color="#ff3333",
+                      annotation_text="Overbought (70)", annotation_font_color="#ff3333")
+    fig_rsi.add_hline(y=30, line_dash="dash", line_color="#00cc44",
+                      annotation_text="Oversold (30)", annotation_font_color="#00cc44")
+    fig_rsi.add_hrect(y0=70, y1=100, fillcolor="rgba(255,51,51,0.05)", line_width=0)
+    fig_rsi.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,204,68,0.05)",  line_width=0)
+    fig_rsi.update_layout(
+        **PLOTLY_LAYOUT,
+        title=dict(text=f"{ticker} — RSI (14)", font=dict(color="#ff6600", size=13)),
+        yaxis=dict(range=[0, 100], gridcolor="#1a1a1a", linecolor="#333"),
+        height=300,
+    )
+    st.plotly_chart(fig_rsi, use_container_width=True)
+
+    # ── ML Model ──────────────────────────────────────────────────────────────
     close = df[['Close']].values
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(close)
@@ -264,10 +371,10 @@ if run_btn:
     # ── Buy/Sell Signals ───────────────────────────────────────────────────────
     st.subheader("BUY / SELL SIGNALS")
     signals = generate_signals(actual.flatten(), preds.flatten())
-    latest = signals[-1]
+    latest  = signals[-1]
 
     badge_class = {"BUY": "signal-badge-buy", "SELL": "signal-badge-sell", "HOLD": "signal-badge-hold"}[latest]
-    icon = {"BUY": "▲", "SELL": "▼", "HOLD": "◆"}[latest]
+    icon        = {"BUY": "▲", "SELL": "▼", "HOLD": "◆"}[latest]
     st.markdown(f'<div class="{badge_class}">{icon} &nbsp; SIGNAL: {latest}</div><br>', unsafe_allow_html=True)
 
     buy_idx  = [i for i, s in enumerate(signals) if s == "BUY"]
@@ -309,34 +416,73 @@ if run_btn:
         last_seq = np.append(last_seq[1:], next_val)
 
     future_prices = scaler.inverse_transform(np.array(future_preds).reshape(-1, 1)).flatten()
-    last_price = float(close[-1][0])
-    trend_color = "#00cc44" if future_prices[-1] > last_price else "#ff3333"
+    trend_color   = "#00cc44" if future_prices[-1] > last_close else "#ff3333"
 
     fig3 = go.Figure()
-    fig3.add_hline(y=last_price, line_dash="dash", line_color="#444",
-                   annotation_text=f"Last close ${last_price:.2f}",
+    fig3.add_hline(y=last_close, line_dash="dash", line_color="#444",
+                   annotation_text=f"Last close ${last_close:.2f}",
                    annotation_font_color="#666")
+    if alert_price > 0:
+        fig3.add_hline(y=alert_price, line_dash="dot", line_color="#ff6600",
+                       annotation_text=f"Alert ${alert_price:.2f}",
+                       annotation_font_color="#ff6600")
     fig3.add_trace(go.Scatter(
-        x=list(range(future_days)),
-        y=future_prices,
-        mode='lines+markers',
-        name='Forecast',
+        x=list(range(future_days)), y=future_prices,
+        mode='lines+markers', name='Forecast',
         line=dict(color=trend_color, width=2),
         marker=dict(size=7, color=trend_color, line=dict(width=1, color="#0a0a0a"))
     ))
     fig3.update_layout(**PLOTLY_LAYOUT,
-        title=dict(text=f"{ticker} — {future_days}-Day Price Forecast", font=dict(color="#ff6600", size=13)),
-        xaxis_title="Days from today",
-        yaxis_title="Price (USD)"
+        title=dict(text=f"{ticker} — {future_days}-Day Price Forecast",
+                   font=dict(color="#ff6600", size=13)),
+        xaxis_title="Days from today", yaxis_title="Price (USD)"
     )
     st.plotly_chart(fig3, use_container_width=True)
 
     future_df = pd.DataFrame({
-        "Day":                [f"+{i+1}" for i in range(future_days)],
+        "Day":                 [f"+{i+1}" for i in range(future_days)],
         "Predicted Price ($)": [f"${p:.2f}" for p in future_prices],
-        "vs Last Close":       [f"{'▲' if p > last_price else '▼'} {abs(p-last_price):.2f}" for p in future_prices]
+        "vs Last Close":       [f"{'▲' if p > last_close else '▼'} {abs(p - last_close):.2f}" for p in future_prices]
     })
     st.dataframe(future_df, use_container_width=True, hide_index=True)
+
+    # ── Download CSV Report ────────────────────────────────────────────────────
+    st.subheader("DOWNLOAD REPORT")
+
+    # Full historical data with indicators
+    export_df = df[['Open', 'High', 'Low', 'Close', 'Volume', 'MA50', 'MA200', 'RSI']].copy()
+    export_df.columns = ['Open', 'High', 'Low', 'Close', 'Volume', 'MA50', 'MA200', 'RSI']
+
+    # Append signal data
+    signal_export = signal_df.copy()
+    signal_export.columns = ['Day', 'Actual_Price', 'Predicted_Price', 'Signal']
+
+    csv_hist    = export_df.to_csv().encode('utf-8')
+    csv_signals = signal_export.to_csv(index=False).encode('utf-8')
+    csv_future  = future_df.to_csv(index=False).encode('utf-8')
+
+    dl1, dl2, dl3 = st.columns(3)
+    with dl1:
+        st.download_button(
+            label="⬇ Historical Data + Indicators",
+            data=csv_hist,
+            file_name=f"{ticker}_historical.csv",
+            mime="text/csv"
+        )
+    with dl2:
+        st.download_button(
+            label="⬇ Buy/Sell Signals",
+            data=csv_signals,
+            file_name=f"{ticker}_signals.csv",
+            mime="text/csv"
+        )
+    with dl3:
+        st.download_button(
+            label="⬇ Forecast Data",
+            data=csv_future,
+            file_name=f"{ticker}_forecast.csv",
+            mime="text/csv"
+        )
 
     st.markdown("---")
     st.markdown('<div class="stat-row">⚠ For educational purposes only. Not financial advice.</div>', unsafe_allow_html=True)
