@@ -824,48 +824,6 @@ if run_btn:
     st.markdown('<div class="model-badge">🤖 MODEL: XGBoost Regressor · 20 Technical Features + Lag Window</div>',
                 unsafe_allow_html=True)
 
-    with st.expander("📖  How this model works — methodology & limitations", expanded=False):
-        st.markdown(f"""
-        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;color:#8a9bb0;line-height:1.7;">
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Feature Engineering</b><br>
-        Each trading day is represented by <b style="color:#00d4a0;">20 technical indicators</b> computed from raw OHLCV data —
-        moving averages (MA5–200, EMA12/26), RSI, MACD with histogram, Bollinger Bands width &amp; position,
-        ATR, volume ratio, and momentum — plus <b style="color:#00d4a0;">{seq_len} lag closes</b> as sequential context.
-        This gives the model both market-state awareness and short-term price memory.
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Training &amp; Evaluation</b><br>
-        Data is split <b style="color:#00d4a0;">80% train / 20% test</b> chronologically (no data leakage).
-        XGBoost is trained to predict the <em>next day's closing price</em> given today's features.
-        Model quality is measured on the held-out test set using RMSE, MAE, MAPE and R².
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Confidence Intervals</b><br>
-        The 95% CI ribbon is produced via <b style="color:#00d4a0;">bootstrap resampling</b>: the model is run
-        {ci_bootstrap_n if show_conf_interval else 100}x on inputs with small Gaussian noise added (sigma=1.5%), and the 5th-95th percentile
-        range across all runs forms the band. A <em>wider band = higher uncertainty</em>.
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Forward Forecast Reliability</b><br>
-        Multi-day forecasts roll predictions iteratively — each day's output feeds the next day's lag input.
-        <b style="color:#ffd32a;">Prediction errors compound.</b> Day 1–3 forecasts are most reliable.
-        Days 7+ should be treated as directional trend signals only, not price targets.
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Key Limitations</b><br>
-        This model uses <em>only price and volume data</em>. It has no awareness of earnings releases,
-        macroeconomic events, analyst upgrades, or breaking news. A single unexpected event
-        can invalidate any technical forecast. <b style="color:#ff4757;">This is a research tool, not financial advice.</b>
-
-        </div>
-        """, unsafe_allow_html=True)
-
     with st.spinner("Building feature matrix..."):
         X, y = build_xgb_dataset(df, seq_len)
 
@@ -899,18 +857,6 @@ if run_btn:
     c2.metric("MAE",  f"${mae:.2f}")
     c3.metric("MAPE", f"{mape:.2f}%")
     c4.metric("R²",   f"{r2:.4f}")
-
-    # Metric interpretation
-    mape_label  = ("🟢 Excellent" if mape < 2 else "🟡 Good" if mape < 5 else "🟠 Fair" if mape < 10 else "🔴 Poor")
-    r2_label    = ("🟢 Excellent" if r2 > 0.95 else "🟡 Good" if r2 > 0.85 else "🟠 Fair" if r2 > 0.70 else "🔴 Poor")
-    st.markdown(
-        f'<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.3rem;'
-        f'font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#4a5a6a;'
-        f'display:flex;gap:2rem;flex-wrap:wrap;margin-top:-.3rem;">'
-        f'<span>MAPE: {mape_label} &nbsp;·&nbsp; &lt;2% excellent · &lt;5% good · &lt;10% fair</span>'
-        f'<span>R²: {r2_label} &nbsp;·&nbsp; &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span>'
-        f'<span style="color:#2a3a4e;">RMSE/MAE are in $ — lower is better</span>'
-        f'</div>', unsafe_allow_html=True)
 
     # ── Feature Importance ─────────────────────────────────────────────────────
     st.subheader("Feature Importance")
@@ -1014,21 +960,7 @@ if run_btn:
 
     trend_color = C_GREEN if future_prices[-1] > last_close else C_RED
 
-    # Build expanding uncertainty band even without full bootstrap (lightweight ±σ proxy)
-    price_std    = float(df['Close'].squeeze().pct_change().std())  # daily vol
-    decay_upper  = [future_prices[i] * (1 + price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
-    decay_lower  = [future_prices[i] * (1 - price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
-
     fig3 = go.Figure()
-    # Expanding uncertainty shading
-    fig3.add_trace(go.Scatter(
-        x=list(range(future_days)), y=decay_upper,
-        line=dict(color="rgba(0,212,160,0)"), showlegend=False, hoverinfo="skip"))
-    fig3.add_trace(go.Scatter(
-        x=list(range(future_days)), y=decay_lower,
-        name="Uncertainty band", fill="tonexty",
-        fillcolor="rgba(0,212,160,0.07)", line=dict(color="rgba(0,212,160,0)"), hoverinfo="skip"))
-
     fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
                    annotation_text=f"Last close ${last_close:.2f}",
                    annotation_font_color=C_GREY)
@@ -1042,27 +974,11 @@ if run_btn:
         line=dict(color=trend_color, width=2),
         marker=dict(size=7, color=trend_color, line=dict(width=1, color="#0a0c0f"))
     ))
-    # Vertical reliability boundary at day 5
-    if future_days > 5:
-        fig3.add_vline(x=4.5, line_dash="dot", line_color="#2a3a4e",
-                       annotation_text="↑ Higher confidence  |  Lower confidence ↓",
-                       annotation_font=dict(color="#4a5a6a", size=9),
-                       annotation_position="top")
-
     fig3.update_layout(**PLOTLY_LAYOUT,
-        title=dict(text=f"{ticker} · {future_days}-Day Price Forecast (XGBoost) · Band shows ±1.5σ uncertainty growth",
+        title=dict(text=f"{ticker} · {future_days}-Day Price Forecast (XGBoost)",
                    font=dict(color=C_GREEN, size=12)),
-        xaxis_title="Days from today", yaxis_title="Price (USD)", height=380)
+        xaxis_title="Days from today", yaxis_title="Price (USD)", height=350)
     st.plotly_chart(fig3, use_container_width=True)
-
-    if future_days > 5:
-        st.markdown(
-            '<div style="background:rgba(255,211,42,0.04);border:1px solid rgba(255,211,42,0.2);'
-            'border-left:3px solid #ffd32a;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
-            'font-size:0.7rem;color:#ffd32a;letter-spacing:.05em;margin-top:-.5rem;">'
-            '⚠ Forecast reliability decreases significantly beyond Day 5. '
-            'Errors compound in iterative multi-step prediction. Use Days 6+ as directional signals only.'
-            '</div>', unsafe_allow_html=True)
 
     future_df = pd.DataFrame({
         "Day":                 [f"+{i+1}" for i in range(future_days)],
@@ -1277,20 +1193,7 @@ if run_btn:
 
     # ── Halal / Shariah ────────────────────────────────────────────────────────
     if run_halal_check:
-        st.markdown("""
-        <div style="background:rgba(0,212,160,0.03);border:1px solid rgba(0,212,160,0.15);
-             border-left:4px solid #00d4a0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
-             display:flex;align-items:center;gap:1rem;">
-            <div style="font-size:1.4rem;">☪</div>
-            <div>
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#00d4a0;">Halal / Shariah Compliance Screen</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#4a5a6a;margin-top:2px;">
-                    Automated screening based on AAOIFI Standard No.21 — a unique feature not found in mainstream platforms
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.subheader("Halal / Shariah Compliance Check")
         st.markdown(
             '<div class="model-badge">Based on AAOIFI Standard No.21 + S&P Shariah Indices Methodology</div>',
             unsafe_allow_html=True)
@@ -1388,4 +1291,15 @@ if run_btn:
 
 else:
     st.markdown("""
-    <div style="padding:2.5rem 0 1rem 0;">
+    <div style="padding:3.5rem;text-align:center;font-family:'IBM Plex Mono',monospace;">
+        <div style="font-size:2.5rem;margin-bottom:1rem;opacity:.4;">▲</div>
+        <div style="font-size:0.85rem;letter-spacing:0.15em;text-transform:uppercase;color:#4a5a6a;">
+            Configure parameters in the sidebar and press
+        </div>
+        <div style="font-size:1.1rem;font-weight:700;letter-spacing:0.2em;
+             color:#00d4a0;margin-top:.6rem;">▶ RUN FORECAST</div>
+        <div style="color:#1e2a38;font-size:0.75rem;margin-top:1.5rem;letter-spacing:0.08em;">
+            AAPL · TSLA · GOOGL · MSFT · AMZN · NFLX · META · NVDA
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
