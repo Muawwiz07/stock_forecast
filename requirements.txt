@@ -2,7 +2,6 @@ streamlit
 numpy
 pandas
 yfinance
-plotly
 scikit-learn
 xgboost
 prophet
