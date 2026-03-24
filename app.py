@@ -838,15 +838,7 @@ def check_shariah_compliance(ticker_sym, data):
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 # Top-bar ticker input — always visible even if sidebar is collapsed
-st.markdown("""
-<div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid #00d4a0;
-     padding:.7rem 1.4rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-  <span style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
-        text-transform:uppercase;color:#4a5a6a;white-space:nowrap;">📌 Active Ticker:</span>
-</div>
-""", unsafe_allow_html=True)
-
-top_col1, top_col2, top_col3 = st.columns([2, 1, 1])
+top_col1, top_col2 = st.columns([3, 1])
 with top_col1:
     top_ticker = st.text_input(
         "Enter ticker symbol",
@@ -865,12 +857,6 @@ with top_col2:
         f'font-size:.8rem;font-weight:700;color:#00d4a0;letter-spacing:.08em;">'
         f'● {ticker}</div>',
         unsafe_allow_html=True)
-with top_col3:
-    run_btn_top = st.button("▶ RUN FORECAST", key="run_btn_top", use_container_width=True)
-
-# Either top button or sidebar button triggers the run
-if run_btn_top:
-    run_btn = True
 
 if run_btn:
     with st.spinner(f"Fetching {ticker} data..."):
