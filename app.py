@@ -413,14 +413,16 @@ if run_btn:
         name="Volume", marker_color=colors_vol, opacity=0.6
     ), row=2, col=1)
 
+    candle_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("xaxis", "yaxis")}
     fig_candle.update_layout(
-        **PLOTLY_LAYOUT,
+        **candle_layout,
         title=dict(text=f"{ticker} — Candlestick + MA50/MA200 + Bollinger Bands + Volume",
                    font=dict(color="#ff6600", size=13)),
         xaxis_rangeslider_visible=False,
         height=550,
-        yaxis2=dict(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666")),
     )
+    fig_candle.update_xaxes(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666"))
+    fig_candle.update_yaxes(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666"))
     st.plotly_chart(fig_candle, use_container_width=True)
 
     # ── RSI + MACD Charts ──────────────────────────────────────────────────────
@@ -458,12 +460,12 @@ if run_btn:
         name="Histogram", marker_color=hist_colors, opacity=0.7
     ), row=2, col=1)
 
-    fig_tech.update_layout(
-        **PLOTLY_LAYOUT,
-        height=450,
-        yaxis=dict(range=[0, 100], gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666")),
-        yaxis2=dict(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666")),
-    )
+    # Build layout dict without xaxis/yaxis keys (handled separately for subplots)
+    subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis', 'yaxis')}
+    fig_tech.update_layout(**subplot_layout, height=450)
+    fig_tech.update_xaxes(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666"))
+    fig_tech.update_yaxes(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666"))
+    fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
     st.plotly_chart(fig_tech, use_container_width=True)
 
     # ── XGBoost Model ─────────────────────────────────────────────────────────
