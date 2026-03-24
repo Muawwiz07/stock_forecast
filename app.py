@@ -11,7 +11,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ── Page config ────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide")
+st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide",
+                   initial_sidebar_state="expanded")
 
 # ── Bloomberg-style CSS ────────────────────────────────────────────────────────
 st.markdown("""
