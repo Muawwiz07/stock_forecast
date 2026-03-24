@@ -408,7 +408,12 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### ⚙ PARAMETERS")
     st.markdown('<div class="stat-row">Equity Symbol</div>', unsafe_allow_html=True)
-    ticker = st.text_input("", value="AAPL", label_visibility="collapsed").upper()
+    ticker_raw = st.text_input("", value="AAPL", label_visibility="collapsed",
+                               placeholder="e.g. AAPL, TSLA, MSFT")
+    ticker = ticker_raw.strip().upper()
+    # Validate: only allow standard ticker characters (letters, digits, dot, hyphen)
+    import re as _re
+    _ticker_valid = bool(ticker) and bool(_re.match(r'^[A-Z0-9.\-]{1,10}$', ticker))
 
     col1, col2 = st.columns(2)
     with col1:
@@ -473,10 +478,19 @@ C_GREY   = "#4a5a6a"
 # ── Helpers ────────────────────────────────────────────────────────────────────
 @st.cache_data
 def fetch_data(ticker, start, end):
-    df = yf.download(ticker, start=str(start), end=str(end), progress=False, auto_adjust=True)
-    # Flatten MultiIndex columns produced by newer yfinance versions (e.g. ('Close', 'AAPL') → 'Close')
+    try:
+        df = yf.download(ticker, start=str(start), end=str(end), progress=False, auto_adjust=True)
+    except Exception:
+        return pd.DataFrame()
+    # Flatten MultiIndex columns produced by newer yfinance versions
+    # e.g. ('Close', 'AAPL') → 'Close'
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
+    # Drop duplicate column names that can appear with multi-ticker downloads
+    df = df.loc[:, ~df.columns.duplicated()]
+    # Treat a DataFrame where the Close column is entirely NaN as empty
+    if df.empty or ('Close' not in df.columns) or df['Close'].isna().all():
+        return pd.DataFrame()
     return df
 
 def compute_rsi(series, period=14):
@@ -736,11 +750,20 @@ def check_shariah_compliance(ticker_sym, data):
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 if run_btn:
+    if not _ticker_valid:
+        st.error(f"⚠ '{ticker_raw.strip()}' is not a valid ticker symbol. "
+                 "Please enter a valid NYSE/NASDAQ symbol (e.g. AAPL, TSLA, MSFT).")
+        st.stop()
+
     with st.spinner(f"Fetching {ticker} data..."):
         df = fetch_data(ticker, start_date, end_date)
 
     if df.empty:
-        st.error(f"No data found for '{ticker}'. Please check the symbol.")
+        st.error(
+            f"⚠ No data found for **'{ticker}'**. "
+            "The ticker may be delisted, misspelled, or not available on Yahoo Finance. "
+            "Try a well-known symbol such as AAPL, TSLA, MSFT, GOOGL, or AMZN."
+        )
         st.stop()
 
     st.success(f"✓ {len(df)} trading days loaded for {ticker}")
