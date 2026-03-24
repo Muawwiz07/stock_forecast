@@ -1397,7 +1397,7 @@ else:
         <div style="text-align:center;margin-bottom:2.5rem;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
                  letter-spacing:.25em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.6rem;">
-                Institutional-grade analysis &amp; Free &amp; open
+                Institutional-grade analysis · Free & open
             </div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
                  color:#e8edf2;letter-spacing:.06em;line-height:1.2;">
