@@ -404,11 +404,59 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ── Ticker Search Helper ───────────────────────────────────────────────────────
+@st.cache_data(ttl=3600)
+def search_tickers(query):
+    """Search for tickers by company name or symbol using yfinance."""
+    try:
+        results = yf.Search(query, max_results=8)
+        quotes = results.quotes
+        if not quotes:
+            return []
+        options = []
+        for q in quotes:
+            symbol = q.get("symbol", "")
+            name   = q.get("longname") or q.get("shortname") or symbol
+            exch   = q.get("exchange", "")
+            qtype  = q.get("quoteType", "")
+            if symbol and qtype in ("EQUITY", "ETF", "INDEX"):
+                options.append(f"{symbol} — {name} ({exch})")
+        return options
+    except Exception:
+        return []
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙ PARAMETERS")
-    st.markdown('<div class="stat-row">Equity Symbol</div>', unsafe_allow_html=True)
-    ticker = st.text_input("", value="AAPL", label_visibility="collapsed").upper()
+
+    # ── Ticker Search ──────────────────────────────────────────────────────────
+    st.markdown('<div class="stat-row">🔍 Search Company / Ticker</div>', unsafe_allow_html=True)
+    search_query = st.text_input("Search", placeholder="e.g. Apple, Tesla, MSFT…",
+                                 label_visibility="collapsed")
+
+    ticker = "AAPL"   # default
+
+    if search_query and len(search_query.strip()) >= 1:
+        with st.spinner("Searching…"):
+            search_results = search_tickers(search_query.strip())
+
+        if search_results:
+            selected = st.selectbox("Select a result", search_results,
+                                    label_visibility="collapsed")
+            ticker = selected.split(" — ")[0].strip()
+            st.markdown(
+                f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
+                f'border-left:3px solid #00d4a0;padding:.45rem 1rem;font-family:IBM Plex Mono,monospace;'
+                f'font-size:.72rem;color:#00d4a0;letter-spacing:.06em;margin-bottom:.4rem;">'
+                f'✓ SELECTED: <b>{ticker}</b></div>',
+                unsafe_allow_html=True)
+        else:
+            st.warning("No results found. Try a different name or enter a ticker directly below.")
+
+    st.markdown('<div class="stat-row">Or enter ticker directly</div>', unsafe_allow_html=True)
+    manual_ticker = st.text_input("Ticker", value=ticker, label_visibility="collapsed").strip().upper()
+    if manual_ticker:
+        ticker = manual_ticker
 
     col1, col2 = st.columns(2)
     with col1:
