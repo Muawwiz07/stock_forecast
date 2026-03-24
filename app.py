@@ -311,9 +311,14 @@ if run_btn:
     fig_rsi.add_hrect(y0=70, y1=100, fillcolor="rgba(255,51,51,0.05)", line_width=0)
     fig_rsi.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,204,68,0.05)",  line_width=0)
     fig_rsi.update_layout(
-        **PLOTLY_LAYOUT,
+        paper_bgcolor="#0a0a0a",
+        plot_bgcolor="#0f0f0f",
+        font=dict(family="IBM Plex Mono", color="#aaaaaa", size=11),
+        xaxis=dict(gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666")),
+        yaxis=dict(range=[0, 100], gridcolor="#1a1a1a", linecolor="#333", tickfont=dict(color="#666")),
+        legend=dict(bgcolor="#111", bordercolor="#333", borderwidth=1),
+        margin=dict(l=10, r=10, t=40, b=10),
         title=dict(text=f"{ticker} — RSI (14)", font=dict(color="#ff6600", size=13)),
-        yaxis=dict(range=[0, 100], gridcolor="#1a1a1a", linecolor="#333"),
         height=300,
     )
     st.plotly_chart(fig_rsi, use_container_width=True)
