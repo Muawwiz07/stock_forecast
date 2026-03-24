@@ -9,6 +9,17 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import warnings
 warnings.filterwarnings('ignore')
 
+def generate_signals(actual, predicted):
+    signals = []
+    for i in range(len(predicted)):
+        if predicted[i] > actual[i]:
+            signals.append("🟢 BUY")
+        elif predicted[i] < actual[i]:
+            signals.append("🔴 SELL")
+        else:
+            signals.append("⚪ HOLD")
+    return signals
+
 st.set_page_config(page_title="Stock Price Forecaster", page_icon="📈", layout="wide")
 
 st.title("📈 Stock Price Forecaster")
@@ -76,6 +87,23 @@ if run_btn:
     st.subheader("📉 Actual vs Predicted")
     chart_df = pd.DataFrame({"Actual": actual.flatten(), "Predicted": preds.flatten()})
     st.line_chart(chart_df)
+
+    # Buy/Sell Signals
+st.subheader("🚦 Buy/Sell Signals")
+
+signals = generate_signals(actual.flatten(), preds.flatten())
+
+# Show today's latest signal
+st.metric("Latest Signal", signals[-1])
+
+# Show signal table
+signal_df = pd.DataFrame({
+    "Day": range(1, len(signals) + 1),
+    "Actual Price ($)": [f"${p:.2f}" for p in actual.flatten()],
+    "Predicted Price ($)": [f"${p:.2f}" for p in preds.flatten()],
+    "Signal": signals
+})
+st.dataframe(signal_df.tail(10), use_container_width=True)
 
     # Future forecast
     st.subheader(f"🔮 Next {future_days} Days Forecast")
