@@ -3,6 +3,5 @@ pandas
 numpy
 matplotlib
 scikit-learn
-tensorflow-cpu
 streamlit
-keras
+tensorflow-cpu==2.13.0
