@@ -169,6 +169,20 @@ h2, h3 {
     font-size: 0.7rem;
     color: #888;
 }
+.bt-win  { color: #00cc44 !important; font-weight: 700; }
+.bt-loss { color: #ff3333 !important; font-weight: 700; }
+.bt-card {
+    background: #111;
+    border: 1px solid #222;
+    border-top: 2px solid #ff6600;
+    padding: 1.2rem 1.5rem;
+    margin-bottom: 0.5rem;
+    font-family: "IBM Plex Mono", monospace;
+}
+.bt-card-label { font-size: 0.65rem; color: #666; letter-spacing: 0.15em; text-transform: uppercase; }
+.bt-card-value { font-size: 1.6rem; font-weight: 700; color: #ff6600; }
+.bt-card-value-green { font-size: 1.6rem; font-weight: 700; color: #00cc44; }
+.bt-card-value-red   { font-size: 1.6rem; font-weight: 700; color: #ff3333; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -208,6 +222,13 @@ with st.sidebar:
     st.markdown('<div class="stat-row">Price Alert Target ($)</div>', unsafe_allow_html=True)
     alert_price = st.number_input("", min_value=0.0, value=0.0, step=1.0, label_visibility="collapsed")
 
+    st.markdown("---")
+    st.markdown('<div class="stat-row">Backtesting</div>', unsafe_allow_html=True)
+    run_backtest = st.checkbox("Enable Backtesting Engine", value=True)
+    bt_initial_capital = st.number_input("Initial Capital ($)", min_value=1000, value=10000, step=1000)
+    bt_commission = st.number_input("Commission per Trade ($)", min_value=0.0, value=1.0, step=0.5)
+    bt_signal_threshold = st.slider("Signal Threshold (%)", min_value=0.5, max_value=5.0, value=1.0, step=0.5,
+        help="Min predicted % move to trigger BUY/SELL")
     st.markdown("---")
     run_btn = st.button("▶ RUN FORECAST", use_container_width=True)
 
@@ -337,6 +358,113 @@ def generate_forward_signal(last_close, forecast_price):
         return "SELL", diff_pct
     else:
         return "HOLD", diff_pct
+
+def run_backtest_engine(actual_prices, predicted_prices, initial_capital, commission, threshold_pct):
+    """
+    Vectorised backtest: simulate trading on XGBoost signals over the test set.
+    Returns a dict of performance stats + a trades DataFrame + equity curve.
+    """
+    capital     = float(initial_capital)
+    position    = 0        # shares held
+    entry_price = 0.0
+    trades      = []
+    equity      = []
+
+    for i in range(len(predicted_prices) - 1):
+        price_now  = float(actual_prices[i])
+        price_next = float(actual_prices[i + 1])
+        pred_next  = float(predicted_prices[i])
+
+        diff_pct = (pred_next - price_now) / price_now * 100
+
+        # Current equity snapshot
+        mark_to_market = capital + position * price_now
+        equity.append(mark_to_market)
+
+        # ── BUY signal ────────────────────────────────────────────────────────
+        if diff_pct > threshold_pct and position == 0:
+            shares = int((capital - commission) / price_now)
+            if shares > 0:
+                cost = shares * price_now + commission
+                capital -= cost
+                position = shares
+                entry_price = price_now
+                trades.append({"Day": i, "Type": "BUY",  "Price": price_now,
+                               "Shares": shares, "Capital": capital})
+
+        # ── SELL signal ───────────────────────────────────────────────────────
+        elif diff_pct < -threshold_pct and position > 0:
+            proceeds = position * price_now - commission
+            pnl      = proceeds - (entry_price * position + commission)
+            capital += proceeds
+            trades.append({"Day": i, "Type": "SELL", "Price": price_now,
+                           "Shares": position, "P&L": pnl, "Capital": capital})
+            position    = 0
+            entry_price = 0.0
+
+    # Close any open position at end
+    if position > 0:
+        final_price = float(actual_prices[-1])
+        proceeds    = position * final_price - commission
+        pnl         = proceeds - (entry_price * position + commission)
+        capital    += proceeds
+        trades.append({"Day": len(actual_prices)-1, "Type": "SELL (EOD)",
+                       "Price": final_price, "Shares": position,
+                       "P&L": pnl, "Capital": capital})
+        position = 0
+
+    equity.append(capital)
+
+    # ── Buy-and-Hold benchmark ────────────────────────────────────────────────
+    bh_shares = int((initial_capital - commission) / float(actual_prices[0]))
+    bh_final  = bh_shares * float(actual_prices[-1]) - commission
+    bh_return = (bh_final - initial_capital) / initial_capital * 100
+
+    # ── Strategy metrics ──────────────────────────────────────────────────────
+    strat_return = (capital - initial_capital) / initial_capital * 100
+
+    equity_series = pd.Series(equity)
+    drawdown      = equity_series / equity_series.cummax() - 1
+    max_drawdown  = float(drawdown.min() * 100)
+
+    daily_returns = equity_series.pct_change().dropna()
+    sharpe = (daily_returns.mean() / daily_returns.std() * np.sqrt(252)
+              if daily_returns.std() > 0 else 0.0)
+
+    trades_df = pd.DataFrame(trades)
+    if not trades_df.empty and "P&L" in trades_df.columns:
+        closed = trades_df[trades_df["Type"].str.contains("SELL")]
+        win_trades  = (closed["P&L"] > 0).sum()
+        loss_trades = (closed["P&L"] <= 0).sum()
+        win_rate    = win_trades / len(closed) * 100 if len(closed) > 0 else 0.0
+        avg_win     = closed[closed["P&L"] > 0]["P&L"].mean() if win_trades > 0 else 0.0
+        avg_loss    = closed[closed["P&L"] <= 0]["P&L"].mean() if loss_trades > 0 else 0.0
+        profit_factor = abs(avg_win / avg_loss) if avg_loss != 0 else float("inf")
+        total_trades  = len(closed)
+    else:
+        win_rate = avg_win = avg_loss = profit_factor = 0.0
+        total_trades = 0
+
+    # Buy-and-hold equity curve
+    bh_equity = [initial_capital * (float(actual_prices[i]) / float(actual_prices[0]))
+                 for i in range(len(actual_prices))]
+
+    return {
+        "final_capital":  capital,
+        "strat_return":   strat_return,
+        "bh_return":      bh_return,
+        "max_drawdown":   max_drawdown,
+        "sharpe":         sharpe,
+        "win_rate":       win_rate,
+        "total_trades":   total_trades,
+        "avg_win":        avg_win,
+        "avg_loss":       avg_loss,
+        "profit_factor":  profit_factor,
+        "equity_curve":   equity,
+        "bh_equity":      bh_equity,
+        "trades_df":      trades_df,
+        "drawdown_series": drawdown.tolist(),
+    }
 
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="#0a0a0a",
@@ -673,6 +801,121 @@ if run_btn:
         "vs Last Close": [f"{'▲' if p > last_close else '▼'} {abs(p - last_close):.2f} ({(p-last_close)/last_close*100:+.2f}%)" for p in future_prices]
     })
     st.dataframe(future_df, use_container_width=True, hide_index=True)
+
+    # ── Backtesting Engine ────────────────────────────────────────────────────
+    if run_backtest:
+        st.subheader("⚡ BACKTESTING ENGINE")
+        st.markdown(f'<div class="model-badge">📊 STRATEGY: XGBoost Signal ±{bt_signal_threshold}% | Capital: ${bt_initial_capital:,.0f} | Commission: ${bt_commission}/trade</div>', unsafe_allow_html=True)
+
+        with st.spinner("Running backtest simulation..."):
+            bt = run_backtest_engine(
+                actual_prices      = actual,
+                predicted_prices   = preds,
+                initial_capital    = bt_initial_capital,
+                commission         = bt_commission,
+                threshold_pct      = bt_signal_threshold,
+            )
+
+        # ── KPI Cards ─────────────────────────────────────────────────────────
+        strat_color = "bt-card-value-green" if bt["strat_return"] >= 0 else "bt-card-value-red"
+        bh_color    = "bt-card-value-green" if bt["bh_return"]    >= 0 else "bt-card-value-red"
+        dd_color    = "bt-card-value-red"   if bt["max_drawdown"] < -10 else "bt-card-value"
+        sh_color    = "bt-card-value-green" if bt["sharpe"]       >= 1  else "bt-card-value-red"
+
+        k1, k2, k3, k4 = st.columns(4)
+        k1.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Strategy Return</div>
+            <div class="{strat_color}">{bt["strat_return"]:+.2f}%</div>
+        </div>''', unsafe_allow_html=True)
+        k2.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Buy &amp; Hold Return</div>
+            <div class="{bh_color}">{bt["bh_return"]:+.2f}%</div>
+        </div>''', unsafe_allow_html=True)
+        k3.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Max Drawdown</div>
+            <div class="{dd_color}">{bt["max_drawdown"]:.2f}%</div>
+        </div>''', unsafe_allow_html=True)
+        k4.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Sharpe Ratio</div>
+            <div class="{sh_color}">{bt["sharpe"]:.2f}</div>
+        </div>''', unsafe_allow_html=True)
+
+        k5, k6, k7, k8 = st.columns(4)
+        k5.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Final Capital</div>
+            <div class="bt-card-value">${bt["final_capital"]:,.0f}</div>
+        </div>''', unsafe_allow_html=True)
+        k6.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Total Trades</div>
+            <div class="bt-card-value">{bt["total_trades"]}</div>
+        </div>''', unsafe_allow_html=True)
+        k7.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Win Rate</div>
+            <div class="bt-card-value">{bt["win_rate"]:.1f}%</div>
+        </div>''', unsafe_allow_html=True)
+        k8.markdown(f'''<div class="bt-card">
+            <div class="bt-card-label">Profit Factor</div>
+            <div class="bt-card-value">{bt["profit_factor"]:.2f}x</div>
+        </div>''', unsafe_allow_html=True)
+
+        # ── Equity Curve vs Buy & Hold ─────────────────────────────────────────
+        fig_eq = go.Figure()
+        fig_eq.add_trace(go.Scatter(
+            y=bt["equity_curve"], name="XGBoost Strategy",
+            line=dict(color="#ff6600", width=2),
+            fill="tozeroy", fillcolor="rgba(255,102,0,0.05)"
+        ))
+        fig_eq.add_trace(go.Scatter(
+            y=bt["bh_equity"], name="Buy & Hold",
+            line=dict(color="#00aaff", width=1.5, dash="dot")
+        ))
+        fig_eq.add_hline(y=bt_initial_capital, line_dash="dash",
+                         line_color="#333",
+                         annotation_text=f"Start ${bt_initial_capital:,}",
+                         annotation_font_color="#555")
+        fig_eq.update_layout(
+            **PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} — Strategy Equity Curve vs Buy & Hold",
+                       font=dict(color="#ff6600", size=13)),
+            yaxis_title="Portfolio Value ($)",
+            xaxis_title="Trading Day (test set)",
+            height=380,
+        )
+        st.plotly_chart(fig_eq, use_container_width=True)
+
+        # ── Drawdown Chart ─────────────────────────────────────────────────────
+        fig_dd = go.Figure()
+        fig_dd.add_trace(go.Scatter(
+            y=[d * 100 for d in bt["drawdown_series"]],
+            name="Drawdown",
+            line=dict(color="#ff3333", width=1.5),
+            fill="tozeroy", fillcolor="rgba(255,51,51,0.08)"
+        ))
+        fig_dd.update_layout(
+            **PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} — Strategy Drawdown (%)",
+                       font=dict(color="#ff6600", size=13)),
+            yaxis_title="Drawdown (%)",
+            xaxis_title="Trading Day (test set)",
+            height=250,
+        )
+        st.plotly_chart(fig_dd, use_container_width=True)
+
+        # ── Trade Log ─────────────────────────────────────────────────────────
+        if not bt["trades_df"].empty:
+            st.markdown("#### TRADE LOG")
+            display_trades = bt["trades_df"].copy()
+            display_trades["Price"]   = display_trades["Price"].apply(lambda x: f"${x:.2f}")
+            display_trades["Capital"] = display_trades["Capital"].apply(lambda x: f"${x:,.0f}")
+            if "P&L" in display_trades.columns:
+                display_trades["P&L"] = display_trades["P&L"].apply(
+                    lambda x: f"+${x:.2f}" if pd.notna(x) and x >= 0 else (f"-${abs(x):.2f}" if pd.notna(x) else "-")
+                )
+            st.dataframe(display_trades, use_container_width=True, hide_index=True)
+
+            csv_bt = bt["trades_df"].to_csv(index=False).encode("utf-8")
+            st.download_button("⬇ Download Trade Log", data=csv_bt,
+                               file_name=f"{ticker}_trades.csv", mime="text/csv")
 
     # ── Download CSV Report ────────────────────────────────────────────────────
     st.subheader("DOWNLOAD REPORT")
