@@ -193,8 +193,8 @@ label, [data-testid="stSelectbox"] label,
 ::-webkit-scrollbar-thumb:hover { background: var(--t3); }
 
 /* ── HIDE STREAMLIT CHROME ── */
-#MainMenu, footer, header { visibility: hidden !important; }
-[data-testid="stToolbar"] { display: none !important; }
+footer { visibility: hidden !important; }
+/* Keep header and sidebar toggle visible */
 
 /* ── CUSTOM COMPONENTS ── */
 
@@ -837,6 +837,41 @@ def check_shariah_compliance(ticker_sym, data):
     return r
 
 # ── Main ───────────────────────────────────────────────────────────────────────
+# Top-bar ticker input — always visible even if sidebar is collapsed
+st.markdown("""
+<div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid #00d4a0;
+     padding:.7rem 1.4rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+  <span style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
+        text-transform:uppercase;color:#4a5a6a;white-space:nowrap;">📌 Active Ticker:</span>
+</div>
+""", unsafe_allow_html=True)
+
+top_col1, top_col2, top_col3 = st.columns([2, 1, 1])
+with top_col1:
+    top_ticker = st.text_input(
+        "Enter ticker symbol",
+        value=ticker,
+        placeholder="e.g. AAPL, TSLA, MSFT, 2222.SR",
+        help="Type any NYSE / NASDAQ / international ticker symbol",
+        label_visibility="collapsed",
+        key="top_ticker_input"
+    ).strip().upper()
+    if top_ticker:
+        ticker = top_ticker
+with top_col2:
+    st.markdown(
+        f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
+        f'border-left:3px solid #00d4a0;padding:.52rem 1rem;font-family:IBM Plex Mono,monospace;'
+        f'font-size:.8rem;font-weight:700;color:#00d4a0;letter-spacing:.08em;">'
+        f'● {ticker}</div>',
+        unsafe_allow_html=True)
+with top_col3:
+    run_btn_top = st.button("▶ RUN FORECAST", key="run_btn_top", use_container_width=True)
+
+# Either top button or sidebar button triggers the run
+if run_btn_top:
+    run_btn = True
+
 if run_btn:
     with st.spinner(f"Fetching {ticker} data..."):
         df = fetch_data(ticker, start_date, end_date)
