@@ -5,4 +5,3 @@ yfinance
 scikit-learn
 xgboost
 prophet
-matplotlib
