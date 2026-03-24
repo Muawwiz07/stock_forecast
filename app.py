@@ -183,6 +183,11 @@ h2, h3 {
 .bt-card-value { font-size: 1.6rem; font-weight: 700; color: #ff6600; }
 .bt-card-value-green { font-size: 1.6rem; font-weight: 700; color: #00cc44; }
 .bt-card-value-red   { font-size: 1.6rem; font-weight: 700; color: #ff3333; }
+.halal-pass { color: #00cc44; font-weight: 700; }
+.halal-fail { color: #ff3333; font-weight: 700; }
+.halal-card { background:#0a1a0a; border:1px solid #1a3a1a; border-left:4px solid #00cc44; padding:1rem 1.5rem; margin:0.5rem 0; font-family:"IBM Plex Mono",monospace; font-size:0.85rem; }
+.halal-card-fail { background:#1a0a0a; border:1px solid #3a1a1a; border-left:4px solid #ff3333; padding:1rem 1.5rem; margin:0.5rem 0; font-family:"IBM Plex Mono",monospace; font-size:0.85rem; }
+.ci-badge { background:#001a33; border:1px solid #0055aa; color:#4499ff; font-family:"IBM Plex Mono",monospace; font-size:0.75rem; font-weight:700; padding:0.3rem 1rem; letter-spacing:0.1em; text-transform:uppercase; display:inline-block; margin-bottom:0.8rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -229,6 +234,12 @@ with st.sidebar:
     bt_commission = st.number_input("Commission per Trade ($)", min_value=0.0, value=1.0, step=0.5)
     bt_signal_threshold = st.slider("Signal Threshold (%)", min_value=0.5, max_value=5.0, value=1.0, step=0.5,
         help="Min predicted % move to trigger BUY/SELL")
+    st.markdown("---")
+    st.markdown('<div class="stat-row">Extra Features</div>', unsafe_allow_html=True)
+    run_model_compare = st.checkbox("Model Comparison (XGB vs Prophet vs LR)", value=False)
+    run_halal_check   = st.checkbox("Halal / Shariah Compliance Check", value=True)
+    show_conf_interval = st.checkbox("Confidence Intervals on Forecast", value=True)
+    ci_bootstrap_n = st.slider("Bootstrap Samples (CI)", 50, 300, 100, step=50) if show_conf_interval else 100
     st.markdown("---")
     run_btn = st.button("▶ RUN FORECAST", use_container_width=True)
 
@@ -465,6 +476,94 @@ def run_backtest_engine(actual_prices, predicted_prices, initial_capital, commis
         "trades_df":      trades_df,
         "drawdown_series": drawdown.tolist(),
     }
+
+
+# ── Confidence Interval via Bootstrap ─────────────────────────────────────────
+def bootstrap_confidence_intervals(model, X_input, n_bootstrap=100, noise_std=0.02):
+    all_preds = []
+    for _ in range(n_bootstrap):
+        noise = np.random.normal(0, noise_std, X_input.shape)
+        all_preds.append(model.predict(X_input + noise))
+    all_preds = np.array(all_preds)
+    return (np.percentile(all_preds, 5, axis=0),
+            np.percentile(all_preds, 50, axis=0),
+            np.percentile(all_preds, 95, axis=0))
+
+# ── Shariah Compliance ─────────────────────────────────────────────────────────
+HARAM_TICKERS = {
+    "BUD","STZ","SAM","BREW","ABEV","DEO","BF-B",     # Alcohol
+    "MO","PM","BTI","LO","VGR",                        # Tobacco
+    "LVS","MGM","WYNN","CZR","PENN","DKNG","BYD",     # Gambling
+    "JPM","BAC","WFC","C","GS","MS","AXP",             # Conv. Banks
+    "MET","PRU","AIG","ALL","TRV","CB",                # Conv. Insurance
+    "HRL","TSN","SFD","CAG",                           # Pork
+    "LMT","RTX","NOC","GD","HII",                      # Primary weapons
+}
+QUESTIONABLE_TICKERS = {
+    "DIS","NFLX","PARA","WBD","FOXA","SPOT",           # Media/Entertainment
+    "MAR","HLT","H","IHG","WH",                        # Hotels
+    "V","MA","AXP","COF","USB","PNC",                  # Payment/Finance adjacent
+}
+HARAM_SECTORS_KW = ["bank","insurance","casino","gambling","alcohol","tobacco",
+                     "brewing","distill","porn","adult","weapons","defense","firearm"]
+
+@st.cache_data
+def get_shariah_data(ticker_sym):
+    try:
+        info = yf.Ticker(ticker_sym).info
+        return {
+            "debt_to_mktcap":  (info.get("totalDebt",0) or 0) / max(info.get("marketCap",1) or 1, 1),
+            "debt_to_assets":  (info.get("totalDebt",0) or 0) / max(info.get("totalAssets",1) or 1, 1),
+            "cash_to_assets":  (info.get("totalCash",0) or 0) / max(info.get("totalAssets",1) or 1, 1),
+            "market_cap":      info.get("marketCap", 0) or 0,
+            "total_debt":      info.get("totalDebt", 0) or 0,
+            "total_assets":    info.get("totalAssets", 0) or 0,
+            "total_cash":      info.get("totalCash", 0) or 0,
+            "sector":          info.get("sector", "Unknown"),
+            "industry":        info.get("industry", "Unknown"),
+            "company_name":    info.get("longName", ticker_sym),
+        }
+    except:
+        return None
+
+def check_shariah_compliance(ticker_sym, data):
+    t = ticker_sym.upper()
+    ind_lower = data["industry"].lower()
+
+    haram_hit = None
+    if t in HARAM_TICKERS:
+        haram_hit = "Known non-compliant ticker"
+    else:
+        for kw in HARAM_SECTORS_KW:
+            if kw in ind_lower:
+                haram_hit = data["industry"]
+                break
+
+    questionable = t in QUESTIONABLE_TICKERS
+
+    d2mc = data["debt_to_mktcap"]
+    d2a  = data["debt_to_assets"]
+    c2a  = data["cash_to_assets"]
+
+    r = {
+        "business": {"pass": haram_hit is None, "haram_hit": haram_hit, "questionable": questionable},
+        "debt_mktcap": {"pass": d2mc < 0.30, "value": d2mc, "label": f"Debt/MarketCap = {d2mc*100:.1f}% (< 30%)"},
+        "debt_assets": {"pass": d2a  < 0.33, "value": d2a,  "label": f"Debt/Assets = {d2a*100:.1f}% (< 33%)"},
+        "cash_assets": {"pass": c2a  < 0.33, "value": c2a,  "label": f"Cash/Assets = {c2a*100:.1f}% (< 33%)"},
+    }
+
+    all_pass = r["business"]["pass"] and r["debt_mktcap"]["pass"] and r["debt_assets"]["pass"] and r["cash_assets"]["pass"]
+
+    if not r["business"]["pass"]:
+        r["verdict"] = "NON-COMPLIANT"
+    elif not all_pass:
+        r["verdict"] = "NON-COMPLIANT"
+    elif questionable:
+        r["verdict"] = "QUESTIONABLE"
+    else:
+        r["verdict"] = "COMPLIANT"
+
+    return r
 
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="#0a0a0a",
@@ -916,6 +1015,198 @@ if run_btn:
             csv_bt = bt["trades_df"].to_csv(index=False).encode("utf-8")
             st.download_button("⬇ Download Trade Log", data=csv_bt,
                                file_name=f"{ticker}_trades.csv", mime="text/csv")
+
+    # ══ CONFIDENCE INTERVALS ══════════════════════════════════════════════════
+    if show_conf_interval:
+        st.subheader("📊 FORECAST WITH CONFIDENCE INTERVALS")
+        st.markdown('<div class="ci-badge">95% CI — Bootstrap Resampling</div>', unsafe_allow_html=True)
+
+        with st.spinner(f"Running {ci_bootstrap_n} bootstrap samples..."):
+            ci_lower, ci_median, ci_upper = bootstrap_confidence_intervals(
+                model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
+
+        fig_ci = go.Figure()
+        fig_ci.add_trace(go.Scatter(y=ci_upper, name="95% Upper",
+            line=dict(color="rgba(255,102,0,0)", width=0), showlegend=False))
+        fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band",
+            fill="tonexty", fillcolor="rgba(255,102,0,0.15)",
+            line=dict(color="rgba(255,102,0,0)", width=0)))
+        fig_ci.add_trace(go.Scatter(y=actual, name="Actual",
+            line=dict(color="#00aaff", width=1.5)))
+        fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median",
+            line=dict(color="#ff6600", width=1.8, dash="dot")))
+        fig_ci.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} — Predictions with 95% CI",
+                font=dict(color="#ff6600", size=13)),
+            height=380, yaxis_title="Price ($)", xaxis_title="Trading Day (test set)")
+        st.plotly_chart(fig_ci, use_container_width=True)
+
+        # Future forecast CI
+        future_all = []
+        for _ in range(ci_bootstrap_n):
+            fp, lrf = [], X[-1].copy()
+            for d in range(future_days):
+                nxt = float(model.predict((lrf + np.random.normal(0, 0.015, lrf.shape)).reshape(1,-1))[0])
+                fp.append(nxt)
+                n_tech = len(feature_cols)
+                lrf = np.concatenate([lrf[:n_tech], np.append(lrf[n_tech+1:], nxt)])
+            future_all.append(fp)
+        fa = np.array(future_all)
+        fut_l, fut_m, fut_u = np.percentile(fa,5,axis=0), np.percentile(fa,50,axis=0), np.percentile(fa,95,axis=0)
+
+        fig_fci = go.Figure()
+        fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_u,
+            line=dict(color="rgba(255,102,0,0)"), showlegend=False))
+        fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_l,
+            name="95% CI", fill="tonexty", fillcolor="rgba(255,102,0,0.2)",
+            line=dict(color="rgba(255,102,0,0)")))
+        fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_m,
+            name="Forecast", mode="lines+markers",
+            line=dict(color="#ff6600", width=2), marker=dict(size=7)))
+        fig_fci.add_hline(y=last_close, line_dash="dash", line_color="#444",
+            annotation_text=f"Last close ${last_close:.2f}", annotation_font_color="#666")
+        fig_fci.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} — {future_days}-Day Forecast with 95% CI",
+                font=dict(color="#ff6600", size=13)),
+            xaxis_title="Days from today", yaxis_title="Price ($)", height=350)
+        st.plotly_chart(fig_fci, use_container_width=True)
+
+    # ══ MODEL COMPARISON ══════════════════════════════════════════════════════
+    if run_model_compare:
+        st.subheader("🔬 MODEL COMPARISON — XGBoost vs Prophet vs Linear Regression")
+        from sklearn.linear_model import LinearRegression as LR
+        cmp = {}
+        cmp["XGBoost"] = {"preds": preds, "color": "#ff6600",
+            "rmse": float(np.sqrt(mean_squared_error(actual, preds))),
+            "mae":  float(mean_absolute_error(actual, preds)),
+            "mape": float(np.mean(np.abs((actual-preds)/actual))*100),
+            "r2":   float(1 - np.sum((actual-preds)**2)/np.sum((actual-np.mean(actual))**2))}
+
+        with st.spinner("Training Linear Regression..."):
+            lr_m = LR(); lr_m.fit(X_train, y_train); lr_p = lr_m.predict(X_test)
+        cmp["Linear Regression"] = {"preds": lr_p, "color": "#888888",
+            "rmse": float(np.sqrt(mean_squared_error(actual, lr_p))),
+            "mae":  float(mean_absolute_error(actual, lr_p)),
+            "mape": float(np.mean(np.abs((actual-lr_p)/actual))*100),
+            "r2":   float(1 - np.sum((actual-lr_p)**2)/np.sum((actual-np.mean(actual))**2))}
+
+        try:
+            from prophet import Prophet
+            cs_full = df["Close"].squeeze()
+            pdf = pd.DataFrame({"ds": df.index[:len(cs_full)], "y": cs_full.values}).dropna()
+            ptr = pdf.iloc[:int(len(pdf)*0.8)]; pte = pdf.iloc[int(len(pdf)*0.8):]
+            with st.spinner("Training Prophet..."):
+                pm = Prophet(daily_seasonality=False, weekly_seasonality=True,
+                             yearly_seasonality=True, changepoint_prior_scale=0.05)
+                pm.fit(ptr)
+                pfut = pm.make_future_dataframe(periods=len(pte), freq="B")
+                pfcst = pm.predict(pfut)
+                pp = pfcst["yhat"].values[-len(pte):]
+                pa = pte["y"].values; ml = min(len(pp), len(actual))
+                pp, pa = pp[:ml], actual[:ml]
+            cmp["Prophet"] = {"preds": pp, "color": "#aa44ff",
+                "rmse": float(np.sqrt(mean_squared_error(pa, pp))),
+                "mae":  float(mean_absolute_error(pa, pp)),
+                "mape": float(np.mean(np.abs((pa-pp)/pa))*100),
+                "r2":   float(1 - np.sum((pa-pp)**2)/np.sum((pa-np.mean(pa))**2))}
+        except ImportError:
+            st.info("Add `prophet` to requirements.txt to enable Prophet comparison.")
+
+        rows = [{"Model": n, "RMSE ($)": f"${r['rmse']:.2f}", "MAE ($)": f"${r['mae']:.2f}",
+                 "MAPE (%)": f"{r['mape']:.2f}%", "R²": f"{r['r2']:.4f}"}
+                for n, r in cmp.items()]
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        fig_cmp = go.Figure()
+        fig_cmp.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color="#00aaff", width=2)))
+        for n, r in cmp.items():
+            fig_cmp.add_trace(go.Scatter(y=r["preds"], name=n,
+                line=dict(color=r["color"], width=1.5, dash="dot")))
+        fig_cmp.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} — Model Comparison (Test Set)",
+                font=dict(color="#ff6600", size=13)),
+            height=380, yaxis_title="Price ($)")
+        st.plotly_chart(fig_cmp, use_container_width=True)
+
+        names_l = list(cmp.keys()); rmse_l = [r["rmse"] for r in cmp.values()]
+        best = names_l[rmse_l.index(min(rmse_l))]
+        fig_b = go.Figure(go.Bar(x=names_l, y=rmse_l,
+            marker_color=[r["color"] for r in cmp.values()],
+            text=[f"${v:.2f}" for v in rmse_l], textposition="outside"))
+        fig_b.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text=f"RMSE Comparison — Lower is Better  |  Best: {best}",
+                font=dict(color="#ff6600", size=13)),
+            yaxis_title="RMSE ($)", height=300)
+        st.plotly_chart(fig_b, use_container_width=True)
+
+    # ══ HALAL / SHARIAH COMPLIANCE ════════════════════════════════════════════
+    if run_halal_check:
+        st.subheader("☪️ HALAL / SHARIAH COMPLIANCE CHECK")
+        st.markdown(
+            '<div class="model-badge">Based on AAOIFI Standard No.21 + S&P Shariah Indices Methodology</div>',
+            unsafe_allow_html=True)
+
+        with st.spinner(f"Fetching financial data for {ticker}..."):
+            sd = get_shariah_data(ticker)
+
+        if sd is None:
+            st.error("Could not fetch company data. Check the ticker symbol.")
+        else:
+            cr = check_shariah_compliance(ticker, sd)
+            verdict = cr["verdict"]
+            v_color = {"COMPLIANT":"#00cc44","NON-COMPLIANT":"#ff3333","QUESTIONABLE":"#ffaa00"}[verdict]
+            v_bg    = {"COMPLIANT":"#001a00","NON-COMPLIANT":"#1a0000","QUESTIONABLE":"#1a1000"}[verdict]
+            v_icon  = {"COMPLIANT":"\u2705","NON-COMPLIANT":"\u274c","QUESTIONABLE":"\u26a0\ufe0f"}[verdict]
+
+            st.markdown(
+                f'<div style="background:{v_bg};border:2px solid {v_color};padding:1.2rem 2rem;' +
+                f'margin:1rem 0;text-align:center;">' +
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.7rem;color:#888;letter-spacing:.15em;text-transform:uppercase;">' +
+                f'{sd["company_name"]} ({ticker})</div>' +
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:2rem;font-weight:700;color:{v_color};margin-top:.4rem;">' +
+                f'{v_icon}&nbsp;{verdict}</div>' +
+                f'<div style="font-size:.8rem;color:#888;margin-top:.3rem;">Sector: {sd["sector"]} | Industry: {sd["industry"]}</div>' +
+                '</div>',
+                unsafe_allow_html=True)
+
+            st.markdown("#### SCREENING CRITERIA BREAKDOWN")
+            cl, cr2 = st.columns(2)
+
+            with cl:
+                bs = cr["business"]
+                if bs["haram_hit"]:
+                    st.markdown(f'<div class="halal-card-fail"><b>\u274c Business Activity</b><br>Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
+                elif bs["questionable"]:
+                    st.markdown('<div class="halal-card" style="border-left-color:#ffaa00"><b>\u26a0\ufe0f Business Activity</b><br>Questionable sector — consult a scholar</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="halal-card"><b>\u2705 Business Activity</b><br>No Haram core business detected<br><small style="color:#888">Sector: {bs["sector"] if "sector" in bs else sd["sector"]}</small></div>', unsafe_allow_html=True)
+
+                dm = cr["debt_mktcap"]
+                cc = "halal-card" if dm["pass"] else "halal-card-fail"
+                st.markdown(f'<div class="{cc}"><b>{"\u2705" if dm["pass"] else "\u274c"} Debt / Market Cap</b><br>{dm["label"]}</div>', unsafe_allow_html=True)
+
+            with cr2:
+                da = cr["debt_assets"]
+                cc = "halal-card" if da["pass"] else "halal-card-fail"
+                st.markdown(f'<div class="{cc}"><b>{"\u2705" if da["pass"] else "\u274c"} Debt / Total Assets</b><br>{da["label"]}</div>', unsafe_allow_html=True)
+
+                ca = cr["cash_assets"]
+                cc = "halal-card" if ca["pass"] else "halal-card-fail"
+                st.markdown(f'<div class="{cc}"><b>{"\u2705" if ca["pass"] else "\u274c"} Cash / Total Assets</b><br>{ca["label"]}</div>', unsafe_allow_html=True)
+
+            st.markdown("#### FINANCIAL SNAPSHOT")
+            f1,f2,f3,f4 = st.columns(4)
+            f1.metric("Market Cap",   f'${sd["market_cap"]/1e9:.2f}B')
+            f2.metric("Total Debt",   f'${sd["total_debt"]/1e9:.2f}B')
+            f3.metric("Total Assets", f'${sd["total_assets"]/1e9:.2f}B')
+            f4.metric("Cash",         f'${sd["total_cash"]/1e9:.2f}B')
+
+            st.markdown(
+                '<div style="background:#111;border:1px solid #222;padding:.8rem 1.2rem;' +
+                'font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#555;margin-top:1rem;">' +
+                '\u26a0 DISCLAIMER: Automated screen based on AAOIFI Standard No.21. ' +
+                'Does not constitute a fatwa. Consult a qualified Islamic finance scholar for binding rulings.</div>',
+                unsafe_allow_html=True)
 
     # ── Download CSV Report ────────────────────────────────────────────────────
     st.subheader("DOWNLOAD REPORT")
