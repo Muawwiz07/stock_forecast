@@ -789,95 +789,62 @@ HARAM_SECTORS_KW = ["bank","insurance","casino","gambling","alcohol","tobacco",
 def get_shariah_data(ticker_sym):
     """Fetch financial data for Shariah screening with multiple fallback strategies."""
     t = yf.Ticker(ticker_sym)
-
-    # ── Step 1: Get info dict (sector, industry, name, marketCap) ──────────────
     info = {}
+
+    # Strategy 1: try .info (may fail or return empty in newer yfinance)
     try:
         raw = t.info
-        if raw and len(raw) > 5:
+        if raw and len(raw) > 5:  # valid response has many keys
             info = raw
     except Exception:
         pass
 
+    # Strategy 2: fall back to fast_info for market cap at least
+    if not info:
+        try:
+            fi = t.fast_info
+            info = {
+                "marketCap":   getattr(fi, "market_cap", 0) or 0,
+                "sector":      "Unknown",
+                "industry":    "Unknown",
+                "longName":    ticker_sym,
+                "totalDebt":   0,
+                "totalAssets": 0,
+                "totalCash":   0,
+            }
+        except Exception:
+            pass
+
+    # Strategy 3: try get_info() method (some yfinance versions)
     if not info:
         try:
             info = t.get_info()
         except Exception:
             pass
 
-    # ── Step 2: Market cap from fast_info if missing ───────────────────────────
-    market_cap = (info.get("marketCap") or 0)
-    if not market_cap:
-        try:
-            fi = t.fast_info
-            market_cap = getattr(fi, "market_cap", 0) or 0
-        except Exception:
-            market_cap = 0
+    if not info:
+        return None
 
-    # ── Step 3: Balance sheet for debt / assets / cash ────────────────────────
-    total_debt   = info.get("totalDebt",   0) or 0
-    total_assets = info.get("totalAssets", 0) or 0
-    total_cash   = info.get("totalCash",   0) or 0
+    def _safe(key, default=0):
+        v = info.get(key, default)
+        return v if v is not None else default
 
-    # If still zero, try balance_sheet directly
-    if total_debt == 0 or total_assets == 0:
-        try:
-            bs = t.balance_sheet
-            if bs is not None and not bs.empty:
-                def _bs(keys):
-                    for k in keys:
-                        matches = [c for c in bs.index if k.lower() in c.lower()]
-                        if matches:
-                            val = bs.loc[matches[0]].dropna()
-                            if not val.empty:
-                                return float(val.iloc[0])
-                    return 0.0
-                if total_assets == 0:
-                    total_assets = _bs(["Total Assets", "TotalAssets"])
-                if total_debt == 0:
-                    total_debt   = _bs(["Total Debt", "TotalDebt", "Long Term Debt"])
-                if total_cash == 0:
-                    total_cash   = _bs(["Cash And Cash Equivalents", "Cash", "Total Cash"])
-        except Exception:
-            pass
-
-    # If still zero try quarterly balance sheet
-    if total_debt == 0 or total_assets == 0:
-        try:
-            bs = t.quarterly_balance_sheet
-            if bs is not None and not bs.empty:
-                def _bs2(keys):
-                    for k in keys:
-                        matches = [c for c in bs.index if k.lower() in c.lower()]
-                        if matches:
-                            val = bs.loc[matches[0]].dropna()
-                            if not val.empty:
-                                return float(val.iloc[0])
-                    return 0.0
-                if total_assets == 0:
-                    total_assets = _bs2(["Total Assets", "TotalAssets"])
-                if total_debt == 0:
-                    total_debt   = _bs2(["Total Debt", "TotalDebt", "Long Term Debt"])
-                if total_cash == 0:
-                    total_cash   = _bs2(["Cash And Cash Equivalents", "Cash"])
-        except Exception:
-            pass
-
-    # ── Step 4: Assemble result ────────────────────────────────────────────────
-    mc  = market_cap   or 1
-    ta  = total_assets or 1
+    market_cap   = _safe("marketCap",   1) or 1
+    total_debt   = _safe("totalDebt",   0)
+    total_assets = _safe("totalAssets", 1) or 1
+    total_cash   = _safe("totalCash",   0)
 
     return {
-        "debt_to_mktcap":  total_debt / mc,
-        "debt_to_assets":  total_debt / ta,
-        "cash_to_assets":  total_cash / ta,
+        "debt_to_mktcap":  total_debt   / market_cap,
+        "debt_to_assets":  total_debt   / total_assets,
+        "cash_to_assets":  total_cash   / total_assets,
         "market_cap":      market_cap,
         "total_debt":      total_debt,
         "total_assets":    total_assets,
         "total_cash":      total_cash,
-        "sector":          info.get("sector",   "Unknown") or "Unknown",
-        "industry":        info.get("industry", "Unknown") or "Unknown",
-        "company_name":    info.get("longName", ticker_sym) or ticker_sym,
+        "sector":          _safe("sector",   "Unknown"),
+        "industry":        _safe("industry", "Unknown"),
+        "company_name":    _safe("longName", ticker_sym),
     }
 
 def check_shariah_compliance(ticker_sym, data):
