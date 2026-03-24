@@ -4,4 +4,3 @@ numpy
 matplotlib
 scikit-learn
 streamlit
-tensorflow-cpu==2.13.0
