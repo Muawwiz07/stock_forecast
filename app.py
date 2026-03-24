@@ -89,21 +89,16 @@ if run_btn:
     st.line_chart(chart_df)
 
     # Buy/Sell Signals
-st.subheader("🚦 Buy/Sell Signals")
-
-signals = generate_signals(actual.flatten(), preds.flatten())
-
-# Show today's latest signal
-st.metric("Latest Signal", signals[-1])
-
-# Show signal table
-signal_df = pd.DataFrame({
-    "Day": range(1, len(signals) + 1),
-    "Actual Price ($)": [f"${p:.2f}" for p in actual.flatten()],
-    "Predicted Price ($)": [f"${p:.2f}" for p in preds.flatten()],
-    "Signal": signals
-})
-st.dataframe(signal_df.tail(10), use_container_width=True)
+    st.subheader("🚦 Buy/Sell Signals")
+    signals = generate_signals(actual.flatten(), preds.flatten())
+    st.metric("Latest Signal", signals[-1])
+    signal_df = pd.DataFrame({
+        "Day": range(1, len(signals) + 1),
+        "Actual Price ($)": [f"${p:.2f}" for p in actual.flatten()],
+        "Predicted Price ($)": [f"${p:.2f}" for p in preds.flatten()],
+        "Signal": signals
+    })
+    st.dataframe(signal_df.tail(10), use_container_width=True)
 
     # Future forecast
     st.subheader(f"🔮 Next {future_days} Days Forecast")
