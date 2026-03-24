@@ -787,22 +787,65 @@ HARAM_SECTORS_KW = ["bank","insurance","casino","gambling","alcohol","tobacco",
 
 @st.cache_data
 def get_shariah_data(ticker_sym):
+    """Fetch financial data for Shariah screening with multiple fallback strategies."""
+    t = yf.Ticker(ticker_sym)
+    info = {}
+
+    # Strategy 1: try .info (may fail or return empty in newer yfinance)
     try:
-        info = yf.Ticker(ticker_sym).info
-        return {
-            "debt_to_mktcap":  (info.get("totalDebt",0) or 0) / max(info.get("marketCap",1) or 1, 1),
-            "debt_to_assets":  (info.get("totalDebt",0) or 0) / max(info.get("totalAssets",1) or 1, 1),
-            "cash_to_assets":  (info.get("totalCash",0) or 0) / max(info.get("totalAssets",1) or 1, 1),
-            "market_cap":      info.get("marketCap", 0) or 0,
-            "total_debt":      info.get("totalDebt", 0) or 0,
-            "total_assets":    info.get("totalAssets", 0) or 0,
-            "total_cash":      info.get("totalCash", 0) or 0,
-            "sector":          info.get("sector", "Unknown"),
-            "industry":        info.get("industry", "Unknown"),
-            "company_name":    info.get("longName", ticker_sym),
-        }
-    except:
+        raw = t.info
+        if raw and len(raw) > 5:  # valid response has many keys
+            info = raw
+    except Exception:
+        pass
+
+    # Strategy 2: fall back to fast_info for market cap at least
+    if not info:
+        try:
+            fi = t.fast_info
+            info = {
+                "marketCap":   getattr(fi, "market_cap", 0) or 0,
+                "sector":      "Unknown",
+                "industry":    "Unknown",
+                "longName":    ticker_sym,
+                "totalDebt":   0,
+                "totalAssets": 0,
+                "totalCash":   0,
+            }
+        except Exception:
+            pass
+
+    # Strategy 3: try get_info() method (some yfinance versions)
+    if not info:
+        try:
+            info = t.get_info()
+        except Exception:
+            pass
+
+    if not info:
         return None
+
+    def _safe(key, default=0):
+        v = info.get(key, default)
+        return v if v is not None else default
+
+    market_cap   = _safe("marketCap",   1) or 1
+    total_debt   = _safe("totalDebt",   0)
+    total_assets = _safe("totalAssets", 1) or 1
+    total_cash   = _safe("totalCash",   0)
+
+    return {
+        "debt_to_mktcap":  total_debt   / market_cap,
+        "debt_to_assets":  total_debt   / total_assets,
+        "cash_to_assets":  total_cash   / total_assets,
+        "market_cap":      market_cap,
+        "total_debt":      total_debt,
+        "total_assets":    total_assets,
+        "total_cash":      total_cash,
+        "sector":          _safe("sector",   "Unknown"),
+        "industry":        _safe("industry", "Unknown"),
+        "company_name":    _safe("longName", ticker_sym),
+    }
 
 def check_shariah_compliance(ticker_sym, data):
     t         = ticker_sym.upper()
@@ -1404,8 +1447,17 @@ if run_btn:
             sd = get_shariah_data(ticker)
 
         if sd is None:
-            st.error("Could not fetch company data. Check the ticker symbol.")
-        else:
+            st.warning(
+                f"⚠ Could not fetch detailed financial data for **{ticker}** from Yahoo Finance. "
+                "This may be a temporary API issue. The ticker symbol screening will use "
+                "the known-ticker list only.")
+            # Build minimal sd from ticker list screening only
+            sd = {
+                "debt_to_mktcap": 0, "debt_to_assets": 0, "cash_to_assets": 0,
+                "market_cap": 0, "total_debt": 0, "total_assets": 0, "total_cash": 0,
+                "sector": "Unknown", "industry": "Unknown", "company_name": ticker,
+            }
+        if sd is not None:
             cr      = check_shariah_compliance(ticker, sd)
             verdict = cr["verdict"]
             v_color = {"COMPLIANT": C_GREEN, "NON-COMPLIANT": C_RED, "QUESTIONABLE": C_YELLOW}[verdict]
