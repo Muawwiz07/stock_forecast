@@ -406,25 +406,65 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Ticker Search Helper ───────────────────────────────────────────────────────
+POPULAR_TICKERS = {
+    "AAPL": "Apple Inc.", "MSFT": "Microsoft Corp.", "GOOGL": "Alphabet Inc.",
+    "AMZN": "Amazon.com Inc.", "NVDA": "NVIDIA Corp.", "META": "Meta Platforms",
+    "TSLA": "Tesla Inc.", "NFLX": "Netflix Inc.", "AMD": "Advanced Micro Devices",
+    "ORCL": "Oracle Corp.", "INTC": "Intel Corp.", "CRM": "Salesforce Inc.",
+    "ADBE": "Adobe Inc.", "PYPL": "PayPal Holdings", "UBER": "Uber Technologies",
+    "BABA": "Alibaba Group", "JPM": "JPMorgan Chase", "BAC": "Bank of America",
+    "GS": "Goldman Sachs", "V": "Visa Inc.", "MA": "Mastercard Inc.",
+    "JNJ": "Johnson & Johnson", "PFE": "Pfizer Inc.", "MRNA": "Moderna Inc.",
+    "DIS": "Walt Disney Co.", "SPOT": "Spotify Technology", "SNAP": "Snap Inc.",
+    "TWTR": "Twitter / X", "SHOP": "Shopify Inc.", "SQ": "Block Inc.",
+    "COIN": "Coinbase Global", "HOOD": "Robinhood Markets", "PLTR": "Palantir Technologies",
+    "RBLX": "Roblox Corp.", "ABNB": "Airbnb Inc.", "LYFT": "Lyft Inc.",
+    "ZM": "Zoom Video", "DOCU": "DocuSign Inc.", "ROKU": "Roku Inc.",
+    "ARKK": "ARK Innovation ETF", "SPY": "S&P 500 ETF", "QQQ": "Nasdaq-100 ETF",
+    "2222.SR": "Saudi Aramco", "9988.HK": "Alibaba HK", "7203.T": "Toyota Motor",
+    "005930.KS": "Samsung Electronics", "RELIANCE.NS": "Reliance Industries",
+    "TCS.NS": "Tata Consultancy", "INFY.NS": "Infosys Ltd.",
+    "XOM": "ExxonMobil Corp.", "CVX": "Chevron Corp.", "BP": "BP plc",
+    "NKE": "Nike Inc.", "MCD": "McDonald's Corp.", "SBUX": "Starbucks Corp.",
+    "WMT": "Walmart Inc.", "COST": "Costco Wholesale", "TGT": "Target Corp.",
+    "BA": "Boeing Co.", "LMT": "Lockheed Martin", "GE": "GE Aerospace",
+    "GOOG": "Alphabet Class C", "BRK-B": "Berkshire Hathaway B",
+}
+
 @st.cache_data(ttl=3600)
 def search_tickers(query):
-    """Search for tickers by company name or symbol using yfinance."""
+    q = query.strip().upper()
+    results = []
+    # Exact symbol match first
+    if q in POPULAR_TICKERS:
+        results.append(f"{q} — {POPULAR_TICKERS[q]}")
+    # Name contains match
+    ql = query.strip().lower()
+    for sym, name in POPULAR_TICKERS.items():
+        if sym != q and (ql in name.lower() or ql in sym.lower()):
+            results.append(f"{sym} — {name}")
+    # Also try yf.Search if available
     try:
-        results = yf.Search(query, max_results=8)
-        quotes = results.quotes
-        if not quotes:
-            return []
-        options = []
-        for q in quotes:
-            symbol = q.get("symbol", "")
-            name   = q.get("longname") or q.get("shortname") or symbol
-            exch   = q.get("exchange", "")
-            qtype  = q.get("quoteType", "")
-            if symbol and qtype in ("EQUITY", "ETF", "INDEX"):
-                options.append(f"{symbol} — {name} ({exch})")
-        return options
+        res = yf.Search(query, max_results=6)
+        for r in res.quotes:
+            sym  = r.get("symbol", "")
+            name = r.get("longname") or r.get("shortname") or sym
+            exch = r.get("exchange", "")
+            qt   = r.get("quoteType", "")
+            entry = f"{sym} — {name} ({exch})"
+            if sym and qt in ("EQUITY", "ETF", "INDEX") and entry not in results:
+                results.append(entry)
     except Exception:
-        return []
+        pass
+    return results[:10]
+
+@st.cache_data(ttl=300)
+def validate_ticker(sym):
+    try:
+        info = yf.Ticker(sym).fast_info
+        return float(info.last_price) > 0
+    except Exception:
+        return False
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -432,32 +472,42 @@ with st.sidebar:
 
     # ── Ticker Search ──────────────────────────────────────────────────────────
     st.markdown('<div class="stat-row">🔍 Search Company / Ticker</div>', unsafe_allow_html=True)
-    search_query = st.text_input("Search", placeholder="e.g. Apple, Tesla, MSFT…",
-                                 label_visibility="collapsed")
+    search_query = st.text_input("Search", placeholder="e.g. Apple, TSLA, Saudi Aramco…",
+                                 label_visibility="collapsed", key="search_input")
 
-    ticker = "AAPL"   # default
+    ticker = "AAPL"   # safe default
 
     if search_query and len(search_query.strip()) >= 1:
-        with st.spinner("Searching…"):
-            search_results = search_tickers(search_query.strip())
-
+        search_results = search_tickers(search_query.strip())
         if search_results:
-            selected = st.selectbox("Select a result", search_results,
-                                    label_visibility="collapsed")
+            selected = st.selectbox("Select", search_results, label_visibility="collapsed")
             ticker = selected.split(" — ")[0].strip()
             st.markdown(
                 f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
-                f'border-left:3px solid #00d4a0;padding:.45rem 1rem;font-family:IBM Plex Mono,monospace;'
-                f'font-size:.72rem;color:#00d4a0;letter-spacing:.06em;margin-bottom:.4rem;">'
-                f'✓ SELECTED: <b>{ticker}</b></div>',
+                f'border-left:3px solid #00d4a0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+                f'font-size:.72rem;color:#00d4a0;letter-spacing:.06em;margin:.3rem 0;">'
+                f'✓ {ticker}</div>',
                 unsafe_allow_html=True)
         else:
-            st.warning("No results found. Try a different name or enter a ticker directly below.")
-
-    st.markdown('<div class="stat-row">Or enter ticker directly</div>', unsafe_allow_html=True)
-    manual_ticker = st.text_input("Ticker", value=ticker, label_visibility="collapsed").strip().upper()
-    if manual_ticker:
-        ticker = manual_ticker
+            # Treat the query itself as a direct ticker entry
+            ticker = search_query.strip().upper()
+            st.markdown(
+                f'<div style="background:rgba(255,211,42,0.07);border:1px solid rgba(255,211,42,0.3);'
+                f'border-left:3px solid #ffd32a;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+                f'font-size:.72rem;color:#ffd32a;letter-spacing:.06em;margin:.3rem 0;">'
+                f'Using: {ticker} — verify symbol is correct</div>',
+                unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="stat-row">Or type ticker directly below</div>', unsafe_allow_html=True)
+        ticker = st.text_input("Ticker Symbol", value="AAPL",
+                               placeholder="AAPL, TSLA, MSFT…",
+                               label_visibility="collapsed", key="direct_ticker").strip().upper() or "AAPL"
+        st.markdown(
+            f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
+            f'border-left:3px solid #00d4a0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+            f'font-size:.75rem;color:#00d4a0;letter-spacing:.08em;margin:.3rem 0;">'
+            f'● ACTIVE: {ticker}</div>',
+            unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1:
