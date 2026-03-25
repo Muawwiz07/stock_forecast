@@ -879,6 +879,86 @@ def check_shariah_compliance(ticker_sym, data):
         r["verdict"] = "COMPLIANT"
     return r
 
+# ── Methodology tab content helper ─────────────────────────────────────────────
+def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
+    st.markdown("""
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.22em;
+         text-transform:uppercase;color:#4a5a6a;margin-bottom:.4rem;">Technical Documentation</div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;
+         color:#e8edf2;letter-spacing:.08em;margin-bottom:1.4rem;">
+         STOCK<span style="color:#00d4a0;">CAST</span> · Methodology & Model Architecture
+    </div>
+    """, unsafe_allow_html=True)
+
+    steps = [
+        ("01", "#00d4a0", "Data Ingestion", "OHLCV via yfinance",
+         "Up to 7 years of daily Open/High/Low/Close/Volume data is fetched from Yahoo Finance. "
+         "Timezone normalization and MultiIndex flattening are applied for compatibility across yfinance versions."),
+        ("02", "#3d9eff", "Feature Engineering", "20 Technical Indicators",
+         f"Each trading day is described by 20 derived signals: MA5/10/20/50/200, EMA12/26, RSI(14), "
+         f"MACD(12/26/9) with histogram, Bollinger Band width & %B, ATR(14), Volume Ratio, Momentum, "
+         f"Returns(1d/5d), Volatility(20d), and High-Low%. Additionally, {seq_len_val} lag closes are appended "
+         "as sequential memory, giving the model temporal context."),
+        ("03", "#ffd32a", "Train / Test Split", "80% train · 20% test (chronological)",
+         "Data is split strictly chronologically — no shuffling — to prevent look-ahead bias. "
+         "The model never sees future data during training. Evaluation is performed exclusively on the held-out 20%."),
+        ("04", "#00d4a0", "XGBoost Regressor", "Gradient-boosted decision trees",
+         "XGBoost is trained to predict the next day's closing price. Hyperparameters (n_estimators, "
+         "max_depth, learning_rate) are configurable via the sidebar. Subsample=0.8 and colsample_bytree=0.8 "
+         "provide regularisation. Early stopping uses the test set as an eval set."),
+        ("05", "#3d9eff", "Bootstrap CI", f"{ci_n} resampling iterations" if show_ci else "Disabled",
+         f"Confidence intervals are produced by running the model {ci_n} times on inputs perturbed with "
+         "Gaussian noise (σ=1.5%). The 5th and 95th percentiles form the 95% CI ribbon. "
+         "A wider band indicates higher forecast uncertainty."),
+        ("06", "#ffd32a", "Forward Forecast", "Iterative multi-step prediction",
+         "Future prices are predicted by rolling: each day's predicted price feeds back as the next day's lag input. "
+         "Error compounds over time — Days 1–3 are most reliable. Days 6+ are directional signals only. "
+         "An expanding ±1.5σ uncertainty band visualises this degradation."),
+        ("07", "#ff4757", "Signal Generation", "BUY / SELL / HOLD",
+         "A BUY signal fires when the predicted next-day return exceeds +1% (configurable). "
+         "SELL fires below −1%. HOLD covers the neutral zone. The latest signal reflects the model's "
+         "view on tomorrow's likely price movement."),
+        ("08", "#00d4a0", "Backtesting Engine", "Walk-forward simulation",
+         "The backtest replays XGBoost signals on the test-set prices: when a BUY fires, it buys "
+         "as many shares as capital allows (minus commission). When SELL fires, it liquidates. "
+         "KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, and equity curve vs Buy-and-Hold."),
+    ]
+
+    for num, color, title, subtitle, body in steps:
+        st.markdown(f"""
+        <div style="display:flex;gap:1.2rem;margin-bottom:1rem;
+             background:#0f1318;border:1px solid #1e2a38;border-left:3px solid {color};
+             padding:1.1rem 1.4rem;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:700;
+               color:{color};opacity:.6;min-width:2.5rem;line-height:1.1;">{num}</div>
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;font-weight:700;
+                 letter-spacing:.14em;text-transform:uppercase;color:#e8edf2;">{title}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:.1em;
+                 color:{color};margin-bottom:.4rem;">{subtitle}</div>
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;
+                 color:#8a9bb0;line-height:1.6;">{body}</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background:rgba(255,71,87,0.04);border:1px solid rgba(255,71,87,0.2);
+         border-left:3px solid #ff4757;padding:1rem 1.5rem;margin-top:.5rem;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.15em;
+           text-transform:uppercase;color:#ff4757;margin-bottom:.4rem;">⚠ Key Limitations</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.7;">
+        This model uses <b style="color:#e8edf2;">price and volume data only</b>. It has no awareness of
+        earnings releases, macroeconomic events, analyst upgrades, geopolitical news, or central bank decisions.
+        A single unexpected event can invalidate any technical forecast.
+        Multi-day forecasts degrade rapidly due to compounding prediction error.
+        <b style="color:#ff4757;">This is a research and educational tool — not financial advice.</b>
+        Always consult a licensed financial advisor before making investment decisions.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 if run_btn:
     with st.spinner(f"Fetching {ticker} data..."):
@@ -890,789 +970,873 @@ if run_btn:
 
     st.success(f"✓ {len(df)} trading days loaded for {ticker}")
 
-    # ── Price Alert ────────────────────────────────────────────────────────────
-    last_close = float(df['Close'].squeeze().iloc[-1])
-    if alert_price > 0:
-        if last_close >= alert_price:
-            st.markdown(f'<div class="alert-box">🔔 {ticker} is at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}</div>',
-                        unsafe_allow_html=True)
+    # ── Top-level tabs ─────────────────────────────────────────────────────────
+    tab_analysis, tab_methodology = st.tabs(["📊  Analysis", "📖  Methodology"])
+
+    with tab_methodology:
+        render_methodology_page(seq_len_val=seq_len, ci_n=ci_bootstrap_n, show_ci=show_conf_interval)
+
+    with tab_analysis:
+
+        # ── Price Alert ────────────────────────────────────────────────────────────
+        last_close = float(df['Close'].squeeze().iloc[-1])
+        if alert_price > 0:
+            if last_close >= alert_price:
+                st.markdown(f'<div class="alert-box">🔔 {ticker} is at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}</div>',
+                            unsafe_allow_html=True)
+            else:
+                diff = alert_price - last_close
+                st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — ${diff:.2f} below your target of ${alert_price:.2f}</div>',
+                            unsafe_allow_html=True)
+
+        # ── Feature Engineering ────────────────────────────────────────────────────
+        with st.spinner("Engineering technical features..."):
+            df = add_technical_features(df)
+        close_series = df['Close'].squeeze()
+
+        # ── Candlestick Chart ──────────────────────────────────────────────────────
+        st.subheader("Candlestick Chart")
+        fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                                   row_heights=[0.72, 0.28], vertical_spacing=0.02)
+        fig_candle.add_trace(go.Candlestick(
+            x=df.index,
+            open=df['Open'].squeeze(), high=df['High'].squeeze(),
+            low=df['Low'].squeeze(),   close=close_series,
+            name="Price",
+            increasing_line_color=C_GREEN,
+            decreasing_line_color=C_RED,
+        ), row=1, col=1)
+        fig_candle.add_trace(go.Scatter(x=df.index, y=df['MA50'].squeeze(),
+            name="MA50",  line=dict(color=C_YELLOW, width=1.2)), row=1, col=1)
+        fig_candle.add_trace(go.Scatter(x=df.index, y=df['MA200'].squeeze(),
+            name="MA200", line=dict(color=C_BLUE, width=1.2)), row=1, col=1)
+        fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Upper'].squeeze(),
+            name="BB Upper", line=dict(color=C_GREY, width=0.8, dash='dot')), row=1, col=1)
+        fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Lower'].squeeze(),
+            name="BB Lower", line=dict(color=C_GREY, width=0.8, dash='dot'),
+            fill='tonexty', fillcolor='rgba(61,158,255,0.04)'), row=1, col=1)
+        colors_vol = [C_GREEN if c >= o else C_RED
+                      for c, o in zip(close_series, df['Open'].squeeze())]
+        fig_candle.add_trace(go.Bar(x=df.index, y=df['Volume'].squeeze(),
+            name="Volume", marker_color=colors_vol, opacity=0.5), row=2, col=1)
+        candle_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("xaxis", "yaxis")}
+        fig_candle.update_layout(
+            **candle_layout,
+            title=dict(text=f"{ticker} · Candlestick · MA50/200 · Bollinger · Volume",
+                       font=dict(color=C_GREEN, size=12)),
+            xaxis_rangeslider_visible=False, height=560,
+        )
+        fig_candle.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+        fig_candle.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+        st.plotly_chart(fig_candle, use_container_width=True)
+
+        # ── RSI + MACD ─────────────────────────────────────────────────────────────
+        st.subheader("Technical Indicators")
+        fig_tech = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                                 row_heights=[0.5, 0.5], vertical_spacing=0.08,
+                                 subplot_titles=["RSI (14)", "MACD (12/26/9)"])
+        fig_tech.add_trace(go.Scatter(x=df.index, y=df['RSI'].squeeze(),
+            name="RSI", line=dict(color=C_GREEN, width=1.5)), row=1, col=1)
+        fig_tech.add_hline(y=70, line_dash="dash", line_color=C_RED,  row=1, col=1)
+        fig_tech.add_hline(y=30, line_dash="dash", line_color=C_GREEN, row=1, col=1)
+        fig_tech.add_hrect(y0=70, y1=100, fillcolor="rgba(255,71,87,0.04)",   line_width=0, row=1, col=1)
+        fig_tech.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,212,160,0.04)",   line_width=0, row=1, col=1)
+        fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD'].squeeze(),
+            name="MACD",   line=dict(color=C_GREEN, width=1.2)), row=2, col=1)
+        fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD_Signal'].squeeze(),
+            name="Signal", line=dict(color=C_BLUE, width=1.2)), row=2, col=1)
+        macd_hist  = df['MACD_Hist'].squeeze()
+        hist_colors = [C_GREEN if v >= 0 else C_RED for v in macd_hist]
+        fig_tech.add_trace(go.Bar(x=df.index, y=macd_hist,
+            name="Histogram", marker_color=hist_colors, opacity=0.65), row=2, col=1)
+        subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis', 'yaxis')}
+        fig_tech.update_layout(**subplot_layout, height=450)
+        fig_tech.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+        fig_tech.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+        fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
+        st.plotly_chart(fig_tech, use_container_width=True)
+
+        # ── XGBoost ────────────────────────────────────────────────────────────────
+        st.markdown('<div class="model-badge">🤖 MODEL: XGBoost Regressor · 20 Technical Features + Lag Window</div>',
+                    unsafe_allow_html=True)
+
+        with st.expander("📖  How this model works — methodology & limitations", expanded=False):
+            st.markdown(f"""
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;color:#8a9bb0;line-height:1.7;">
+
+            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            Feature Engineering</b><br>
+            Each trading day is represented by <b style="color:#00d4a0;">20 technical indicators</b> computed from raw OHLCV data —
+            moving averages (MA5–200, EMA12/26), RSI, MACD with histogram, Bollinger Bands width &amp; position,
+            ATR, volume ratio, and momentum — plus <b style="color:#00d4a0;">{seq_len} lag closes</b> as sequential context.
+            This gives the model both market-state awareness and short-term price memory.
+            <br><br>
+
+            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            Training &amp; Evaluation</b><br>
+            Data is split <b style="color:#00d4a0;">80% train / 20% test</b> chronologically (no data leakage).
+            XGBoost is trained to predict the <em>next day's closing price</em> given today's features.
+            Model quality is measured on the held-out test set using RMSE, MAE, MAPE and R².
+            <br><br>
+
+            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            Confidence Intervals</b><br>
+            The 95% CI ribbon is produced via <b style="color:#00d4a0;">bootstrap resampling</b>: the model is run
+            {ci_bootstrap_n if show_conf_interval else 100}x on inputs with small Gaussian noise added (sigma=1.5%), and the 5th-95th percentile
+            range across all runs forms the band. A <em>wider band = higher uncertainty</em>.
+            <br><br>
+
+            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            Forward Forecast Reliability</b><br>
+            Multi-day forecasts roll predictions iteratively — each day's output feeds the next day's lag input.
+            <b style="color:#ffd32a;">Prediction errors compound.</b> Day 1–3 forecasts are most reliable.
+            Days 7+ should be treated as directional trend signals only, not price targets.
+            <br><br>
+
+            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            Key Limitations</b><br>
+            This model uses <em>only price and volume data</em>. It has no awareness of earnings releases,
+            macroeconomic events, analyst upgrades, or breaking news. A single unexpected event
+            can invalidate any technical forecast. <b style="color:#ff4757;">This is a research tool, not financial advice.</b>
+
+            </div>
+            """, unsafe_allow_html=True)
+
+        with st.spinner("Building feature matrix..."):
+            X, y = build_xgb_dataset(df, seq_len)
+
+        if len(X) < 50:
+            st.error("Not enough data to train. Try a longer date range or smaller lookback window.")
+            st.stop()
+
+        split   = int(len(X) * 0.8)
+        X_train, X_test = X[:split], X[split:]
+        y_train, y_test = y[:split], y[split:]
+
+        with st.spinner("Training XGBoost model..."):
+            model = XGBRegressor(
+                n_estimators=n_estimators, max_depth=max_depth,
+                learning_rate=learning_rate, subsample=0.8,
+                colsample_bytree=0.8, random_state=42, verbosity=0
+            )
+            model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
+
+        preds  = model.predict(X_test)
+        actual = y_test
+        rmse   = np.sqrt(mean_squared_error(actual, preds))
+        mae    = mean_absolute_error(actual, preds)
+        mape   = np.mean(np.abs((actual - preds) / actual)) * 100
+        r2     = 1 - np.sum((actual - preds)**2) / np.sum((actual - np.mean(actual))**2)
+
+        # ── Model Performance ──────────────────────────────────────────────────────
+        st.subheader("Model Performance")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("RMSE", f"${rmse:.2f}")
+        c2.metric("MAE",  f"${mae:.2f}")
+        c3.metric("MAPE", f"{mape:.2f}%")
+        c4.metric("R²",   f"{r2:.4f}")
+
+        # Metric interpretation
+        mape_label  = ("🟢 Excellent" if mape < 2 else "🟡 Good" if mape < 5 else "🟠 Fair" if mape < 10 else "🔴 Poor")
+        r2_label    = ("🟢 Excellent" if r2 > 0.95 else "🟡 Good" if r2 > 0.85 else "🟠 Fair" if r2 > 0.70 else "🔴 Poor")
+        st.markdown(
+            f'<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.3rem;'
+            f'font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#4a5a6a;'
+            f'display:flex;gap:2rem;flex-wrap:wrap;margin-top:-.3rem;">'
+            f'<span>MAPE: {mape_label} &nbsp;·&nbsp; &lt;2% excellent · &lt;5% good · &lt;10% fair</span>'
+            f'<span>R²: {r2_label} &nbsp;·&nbsp; &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span>'
+            f'<span style="color:#2a3a4e;">RMSE/MAE are in $ — lower is better</span>'
+            f'</div>', unsafe_allow_html=True)
+
+        # ── Confidence Score ──────────────────────────────────────────────────────
+        # Composite score: 40% R², 30% MAPE, 20% directional accuracy, 10% data volume
+        directional_correct = sum(
+            1 for a, p in zip(actual[1:], preds[1:])
+            if (p - actual[:-1][list(preds[1:]).index(p)]) * (a - actual[:-1][list(preds[1:]).index(p)]) > 0
+        ) / max(len(actual) - 1, 1) * 100 if len(actual) > 1 else 50.0
+        # Simpler directional accuracy
+        dir_acc = sum(
+            1 for i in range(1, len(actual))
+            if (preds[i] - actual[i-1]) * (actual[i] - actual[i-1]) > 0
+        ) / max(len(actual) - 1, 1) * 100
+
+        r2_score_norm   = max(0, min(100, r2 * 100))
+        mape_score_norm = max(0, min(100, 100 - mape * 5))
+        data_score      = min(100, len(df) / 2000 * 100)
+        confidence_score = (r2_score_norm * 0.40 + mape_score_norm * 0.30 +
+                            dir_acc * 0.20 + data_score * 0.10)
+        confidence_score = max(0, min(100, confidence_score))
+
+        if confidence_score >= 80:
+            conf_color = "#00d4a0"; conf_label = "HIGH CONFIDENCE"; conf_bar_bg = "rgba(0,212,160,0.15)"
+        elif confidence_score >= 60:
+            conf_color = "#ffd32a"; conf_label = "MODERATE CONFIDENCE"; conf_bar_bg = "rgba(255,211,42,0.15)"
         else:
-            diff = alert_price - last_close
-            st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — ${diff:.2f} below your target of ${alert_price:.2f}</div>',
-                        unsafe_allow_html=True)
+            conf_color = "#ff4757"; conf_label = "LOW CONFIDENCE"; conf_bar_bg = "rgba(255,71,87,0.15)"
 
-    # ── Feature Engineering ────────────────────────────────────────────────────
-    with st.spinner("Engineering technical features..."):
-        df = add_technical_features(df)
-    close_series = df['Close'].squeeze()
+        filled_blocks = int(confidence_score / 5)   # 20 blocks total
+        bar_html = "".join(
+            f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;'
+            f'background:{conf_color};opacity:{1.0 if i < filled_blocks else 0.12};border-radius:1px;"></span>'
+            for i in range(20)
+        )
 
-    # ── Candlestick Chart ──────────────────────────────────────────────────────
-    st.subheader("Candlestick Chart")
-    fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                               row_heights=[0.72, 0.28], vertical_spacing=0.02)
-    fig_candle.add_trace(go.Candlestick(
-        x=df.index,
-        open=df['Open'].squeeze(), high=df['High'].squeeze(),
-        low=df['Low'].squeeze(),   close=close_series,
-        name="Price",
-        increasing_line_color=C_GREEN,
-        decreasing_line_color=C_RED,
-    ), row=1, col=1)
-    fig_candle.add_trace(go.Scatter(x=df.index, y=df['MA50'].squeeze(),
-        name="MA50",  line=dict(color=C_YELLOW, width=1.2)), row=1, col=1)
-    fig_candle.add_trace(go.Scatter(x=df.index, y=df['MA200'].squeeze(),
-        name="MA200", line=dict(color=C_BLUE, width=1.2)), row=1, col=1)
-    fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Upper'].squeeze(),
-        name="BB Upper", line=dict(color=C_GREY, width=0.8, dash='dot')), row=1, col=1)
-    fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Lower'].squeeze(),
-        name="BB Lower", line=dict(color=C_GREY, width=0.8, dash='dot'),
-        fill='tonexty', fillcolor='rgba(61,158,255,0.04)'), row=1, col=1)
-    colors_vol = [C_GREEN if c >= o else C_RED
-                  for c, o in zip(close_series, df['Open'].squeeze())]
-    fig_candle.add_trace(go.Bar(x=df.index, y=df['Volume'].squeeze(),
-        name="Volume", marker_color=colors_vol, opacity=0.5), row=2, col=1)
-    candle_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("xaxis", "yaxis")}
-    fig_candle.update_layout(
-        **candle_layout,
-        title=dict(text=f"{ticker} · Candlestick · MA50/200 · Bollinger · Volume",
-                   font=dict(color=C_GREEN, size=12)),
-        xaxis_rangeslider_visible=False, height=560,
-    )
-    fig_candle.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-    fig_candle.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-    st.plotly_chart(fig_candle, use_container_width=True)
-
-    # ── RSI + MACD ─────────────────────────────────────────────────────────────
-    st.subheader("Technical Indicators")
-    fig_tech = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                             row_heights=[0.5, 0.5], vertical_spacing=0.08,
-                             subplot_titles=["RSI (14)", "MACD (12/26/9)"])
-    fig_tech.add_trace(go.Scatter(x=df.index, y=df['RSI'].squeeze(),
-        name="RSI", line=dict(color=C_GREEN, width=1.5)), row=1, col=1)
-    fig_tech.add_hline(y=70, line_dash="dash", line_color=C_RED,  row=1, col=1)
-    fig_tech.add_hline(y=30, line_dash="dash", line_color=C_GREEN, row=1, col=1)
-    fig_tech.add_hrect(y0=70, y1=100, fillcolor="rgba(255,71,87,0.04)",   line_width=0, row=1, col=1)
-    fig_tech.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,212,160,0.04)",   line_width=0, row=1, col=1)
-    fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD'].squeeze(),
-        name="MACD",   line=dict(color=C_GREEN, width=1.2)), row=2, col=1)
-    fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD_Signal'].squeeze(),
-        name="Signal", line=dict(color=C_BLUE, width=1.2)), row=2, col=1)
-    macd_hist  = df['MACD_Hist'].squeeze()
-    hist_colors = [C_GREEN if v >= 0 else C_RED for v in macd_hist]
-    fig_tech.add_trace(go.Bar(x=df.index, y=macd_hist,
-        name="Histogram", marker_color=hist_colors, opacity=0.65), row=2, col=1)
-    subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis', 'yaxis')}
-    fig_tech.update_layout(**subplot_layout, height=450)
-    fig_tech.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-    fig_tech.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-    fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
-    st.plotly_chart(fig_tech, use_container_width=True)
-
-    # ── XGBoost ────────────────────────────────────────────────────────────────
-    st.markdown('<div class="model-badge">🤖 MODEL: XGBoost Regressor · 20 Technical Features + Lag Window</div>',
-                unsafe_allow_html=True)
-
-    with st.expander("📖  How this model works — methodology & limitations", expanded=False):
         st.markdown(f"""
-        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;color:#8a9bb0;line-height:1.7;">
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Feature Engineering</b><br>
-        Each trading day is represented by <b style="color:#00d4a0;">20 technical indicators</b> computed from raw OHLCV data —
-        moving averages (MA5–200, EMA12/26), RSI, MACD with histogram, Bollinger Bands width &amp; position,
-        ATR, volume ratio, and momentum — plus <b style="color:#00d4a0;">{seq_len} lag closes</b> as sequential context.
-        This gives the model both market-state awareness and short-term price memory.
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Training &amp; Evaluation</b><br>
-        Data is split <b style="color:#00d4a0;">80% train / 20% test</b> chronologically (no data leakage).
-        XGBoost is trained to predict the <em>next day's closing price</em> given today's features.
-        Model quality is measured on the held-out test set using RMSE, MAE, MAPE and R².
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Confidence Intervals</b><br>
-        The 95% CI ribbon is produced via <b style="color:#00d4a0;">bootstrap resampling</b>: the model is run
-        {ci_bootstrap_n if show_conf_interval else 100}x on inputs with small Gaussian noise added (sigma=1.5%), and the 5th-95th percentile
-        range across all runs forms the band. A <em>wider band = higher uncertainty</em>.
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Forward Forecast Reliability</b><br>
-        Multi-day forecasts roll predictions iteratively — each day's output feeds the next day's lag input.
-        <b style="color:#ffd32a;">Prediction errors compound.</b> Day 1–3 forecasts are most reliable.
-        Days 7+ should be treated as directional trend signals only, not price targets.
-        <br><br>
-
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
-        Key Limitations</b><br>
-        This model uses <em>only price and volume data</em>. It has no awareness of earnings releases,
-        macroeconomic events, analyst upgrades, or breaking news. A single unexpected event
-        can invalidate any technical forecast. <b style="color:#ff4757;">This is a research tool, not financial advice.</b>
-
+        <div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid {conf_color};
+             padding:1.2rem 1.6rem;margin:1rem 0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.18em;
+                   text-transform:uppercase;color:#4a5a6a;margin-bottom:.3rem;">MODEL CONFIDENCE SCORE</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:2.2rem;font-weight:700;
+                   color:{conf_color};line-height:1;">{confidence_score:.0f}<span style="font-size:1rem;color:#4a5a6a;">/100</span></div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:.14em;
+                   color:{conf_color};margin-top:.3rem;">{conf_label}</div>
+            </div>
+            <div style="flex:1;min-width:220px;">
+              <div style="margin-bottom:.6rem;">{bar_html}</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;
+                   font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:#4a5a6a;">
+                <span>R² fit &nbsp;<b style="color:#8a9bb0;">{r2_score_norm:.0f}/100</b> <span style="color:#2a3a4e;">(×0.40)</span></span>
+                <span>MAPE accuracy &nbsp;<b style="color:#8a9bb0;">{mape_score_norm:.0f}/100</b> <span style="color:#2a3a4e;">(×0.30)</span></span>
+                <span>Directional accuracy &nbsp;<b style="color:#8a9bb0;">{dir_acc:.0f}/100</b> <span style="color:#2a3a4e;">(×0.20)</span></span>
+                <span>Data volume &nbsp;<b style="color:#8a9bb0;">{data_score:.0f}/100</b> <span style="color:#2a3a4e;">(×0.10)</span></span>
+              </div>
+            </div>
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
-    with st.spinner("Building feature matrix..."):
-        X, y = build_xgb_dataset(df, seq_len)
+        # ── Feature Importance ─────────────────────────────────────────────────────
+        st.subheader("Feature Importance")
+        feature_cols = [
+            'MA5','MA10','MA20','MA50','EMA12','EMA26',
+            'RSI','MACD','MACD_Signal','MACD_Hist',
+            'BB_Width','BB_Pct',
+            'Returns','Returns_5d','Volatility','Momentum',
+            'Volume_Ratio','High_Low_Pct','Close_Open_Pct','ATR'
+        ]
+        lag_names        = [f'Lag_{i+1}' for i in range(seq_len)]
+        all_feature_names = feature_cols + lag_names
+        importances      = model.feature_importances_
+        imp_df = pd.DataFrame({'feature': all_feature_names, 'importance': importances})\
+                   .sort_values('importance', ascending=True).tail(20)
 
-    if len(X) < 50:
-        st.error("Not enough data to train. Try a longer date range or smaller lookback window.")
-        st.stop()
+        fig_imp = go.Figure(go.Bar(
+            x=imp_df['importance'], y=imp_df['feature'], orientation='h',
+            marker=dict(color=imp_df['importance'],
+                        colorscale=[[0, "#0f1318"], [0.5, "#0d3d2e"], [1, C_GREEN]],
+                        showscale=False)
+        ))
+        fig_imp.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text="Top 20 Feature Importances", font=dict(color=C_GREEN, size=12)),
+            height=450, xaxis_title="Importance Score")
+        st.plotly_chart(fig_imp, use_container_width=True)
 
-    split   = int(len(X) * 0.8)
-    X_train, X_test = X[:split], X[split:]
-    y_train, y_test = y[:split], y[split:]
+        # ── Actual vs Predicted ────────────────────────────────────────────────────
+        st.subheader("Actual vs Predicted")
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(y=actual, name="Actual",
+            line=dict(color=C_BLUE, width=1.5),
+            fill='tozeroy', fillcolor='rgba(61,158,255,0.04)'))
+        fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted",
+            line=dict(color=C_GREEN, width=1.5, dash='dot')))
+        fig1.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} · XGBoost Model Fit (Test Set)", font=dict(color=C_GREEN, size=12)),
+            height=350)
+        st.plotly_chart(fig1, use_container_width=True)
 
-    with st.spinner("Training XGBoost model..."):
-        model = XGBRegressor(
-            n_estimators=n_estimators, max_depth=max_depth,
-            learning_rate=learning_rate, subsample=0.8,
-            colsample_bytree=0.8, random_state=42, verbosity=0
-        )
-        model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
+        # ── Buy/Sell Signals ───────────────────────────────────────────────────────
+        st.subheader("Buy / Sell Signals")
+        signal_list = []
+        for i in range(len(preds)):
+            diff_pct = (preds[i] - actual[i]) / actual[i] * 100
+            if diff_pct > 1.0:
+                signal_list.append("BUY")
+            elif diff_pct < -1.0:
+                signal_list.append("SELL")
+            else:
+                signal_list.append("HOLD")
 
-    preds  = model.predict(X_test)
-    actual = y_test
-    rmse   = np.sqrt(mean_squared_error(actual, preds))
-    mae    = mean_absolute_error(actual, preds)
-    mape   = np.mean(np.abs((actual - preds) / actual)) * 100
-    r2     = 1 - np.sum((actual - preds)**2) / np.sum((actual - np.mean(actual))**2)
-
-    # ── Model Performance ──────────────────────────────────────────────────────
-    st.subheader("Model Performance")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("RMSE", f"${rmse:.2f}")
-    c2.metric("MAE",  f"${mae:.2f}")
-    c3.metric("MAPE", f"{mape:.2f}%")
-    c4.metric("R²",   f"{r2:.4f}")
-
-    # Metric interpretation
-    mape_label  = ("🟢 Excellent" if mape < 2 else "🟡 Good" if mape < 5 else "🟠 Fair" if mape < 10 else "🔴 Poor")
-    r2_label    = ("🟢 Excellent" if r2 > 0.95 else "🟡 Good" if r2 > 0.85 else "🟠 Fair" if r2 > 0.70 else "🔴 Poor")
-    st.markdown(
-        f'<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.3rem;'
-        f'font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#4a5a6a;'
-        f'display:flex;gap:2rem;flex-wrap:wrap;margin-top:-.3rem;">'
-        f'<span>MAPE: {mape_label} &nbsp;·&nbsp; &lt;2% excellent · &lt;5% good · &lt;10% fair</span>'
-        f'<span>R²: {r2_label} &nbsp;·&nbsp; &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span>'
-        f'<span style="color:#2a3a4e;">RMSE/MAE are in $ — lower is better</span>'
-        f'</div>', unsafe_allow_html=True)
-
-    # ── Feature Importance ─────────────────────────────────────────────────────
-    st.subheader("Feature Importance")
-    feature_cols = [
-        'MA5','MA10','MA20','MA50','EMA12','EMA26',
-        'RSI','MACD','MACD_Signal','MACD_Hist',
-        'BB_Width','BB_Pct',
-        'Returns','Returns_5d','Volatility','Momentum',
-        'Volume_Ratio','High_Low_Pct','Close_Open_Pct','ATR'
-    ]
-    lag_names        = [f'Lag_{i+1}' for i in range(seq_len)]
-    all_feature_names = feature_cols + lag_names
-    importances      = model.feature_importances_
-    imp_df = pd.DataFrame({'feature': all_feature_names, 'importance': importances})\
-               .sort_values('importance', ascending=True).tail(20)
-
-    fig_imp = go.Figure(go.Bar(
-        x=imp_df['importance'], y=imp_df['feature'], orientation='h',
-        marker=dict(color=imp_df['importance'],
-                    colorscale=[[0, "#0f1318"], [0.5, "#0d3d2e"], [1, C_GREEN]],
-                    showscale=False)
-    ))
-    fig_imp.update_layout(**PLOTLY_LAYOUT,
-        title=dict(text="Top 20 Feature Importances", font=dict(color=C_GREEN, size=12)),
-        height=450, xaxis_title="Importance Score")
-    st.plotly_chart(fig_imp, use_container_width=True)
-
-    # ── Actual vs Predicted ────────────────────────────────────────────────────
-    st.subheader("Actual vs Predicted")
-    fig1 = go.Figure()
-    fig1.add_trace(go.Scatter(y=actual, name="Actual",
-        line=dict(color=C_BLUE, width=1.5),
-        fill='tozeroy', fillcolor='rgba(61,158,255,0.04)'))
-    fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted",
-        line=dict(color=C_GREEN, width=1.5, dash='dot')))
-    fig1.update_layout(**PLOTLY_LAYOUT,
-        title=dict(text=f"{ticker} · XGBoost Model Fit (Test Set)", font=dict(color=C_GREEN, size=12)),
-        height=350)
-    st.plotly_chart(fig1, use_container_width=True)
-
-    # ── Buy/Sell Signals ───────────────────────────────────────────────────────
-    st.subheader("Buy / Sell Signals")
-    signal_list = []
-    for i in range(len(preds)):
-        diff_pct = (preds[i] - actual[i]) / actual[i] * 100
-        if diff_pct > 1.0:
-            signal_list.append("BUY")
-        elif diff_pct < -1.0:
-            signal_list.append("SELL")
-        else:
-            signal_list.append("HOLD")
-
-    latest_signal, latest_diff = generate_forward_signal(last_close, preds[-1])
-    badge_class = {"BUY": "signal-badge-buy", "SELL": "signal-badge-sell", "HOLD": "signal-badge-hold"}[latest_signal]
-    icon        = {"BUY": "▲", "SELL": "▼", "HOLD": "◆"}[latest_signal]
-    direction   = "+" if latest_diff >= 0 else ""
-    st.markdown(
-        f'<div class="{badge_class}">{icon} &nbsp; SIGNAL: {latest_signal} &nbsp; ({direction}{latest_diff:.2f}%)</div><br>',
-        unsafe_allow_html=True)
-
-    buy_idx  = [i for i, s in enumerate(signal_list) if s == "BUY"]
-    sell_idx = [i for i, s in enumerate(signal_list) if s == "SELL"]
-
-    fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(y=actual, name="Actual Price",
-        line=dict(color=C_GREY, width=1)))
-    fig2.add_trace(go.Scatter(x=buy_idx,  y=[actual[i] for i in buy_idx],
-        mode='markers', name='BUY',
-        marker=dict(color=C_GREEN, symbol='triangle-up', size=9)))
-    fig2.add_trace(go.Scatter(x=sell_idx, y=[actual[i] for i in sell_idx],
-        mode='markers', name='SELL',
-        marker=dict(color=C_RED, symbol='triangle-down', size=9)))
-    fig2.update_layout(**PLOTLY_LAYOUT,
-        title=dict(text=f"{ticker} · Signal Map (±1% threshold)", font=dict(color=C_GREEN, size=12)),
-        height=350)
-    st.plotly_chart(fig2, use_container_width=True)
-
-    signal_df = pd.DataFrame({
-        "Day":               range(1, len(signal_list) + 1),
-        "Actual Price ($)":  [f"${p:.2f}" for p in actual],
-        "Predicted ($)":     [f"${p:.2f}" for p in preds],
-        "Signal":            signal_list
-    })
-    st.dataframe(signal_df.tail(10), use_container_width=True, hide_index=True)
-
-    # ── Future Forecast ────────────────────────────────────────────────────────
-    st.subheader(f"Forecast — Next {future_days} Days")
-    future_prices    = []
-    last_known_close = float(df['Close'].squeeze().iloc[-1])
-    last_row_feats   = X[-1].copy()
-    current_close    = last_known_close
-
-    for d in range(future_days):
-        next_pred = float(model.predict(last_row_feats.reshape(1, -1))[0])
-        future_prices.append(next_pred)
-        n_tech         = len(feature_cols)
-        lags           = last_row_feats[n_tech:]
-        new_lags       = np.append(lags[1:], next_pred)
-        last_row_feats = np.concatenate([last_row_feats[:n_tech], new_lags])
-        current_close  = next_pred
-
-    trend_color = C_GREEN if future_prices[-1] > last_close else C_RED
-
-    # Build expanding uncertainty band even without full bootstrap (lightweight ±σ proxy)
-    price_std    = float(df['Close'].squeeze().pct_change().std())  # daily vol
-    decay_upper  = [future_prices[i] * (1 + price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
-    decay_lower  = [future_prices[i] * (1 - price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
-
-    fig3 = go.Figure()
-    # Expanding uncertainty shading
-    fig3.add_trace(go.Scatter(
-        x=list(range(future_days)), y=decay_upper,
-        line=dict(color="rgba(0,212,160,0)"), showlegend=False, hoverinfo="skip"))
-    fig3.add_trace(go.Scatter(
-        x=list(range(future_days)), y=decay_lower,
-        name="Uncertainty band", fill="tonexty",
-        fillcolor="rgba(0,212,160,0.07)", line=dict(color="rgba(0,212,160,0)"), hoverinfo="skip"))
-
-    fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
-                   annotation_text=f"Last close ${last_close:.2f}",
-                   annotation_font_color=C_GREY)
-    if alert_price > 0:
-        fig3.add_hline(y=alert_price, line_dash="dash", line_color=C_YELLOW,
-                       annotation_text=f"Target ${alert_price:.2f}",
-                       annotation_font_color=C_YELLOW)
-    fig3.add_trace(go.Scatter(
-        x=list(range(future_days)), y=future_prices,
-        mode='lines+markers', name='XGBoost Forecast',
-        line=dict(color=trend_color, width=2),
-        marker=dict(size=7, color=trend_color, line=dict(width=1, color="#0a0c0f"))
-    ))
-    # Vertical reliability boundary at day 5
-    if future_days > 5:
-        fig3.add_vline(x=4.5, line_dash="dot", line_color="#2a3a4e",
-                       annotation_text="↑ Higher confidence  |  Lower confidence ↓",
-                       annotation_font=dict(color="#4a5a6a", size=9),
-                       annotation_position="top")
-
-    fig3.update_layout(**PLOTLY_LAYOUT,
-        title=dict(text=f"{ticker} · {future_days}-Day Price Forecast (XGBoost) · Band shows ±1.5σ uncertainty growth",
-                   font=dict(color=C_GREEN, size=12)),
-        xaxis_title="Days from today", yaxis_title="Price (USD)", height=380)
-    st.plotly_chart(fig3, use_container_width=True)
-
-    if future_days > 5:
+        latest_signal, latest_diff = generate_forward_signal(last_close, preds[-1])
+        badge_class = {"BUY": "signal-badge-buy", "SELL": "signal-badge-sell", "HOLD": "signal-badge-hold"}[latest_signal]
+        icon        = {"BUY": "▲", "SELL": "▼", "HOLD": "◆"}[latest_signal]
+        direction   = "+" if latest_diff >= 0 else ""
         st.markdown(
-            '<div style="background:rgba(255,211,42,0.04);border:1px solid rgba(255,211,42,0.2);'
-            'border-left:3px solid #ffd32a;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
-            'font-size:0.7rem;color:#ffd32a;letter-spacing:.05em;margin-top:-.5rem;">'
-            '⚠ Forecast reliability decreases significantly beyond Day 5. '
-            'Errors compound in iterative multi-step prediction. Use Days 6+ as directional signals only.'
-            '</div>', unsafe_allow_html=True)
-
-    future_df = pd.DataFrame({
-        "Day":                 [f"+{i+1}" for i in range(future_days)],
-        "Predicted Price ($)": [f"${p:.2f}" for p in future_prices],
-        "vs Last Close":       [f"{'▲' if p > last_close else '▼'} {abs(p - last_close):.2f}"
-                                f" ({(p-last_close)/last_close*100:+.2f}%)" for p in future_prices]
-    })
-    st.dataframe(future_df, use_container_width=True, hide_index=True)
-
-    # ── Backtesting ────────────────────────────────────────────────────────────
-    if run_backtest:
-        st.subheader("Backtesting Engine")
-        st.markdown(
-            f'<div class="model-badge">STRATEGY: XGBoost Signal ±{bt_signal_threshold}% '
-            f'| Capital: ${bt_initial_capital:,.0f} | Commission: ${bt_commission}/trade</div>',
+            f'<div class="{badge_class}">{icon} &nbsp; SIGNAL: {latest_signal} &nbsp; ({direction}{latest_diff:.2f}%)</div><br>',
             unsafe_allow_html=True)
 
-        with st.spinner("Running backtest simulation..."):
-            bt = run_backtest_engine(
-                actual_prices=actual, predicted_prices=preds,
-                initial_capital=bt_initial_capital,
-                commission=bt_commission, threshold_pct=bt_signal_threshold,
-            )
+        buy_idx  = [i for i, s in enumerate(signal_list) if s == "BUY"]
+        sell_idx = [i for i, s in enumerate(signal_list) if s == "SELL"]
 
-        strat_color = "bt-card-value-green" if bt["strat_return"] >= 0 else "bt-card-value-red"
-        bh_color    = "bt-card-value-green" if bt["bh_return"]    >= 0 else "bt-card-value-red"
-        dd_color    = "bt-card-value-red"   if bt["max_drawdown"] < -10 else "bt-card-value"
-        sh_color    = "bt-card-value-green" if bt["sharpe"]       >= 1  else "bt-card-value-red"
+        fig2 = go.Figure()
+        fig2.add_trace(go.Scatter(y=actual, name="Actual Price",
+            line=dict(color=C_GREY, width=1)))
+        fig2.add_trace(go.Scatter(x=buy_idx,  y=[actual[i] for i in buy_idx],
+            mode='markers', name='BUY',
+            marker=dict(color=C_GREEN, symbol='triangle-up', size=9)))
+        fig2.add_trace(go.Scatter(x=sell_idx, y=[actual[i] for i in sell_idx],
+            mode='markers', name='SELL',
+            marker=dict(color=C_RED, symbol='triangle-down', size=9)))
+        fig2.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} · Signal Map (±1% threshold)", font=dict(color=C_GREEN, size=12)),
+            height=350)
+        st.plotly_chart(fig2, use_container_width=True)
 
-        k1, k2, k3, k4 = st.columns(4)
-        k1.markdown(f'<div class="bt-card"><div class="bt-card-label">Strategy Return</div>'
-                    f'<div class="{strat_color}">{bt["strat_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
-        k2.markdown(f'<div class="bt-card"><div class="bt-card-label">Buy &amp; Hold Return</div>'
-                    f'<div class="{bh_color}">{bt["bh_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
-        k3.markdown(f'<div class="bt-card"><div class="bt-card-label">Max Drawdown</div>'
-                    f'<div class="{dd_color}">{bt["max_drawdown"]:.2f}%</div></div>', unsafe_allow_html=True)
-        k4.markdown(f'<div class="bt-card"><div class="bt-card-label">Sharpe Ratio</div>'
-                    f'<div class="{sh_color}">{bt["sharpe"]:.2f}</div></div>', unsafe_allow_html=True)
+        signal_df = pd.DataFrame({
+            "Day":               range(1, len(signal_list) + 1),
+            "Actual Price ($)":  [f"${p:.2f}" for p in actual],
+            "Predicted ($)":     [f"${p:.2f}" for p in preds],
+            "Signal":            signal_list
+        })
+        st.dataframe(signal_df.tail(10), use_container_width=True, hide_index=True)
 
-        k5, k6, k7, k8 = st.columns(4)
-        k5.markdown(f'<div class="bt-card"><div class="bt-card-label">Final Capital</div>'
-                    f'<div class="bt-card-value">${bt["final_capital"]:,.0f}</div></div>', unsafe_allow_html=True)
-        k6.markdown(f'<div class="bt-card"><div class="bt-card-label">Total Trades</div>'
-                    f'<div class="bt-card-value">{bt["total_trades"]}</div></div>', unsafe_allow_html=True)
-        k7.markdown(f'<div class="bt-card"><div class="bt-card-label">Win Rate</div>'
-                    f'<div class="bt-card-value">{bt["win_rate"]:.1f}%</div></div>', unsafe_allow_html=True)
-        k8.markdown(f'<div class="bt-card"><div class="bt-card-label">Profit Factor</div>'
-                    f'<div class="bt-card-value">{bt["profit_factor"]:.2f}x</div></div>', unsafe_allow_html=True)
+        # ── Future Forecast ────────────────────────────────────────────────────────
+        st.subheader(f"Forecast — Next {future_days} Days")
+        future_prices    = []
+        last_known_close = float(df['Close'].squeeze().iloc[-1])
+        last_row_feats   = X[-1].copy()
+        current_close    = last_known_close
 
-        # Equity Curve
-        fig_eq = go.Figure()
-        fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy",
-            line=dict(color=C_GREEN, width=2),
-            fill="tozeroy", fillcolor="rgba(0,212,160,0.05)"))
-        fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold",
-            line=dict(color=C_BLUE, width=1.5, dash="dot")))
-        fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY,
-                         annotation_text=f"Start ${bt_initial_capital:,}",
-                         annotation_font_color=C_GREY)
-        fig_eq.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · Strategy Equity Curve vs Buy & Hold",
+        for d in range(future_days):
+            next_pred = float(model.predict(last_row_feats.reshape(1, -1))[0])
+            future_prices.append(next_pred)
+            n_tech         = len(feature_cols)
+            lags           = last_row_feats[n_tech:]
+            new_lags       = np.append(lags[1:], next_pred)
+            last_row_feats = np.concatenate([last_row_feats[:n_tech], new_lags])
+            current_close  = next_pred
+
+        trend_color = C_GREEN if future_prices[-1] > last_close else C_RED
+
+        # Build expanding uncertainty band even without full bootstrap (lightweight ±σ proxy)
+        price_std    = float(df['Close'].squeeze().pct_change().std())  # daily vol
+        decay_upper  = [future_prices[i] * (1 + price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
+        decay_lower  = [future_prices[i] * (1 - price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
+
+        fig3 = go.Figure()
+        # Expanding uncertainty shading
+        fig3.add_trace(go.Scatter(
+            x=list(range(future_days)), y=decay_upper,
+            line=dict(color="rgba(0,212,160,0)"), showlegend=False, hoverinfo="skip"))
+        fig3.add_trace(go.Scatter(
+            x=list(range(future_days)), y=decay_lower,
+            name="Uncertainty band", fill="tonexty",
+            fillcolor="rgba(0,212,160,0.07)", line=dict(color="rgba(0,212,160,0)"), hoverinfo="skip"))
+
+        fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
+                       annotation_text=f"Last close ${last_close:.2f}",
+                       annotation_font_color=C_GREY)
+        if alert_price > 0:
+            fig3.add_hline(y=alert_price, line_dash="dash", line_color=C_YELLOW,
+                           annotation_text=f"Target ${alert_price:.2f}",
+                           annotation_font_color=C_YELLOW)
+        fig3.add_trace(go.Scatter(
+            x=list(range(future_days)), y=future_prices,
+            mode='lines+markers', name='XGBoost Forecast',
+            line=dict(color=trend_color, width=2),
+            marker=dict(size=7, color=trend_color, line=dict(width=1, color="#0a0c0f"))
+        ))
+        # Vertical reliability boundary at day 5
+        if future_days > 5:
+            fig3.add_vline(x=4.5, line_dash="dot", line_color="#2a3a4e",
+                           annotation_text="↑ Higher confidence  |  Lower confidence ↓",
+                           annotation_font=dict(color="#4a5a6a", size=9),
+                           annotation_position="top")
+
+        fig3.update_layout(**PLOTLY_LAYOUT,
+            title=dict(text=f"{ticker} · {future_days}-Day Price Forecast (XGBoost) · Band shows ±1.5σ uncertainty growth",
                        font=dict(color=C_GREEN, size=12)),
-            yaxis_title="Portfolio Value ($)", xaxis_title="Trading Day (test set)", height=380)
-        st.plotly_chart(fig_eq, use_container_width=True)
+            xaxis_title="Days from today", yaxis_title="Price (USD)", height=380)
+        st.plotly_chart(fig3, use_container_width=True)
 
-        # Drawdown
-        fig_dd = go.Figure()
-        fig_dd.add_trace(go.Scatter(y=[d * 100 for d in bt["drawdown_series"]],
-            name="Drawdown", line=dict(color=C_RED, width=1.5),
-            fill="tozeroy", fillcolor="rgba(255,71,87,0.07)"))
-        fig_dd.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · Strategy Drawdown (%)", font=dict(color=C_RED, size=12)),
-            yaxis_title="Drawdown (%)", xaxis_title="Trading Day (test set)", height=250)
-        st.plotly_chart(fig_dd, use_container_width=True)
+        if future_days > 5:
+            st.markdown(
+                '<div style="background:rgba(255,211,42,0.04);border:1px solid rgba(255,211,42,0.2);'
+                'border-left:3px solid #ffd32a;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
+                'font-size:0.7rem;color:#ffd32a;letter-spacing:.05em;margin-top:-.5rem;">'
+                '⚠ Forecast reliability decreases significantly beyond Day 5. '
+                'Errors compound in iterative multi-step prediction. Use Days 6+ as directional signals only.'
+                '</div>', unsafe_allow_html=True)
 
-        # Trade log
-        if not bt["trades_df"].empty:
-            st.markdown("#### Trade Log")
-            display_trades = bt["trades_df"].copy()
-            display_trades["Price"]   = display_trades["Price"].apply(lambda x: f"${x:.2f}")
-            display_trades["Capital"] = display_trades["Capital"].apply(lambda x: f"${x:,.0f}")
-            if "P&L" in display_trades.columns:
-                display_trades["P&L"] = display_trades["P&L"].apply(
-                    lambda x: f"+${x:.2f}" if pd.notna(x) and x >= 0 else (f"-${abs(x):.2f}" if pd.notna(x) else "-"))
-            st.dataframe(display_trades, use_container_width=True, hide_index=True)
-            csv_bt = bt["trades_df"].to_csv(index=False).encode("utf-8")
-            st.download_button("⬇ Download Trade Log", data=csv_bt,
-                               file_name=f"{ticker}_trades.csv", mime="text/csv")
+        future_df = pd.DataFrame({
+            "Day":                 [f"+{i+1}" for i in range(future_days)],
+            "Predicted Price ($)": [f"${p:.2f}" for p in future_prices],
+            "vs Last Close":       [f"{'▲' if p > last_close else '▼'} {abs(p - last_close):.2f}"
+                                    f" ({(p-last_close)/last_close*100:+.2f}%)" for p in future_prices]
+        })
+        st.dataframe(future_df, use_container_width=True, hide_index=True)
 
-    # ── Confidence Intervals ───────────────────────────────────────────────────
-    if show_conf_interval:
-        st.subheader("Forecast with Confidence Intervals")
-        st.markdown('<div class="ci-badge">95% CI — Bootstrap Resampling</div>', unsafe_allow_html=True)
+        # ── Backtesting ────────────────────────────────────────────────────────────
+        if run_backtest:
+            st.subheader("Backtesting Engine")
+            st.markdown(
+                f'<div class="model-badge">STRATEGY: XGBoost Signal ±{bt_signal_threshold}% '
+                f'| Capital: ${bt_initial_capital:,.0f} | Commission: ${bt_commission}/trade</div>',
+                unsafe_allow_html=True)
 
-        with st.spinner(f"Running {ci_bootstrap_n} bootstrap samples..."):
-            ci_lower, ci_median, ci_upper = bootstrap_confidence_intervals(
-                model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
+            with st.spinner("Running backtest simulation..."):
+                bt = run_backtest_engine(
+                    actual_prices=actual, predicted_prices=preds,
+                    initial_capital=bt_initial_capital,
+                    commission=bt_commission, threshold_pct=bt_signal_threshold,
+                )
 
-        fig_ci = go.Figure()
-        fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,212,160,0)"),
-            showlegend=False))
-        fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band",
-            fill="tonexty", fillcolor="rgba(0,212,160,0.10)",
-            line=dict(color="rgba(0,212,160,0)")))
-        fig_ci.add_trace(go.Scatter(y=actual, name="Actual",
-            line=dict(color=C_BLUE, width=1.5)))
-        fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median",
-            line=dict(color=C_GREEN, width=1.8, dash="dot")))
-        fig_ci.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · Predictions with 95% CI", font=dict(color=C_GREEN, size=12)),
-            height=380, yaxis_title="Price ($)", xaxis_title="Trading Day (test set)")
-        st.plotly_chart(fig_ci, use_container_width=True)
+            strat_color = "bt-card-value-green" if bt["strat_return"] >= 0 else "bt-card-value-red"
+            bh_color    = "bt-card-value-green" if bt["bh_return"]    >= 0 else "bt-card-value-red"
+            dd_color    = "bt-card-value-red"   if bt["max_drawdown"] < -10 else "bt-card-value"
+            sh_color    = "bt-card-value-green" if bt["sharpe"]       >= 1  else "bt-card-value-red"
 
-        # Future CI
-        future_all = []
-        for _ in range(ci_bootstrap_n):
-            fp, lrf = [], X[-1].copy()
-            for d in range(future_days):
-                nxt = float(model.predict((lrf + np.random.normal(0, 0.015, lrf.shape)).reshape(1,-1))[0])
-                fp.append(nxt)
-                n_tech = len(feature_cols)
-                lrf    = np.concatenate([lrf[:n_tech], np.append(lrf[n_tech+1:], nxt)])
-            future_all.append(fp)
-        fa = np.array(future_all)
-        fut_l, fut_m, fut_u = (np.percentile(fa, 5,  axis=0),
-                               np.percentile(fa, 50, axis=0),
-                               np.percentile(fa, 95, axis=0))
+            k1, k2, k3, k4 = st.columns(4)
+            k1.markdown(f'<div class="bt-card"><div class="bt-card-label">Strategy Return</div>'
+                        f'<div class="{strat_color}">{bt["strat_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
+            k2.markdown(f'<div class="bt-card"><div class="bt-card-label">Buy &amp; Hold Return</div>'
+                        f'<div class="{bh_color}">{bt["bh_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
+            k3.markdown(f'<div class="bt-card"><div class="bt-card-label">Max Drawdown</div>'
+                        f'<div class="{dd_color}">{bt["max_drawdown"]:.2f}%</div></div>', unsafe_allow_html=True)
+            k4.markdown(f'<div class="bt-card"><div class="bt-card-label">Sharpe Ratio</div>'
+                        f'<div class="{sh_color}">{bt["sharpe"]:.2f}</div></div>', unsafe_allow_html=True)
 
-        fig_fci = go.Figure()
-        fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_u,
-            line=dict(color="rgba(0,212,160,0)"), showlegend=False))
-        fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_l,
-            name="95% CI", fill="tonexty", fillcolor="rgba(0,212,160,0.12)",
-            line=dict(color="rgba(0,212,160,0)")))
-        fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_m,
-            name="Forecast", mode="lines+markers",
-            line=dict(color=C_GREEN, width=2), marker=dict(size=7)))
-        fig_fci.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
-            annotation_text=f"Last close ${last_close:.2f}", annotation_font_color=C_GREY)
-        fig_fci.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · {future_days}-Day Forecast with 95% CI",
-                font=dict(color=C_GREEN, size=12)),
-            xaxis_title="Days from today", yaxis_title="Price ($)", height=350)
-        st.plotly_chart(fig_fci, use_container_width=True)
+            k5, k6, k7, k8 = st.columns(4)
+            k5.markdown(f'<div class="bt-card"><div class="bt-card-label">Final Capital</div>'
+                        f'<div class="bt-card-value">${bt["final_capital"]:,.0f}</div></div>', unsafe_allow_html=True)
+            k6.markdown(f'<div class="bt-card"><div class="bt-card-label">Total Trades</div>'
+                        f'<div class="bt-card-value">{bt["total_trades"]}</div></div>', unsafe_allow_html=True)
+            k7.markdown(f'<div class="bt-card"><div class="bt-card-label">Win Rate</div>'
+                        f'<div class="bt-card-value">{bt["win_rate"]:.1f}%</div></div>', unsafe_allow_html=True)
+            k8.markdown(f'<div class="bt-card"><div class="bt-card-label">Profit Factor</div>'
+                        f'<div class="bt-card-value">{bt["profit_factor"]:.2f}x</div></div>', unsafe_allow_html=True)
 
-    # ── Model Comparison ───────────────────────────────────────────────────────
-    if run_model_compare:
-        st.subheader("Model Comparison — XGBoost vs Prophet vs Linear Regression")
-        from sklearn.linear_model import LinearRegression as LR
-        cmp = {}
-        cmp["XGBoost"] = {"preds": preds, "color": C_GREEN,
-            "rmse": float(np.sqrt(mean_squared_error(actual, preds))),
-            "mae":  float(mean_absolute_error(actual, preds)),
-            "mape": float(np.mean(np.abs((actual-preds)/actual))*100),
-            "r2":   float(1 - np.sum((actual-preds)**2)/np.sum((actual-np.mean(actual))**2))}
+            # Equity Curve
+            fig_eq = go.Figure()
+            fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy",
+                line=dict(color=C_GREEN, width=2),
+                fill="tozeroy", fillcolor="rgba(0,212,160,0.05)"))
+            fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold",
+                line=dict(color=C_BLUE, width=1.5, dash="dot")))
+            fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY,
+                             annotation_text=f"Start ${bt_initial_capital:,}",
+                             annotation_font_color=C_GREY)
+            fig_eq.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · Strategy Equity Curve vs Buy & Hold",
+                           font=dict(color=C_GREEN, size=12)),
+                yaxis_title="Portfolio Value ($)", xaxis_title="Trading Day (test set)", height=380)
+            st.plotly_chart(fig_eq, use_container_width=True)
 
-        with st.spinner("Training Linear Regression..."):
-            lr_m = LR(); lr_m.fit(X_train, y_train); lr_p = lr_m.predict(X_test)
-        cmp["Linear Regression"] = {"preds": lr_p, "color": C_GREY,
-            "rmse": float(np.sqrt(mean_squared_error(actual, lr_p))),
-            "mae":  float(mean_absolute_error(actual, lr_p)),
-            "mape": float(np.mean(np.abs((actual-lr_p)/actual))*100),
-            "r2":   float(1 - np.sum((actual-lr_p)**2)/np.sum((actual-np.mean(actual))**2))}
+            # Drawdown
+            fig_dd = go.Figure()
+            fig_dd.add_trace(go.Scatter(y=[d * 100 for d in bt["drawdown_series"]],
+                name="Drawdown", line=dict(color=C_RED, width=1.5),
+                fill="tozeroy", fillcolor="rgba(255,71,87,0.07)"))
+            fig_dd.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · Strategy Drawdown (%)", font=dict(color=C_RED, size=12)),
+                yaxis_title="Drawdown (%)", xaxis_title="Trading Day (test set)", height=250)
+            st.plotly_chart(fig_dd, use_container_width=True)
 
-        try:
-            from prophet import Prophet
-            cs_full = df["Close"].squeeze()
-            pdf = pd.DataFrame({"ds": df.index[:len(cs_full)], "y": cs_full.values}).dropna()
-            ptr = pdf.iloc[:int(len(pdf)*0.8)]; pte = pdf.iloc[int(len(pdf)*0.8):]
-            with st.spinner("Training Prophet..."):
-                pm = Prophet(daily_seasonality=False, weekly_seasonality=True,
-                             yearly_seasonality=True, changepoint_prior_scale=0.05)
-                pm.fit(ptr)
-                pfut  = pm.make_future_dataframe(periods=len(pte), freq="B")
-                pfcst = pm.predict(pfut)
-                pp    = pfcst["yhat"].values[-len(pte):]
-                pa    = pte["y"].values; ml = min(len(pp), len(actual))
-                pp, pa = pp[:ml], actual[:ml]
-            cmp["Prophet"] = {"preds": pp, "color": C_YELLOW,
-                "rmse": float(np.sqrt(mean_squared_error(pa, pp))),
-                "mae":  float(mean_absolute_error(pa, pp)),
-                "mape": float(np.mean(np.abs((pa-pp)/pa))*100),
-                "r2":   float(1 - np.sum((pa-pp)**2)/np.sum((pa-np.mean(pa))**2))}
-        except ImportError:
-            st.info("Add `prophet` to requirements.txt to enable Prophet comparison.")
+            # Trade log
+            if not bt["trades_df"].empty:
+                st.markdown("#### Trade Log")
+                display_trades = bt["trades_df"].copy()
+                display_trades["Price"]   = display_trades["Price"].apply(lambda x: f"${x:.2f}")
+                display_trades["Capital"] = display_trades["Capital"].apply(lambda x: f"${x:,.0f}")
+                if "P&L" in display_trades.columns:
+                    display_trades["P&L"] = display_trades["P&L"].apply(
+                        lambda x: f"+${x:.2f}" if pd.notna(x) and x >= 0 else (f"-${abs(x):.2f}" if pd.notna(x) else "-"))
+                st.dataframe(display_trades, use_container_width=True, hide_index=True)
+                csv_bt = bt["trades_df"].to_csv(index=False).encode("utf-8")
+                st.download_button("⬇ Download Trade Log", data=csv_bt,
+                                   file_name=f"{ticker}_trades.csv", mime="text/csv")
 
-        rows = [{"Model": n, "RMSE ($)": f"${r['rmse']:.2f}", "MAE ($)": f"${r['mae']:.2f}",
-                 "MAPE (%)": f"{r['mape']:.2f}%", "R²": f"{r['r2']:.4f}"}
-                for n, r in cmp.items()]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        # ── Confidence Intervals ───────────────────────────────────────────────────
+        if show_conf_interval:
+            st.subheader("Forecast with Confidence Intervals")
+            st.markdown('<div class="ci-badge">95% CI — Bootstrap Resampling</div>', unsafe_allow_html=True)
 
-        fig_cmp = go.Figure()
-        fig_cmp.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_BLUE, width=2)))
-        for n, r in cmp.items():
-            fig_cmp.add_trace(go.Scatter(y=r["preds"], name=n,
-                line=dict(color=r["color"], width=1.5, dash="dot")))
-        fig_cmp.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · Model Comparison (Test Set)", font=dict(color=C_GREEN, size=12)),
-            height=380, yaxis_title="Price ($)")
-        st.plotly_chart(fig_cmp, use_container_width=True)
+            with st.spinner(f"Running {ci_bootstrap_n} bootstrap samples..."):
+                ci_lower, ci_median, ci_upper = bootstrap_confidence_intervals(
+                    model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
 
-        names_l = list(cmp.keys()); rmse_l = [r["rmse"] for r in cmp.values()]
-        best    = names_l[rmse_l.index(min(rmse_l))]
-        fig_b   = go.Figure(go.Bar(x=names_l, y=rmse_l,
-            marker_color=[r["color"] for r in cmp.values()],
-            text=[f"${v:.2f}" for v in rmse_l], textposition="outside"))
-        fig_b.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"RMSE Comparison · Lower is Better · Best: {best}",
-                font=dict(color=C_GREEN, size=12)),
-            yaxis_title="RMSE ($)", height=300)
-        st.plotly_chart(fig_b, use_container_width=True)
+            fig_ci = go.Figure()
+            fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,212,160,0)"),
+                showlegend=False))
+            fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band",
+                fill="tonexty", fillcolor="rgba(0,212,160,0.10)",
+                line=dict(color="rgba(0,212,160,0)")))
+            fig_ci.add_trace(go.Scatter(y=actual, name="Actual",
+                line=dict(color=C_BLUE, width=1.5)))
+            fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median",
+                line=dict(color=C_GREEN, width=1.8, dash="dot")))
+            fig_ci.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · Predictions with 95% CI", font=dict(color=C_GREEN, size=12)),
+                height=380, yaxis_title="Price ($)", xaxis_title="Trading Day (test set)")
+            st.plotly_chart(fig_ci, use_container_width=True)
 
-    # ── Halal / Shariah ────────────────────────────────────────────────────────
-    if run_halal_check:
-        st.markdown("""
-        <div style="background:rgba(0,212,160,0.03);border:1px solid rgba(0,212,160,0.15);
-             border-left:4px solid #00d4a0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
-             display:flex;align-items:center;gap:1rem;">
-            <div style="font-size:1.4rem;">☪</div>
-            <div>
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#00d4a0;">Halal / Shariah Compliance Screen</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#4a5a6a;margin-top:2px;">
-                    Automated screening based on AAOIFI Standard No.21 — a unique feature not found in mainstream platforms
+            # Future CI
+            future_all = []
+            for _ in range(ci_bootstrap_n):
+                fp, lrf = [], X[-1].copy()
+                for d in range(future_days):
+                    nxt = float(model.predict((lrf + np.random.normal(0, 0.015, lrf.shape)).reshape(1,-1))[0])
+                    fp.append(nxt)
+                    n_tech = len(feature_cols)
+                    lrf    = np.concatenate([lrf[:n_tech], np.append(lrf[n_tech+1:], nxt)])
+                future_all.append(fp)
+            fa = np.array(future_all)
+            fut_l, fut_m, fut_u = (np.percentile(fa, 5,  axis=0),
+                                   np.percentile(fa, 50, axis=0),
+                                   np.percentile(fa, 95, axis=0))
+
+            fig_fci = go.Figure()
+            fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_u,
+                line=dict(color="rgba(0,212,160,0)"), showlegend=False))
+            fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_l,
+                name="95% CI", fill="tonexty", fillcolor="rgba(0,212,160,0.12)",
+                line=dict(color="rgba(0,212,160,0)")))
+            fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_m,
+                name="Forecast", mode="lines+markers",
+                line=dict(color=C_GREEN, width=2), marker=dict(size=7)))
+            fig_fci.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
+                annotation_text=f"Last close ${last_close:.2f}", annotation_font_color=C_GREY)
+            fig_fci.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · {future_days}-Day Forecast with 95% CI",
+                    font=dict(color=C_GREEN, size=12)),
+                xaxis_title="Days from today", yaxis_title="Price ($)", height=350)
+            st.plotly_chart(fig_fci, use_container_width=True)
+
+        # ── Model Comparison ───────────────────────────────────────────────────────
+        if run_model_compare:
+            st.subheader("Model Comparison — XGBoost vs Prophet vs Linear Regression")
+            from sklearn.linear_model import LinearRegression as LR
+            cmp = {}
+            cmp["XGBoost"] = {"preds": preds, "color": C_GREEN,
+                "rmse": float(np.sqrt(mean_squared_error(actual, preds))),
+                "mae":  float(mean_absolute_error(actual, preds)),
+                "mape": float(np.mean(np.abs((actual-preds)/actual))*100),
+                "r2":   float(1 - np.sum((actual-preds)**2)/np.sum((actual-np.mean(actual))**2))}
+
+            with st.spinner("Training Linear Regression..."):
+                lr_m = LR(); lr_m.fit(X_train, y_train); lr_p = lr_m.predict(X_test)
+            cmp["Linear Regression"] = {"preds": lr_p, "color": C_GREY,
+                "rmse": float(np.sqrt(mean_squared_error(actual, lr_p))),
+                "mae":  float(mean_absolute_error(actual, lr_p)),
+                "mape": float(np.mean(np.abs((actual-lr_p)/actual))*100),
+                "r2":   float(1 - np.sum((actual-lr_p)**2)/np.sum((actual-np.mean(actual))**2))}
+
+            try:
+                from prophet import Prophet
+                cs_full = df["Close"].squeeze()
+                pdf = pd.DataFrame({"ds": df.index[:len(cs_full)], "y": cs_full.values}).dropna()
+                ptr = pdf.iloc[:int(len(pdf)*0.8)]; pte = pdf.iloc[int(len(pdf)*0.8):]
+                with st.spinner("Training Prophet..."):
+                    pm = Prophet(daily_seasonality=False, weekly_seasonality=True,
+                                 yearly_seasonality=True, changepoint_prior_scale=0.05)
+                    pm.fit(ptr)
+                    pfut  = pm.make_future_dataframe(periods=len(pte), freq="B")
+                    pfcst = pm.predict(pfut)
+                    pp    = pfcst["yhat"].values[-len(pte):]
+                    pa    = pte["y"].values; ml = min(len(pp), len(actual))
+                    pp, pa = pp[:ml], actual[:ml]
+                cmp["Prophet"] = {"preds": pp, "color": C_YELLOW,
+                    "rmse": float(np.sqrt(mean_squared_error(pa, pp))),
+                    "mae":  float(mean_absolute_error(pa, pp)),
+                    "mape": float(np.mean(np.abs((pa-pp)/pa))*100),
+                    "r2":   float(1 - np.sum((pa-pp)**2)/np.sum((pa-np.mean(pa))**2))}
+            except ImportError:
+                st.info("Add `prophet` to requirements.txt to enable Prophet comparison.")
+
+            rows = [{"Model": n, "RMSE ($)": f"${r['rmse']:.2f}", "MAE ($)": f"${r['mae']:.2f}",
+                     "MAPE (%)": f"{r['mape']:.2f}%", "R²": f"{r['r2']:.4f}"}
+                    for n, r in cmp.items()]
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+            fig_cmp = go.Figure()
+            fig_cmp.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_BLUE, width=2)))
+            for n, r in cmp.items():
+                fig_cmp.add_trace(go.Scatter(y=r["preds"], name=n,
+                    line=dict(color=r["color"], width=1.5, dash="dot")))
+            fig_cmp.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · Model Comparison (Test Set)", font=dict(color=C_GREEN, size=12)),
+                height=380, yaxis_title="Price ($)")
+            st.plotly_chart(fig_cmp, use_container_width=True)
+
+            names_l = list(cmp.keys()); rmse_l = [r["rmse"] for r in cmp.values()]
+            best    = names_l[rmse_l.index(min(rmse_l))]
+            fig_b   = go.Figure(go.Bar(x=names_l, y=rmse_l,
+                marker_color=[r["color"] for r in cmp.values()],
+                text=[f"${v:.2f}" for v in rmse_l], textposition="outside"))
+            fig_b.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"RMSE Comparison · Lower is Better · Best: {best}",
+                    font=dict(color=C_GREEN, size=12)),
+                yaxis_title="RMSE ($)", height=300)
+            st.plotly_chart(fig_b, use_container_width=True)
+
+        # ── Halal / Shariah ────────────────────────────────────────────────────────
+        if run_halal_check:
+            st.markdown("""
+            <div style="background:rgba(0,212,160,0.03);border:1px solid rgba(0,212,160,0.15);
+                 border-left:4px solid #00d4a0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
+                 display:flex;align-items:center;gap:1rem;">
+                <div style="font-size:1.4rem;">☪</div>
+                <div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                         text-transform:uppercase;color:#00d4a0;">Halal / Shariah Compliance Screen</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#4a5a6a;margin-top:2px;">
+                        Automated screening based on AAOIFI Standard No.21 — a unique feature not found in mainstream platforms
+                    </div>
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown(
-            '<div class="model-badge">Based on AAOIFI Standard No.21 + S&P Shariah Indices Methodology</div>',
-            unsafe_allow_html=True)
-
-        with st.spinner(f"Fetching financial data for {ticker}..."):
-            sd = get_shariah_data(ticker)
-
-        if sd is None:
-            st.warning(
-                f"⚠ Could not fetch detailed financial data for **{ticker}** from Yahoo Finance. "
-                "This may be a temporary API issue. The ticker symbol screening will use "
-                "the known-ticker list only.")
-            # Build minimal sd from ticker list screening only
-            sd = {
-                "debt_to_mktcap": 0, "debt_to_assets": 0, "cash_to_assets": 0,
-                "market_cap": 0, "total_debt": 0, "total_assets": 0, "total_cash": 0,
-                "sector": "Unknown", "industry": "Unknown", "company_name": ticker,
-            }
-        if sd is not None:
-            cr      = check_shariah_compliance(ticker, sd)
-            verdict = cr["verdict"]
-            v_color = {"COMPLIANT": C_GREEN, "NON-COMPLIANT": C_RED, "QUESTIONABLE": C_YELLOW}[verdict]
-            v_bg    = {"COMPLIANT": "rgba(0,212,160,0.05)", "NON-COMPLIANT": "rgba(255,71,87,0.05)",
-                       "QUESTIONABLE": "rgba(255,211,42,0.05)"}[verdict]
-            v_icon  = {"COMPLIANT": "✅", "NON-COMPLIANT": "❌", "QUESTIONABLE": "⚠️"}[verdict]
-
+            """, unsafe_allow_html=True)
             st.markdown(
-                f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};'
-                f'padding:1.2rem 2rem;margin:1rem 0;text-align:center;">'
-                f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#4a5a6a;'
-                f'letter-spacing:.15em;text-transform:uppercase;">{sd["company_name"]} ({ticker})</div>'
-                f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;'
-                f'color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{verdict}</div>'
-                f'<div style="font-size:.78rem;color:#8a9bb0;margin-top:.3rem;">'
-                f'Sector: {sd["sector"]} | Industry: {sd["industry"]}</div>'
-                f'</div>', unsafe_allow_html=True)
-
-            st.markdown("#### Screening Criteria Breakdown")
-            cl, cr2 = st.columns(2)
-            with cl:
-                bs = cr["business"]
-                if bs["haram_hit"]:
-                    st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>'
-                                f'Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
-                elif bs["questionable"]:
-                    st.markdown('<div class="halal-card" style="border-left-color:#ffd32a">'
-                                '<b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>',
-                                unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>'
-                                f'No Haram core business detected<br>'
-                                f'<small style="color:#4a5a6a">Sector: {sd["sector"]}</small></div>',
-                                unsafe_allow_html=True)
-                dm = cr["debt_mktcap"]
-                cc = "halal-card" if dm["pass"] else "halal-card-fail"
-                st.markdown(f'<div class="{cc}"><b>{"✅" if dm["pass"] else "❌"} Debt / Market Cap</b>'
-                            f'<br>{dm["label"]}</div>', unsafe_allow_html=True)
-            with cr2:
-                da = cr["debt_assets"]
-                cc = "halal-card" if da["pass"] else "halal-card-fail"
-                st.markdown(f'<div class="{cc}"><b>{"✅" if da["pass"] else "❌"} Debt / Total Assets</b>'
-                            f'<br>{da["label"]}</div>', unsafe_allow_html=True)
-                ca = cr["cash_assets"]
-                cc = "halal-card" if ca["pass"] else "halal-card-fail"
-                st.markdown(f'<div class="{cc}"><b>{"✅" if ca["pass"] else "❌"} Cash / Total Assets</b>'
-                            f'<br>{ca["label"]}</div>', unsafe_allow_html=True)
-
-            st.markdown("#### Financial Snapshot")
-            f1, f2, f3, f4 = st.columns(4)
-            f1.metric("Market Cap",   f'${sd["market_cap"]/1e9:.2f}B')
-            f2.metric("Total Debt",   f'${sd["total_debt"]/1e9:.2f}B')
-            f3.metric("Total Assets", f'${sd["total_assets"]/1e9:.2f}B')
-            f4.metric("Cash",         f'${sd["total_cash"]/1e9:.2f}B')
-
-            st.markdown(
-                '<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.2rem;'
-                'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#4a5a6a;margin-top:1rem;">'
-                '⚠ Automated screen based on AAOIFI Standard No.21. '
-                'Does not constitute a fatwa. Consult a qualified Islamic finance scholar for binding rulings.</div>',
+                '<div class="model-badge">Based on AAOIFI Standard No.21 + S&P Shariah Indices Methodology</div>',
                 unsafe_allow_html=True)
 
-    # ── Download ───────────────────────────────────────────────────────────────
-    st.subheader("Download Report")
-    export_df = df[['Open','High','Low','Close','Volume',
-                    'MA50','MA200','RSI','MACD','BB_Upper','BB_Lower','ATR']].copy()
-    csv_hist    = export_df.to_csv().encode('utf-8')
-    csv_signals = signal_df.to_csv(index=False).encode('utf-8')
-    csv_future  = future_df.to_csv(index=False).encode('utf-8')
+            with st.spinner(f"Fetching financial data for {ticker}..."):
+                sd = get_shariah_data(ticker)
 
-    dl1, dl2, dl3 = st.columns(3)
-    with dl1:
-        st.download_button("⬇ Historical Data + Indicators", data=csv_hist,
-                           file_name=f"{ticker}_historical.csv", mime="text/csv")
-    with dl2:
-        st.download_button("⬇ Buy/Sell Signals", data=csv_signals,
-                           file_name=f"{ticker}_signals.csv", mime="text/csv")
-    with dl3:
-        st.download_button("⬇ Forecast Data", data=csv_future,
-                           file_name=f"{ticker}_forecast.csv", mime="text/csv")
+            if sd is None:
+                st.warning(
+                    f"⚠ Could not fetch detailed financial data for **{ticker}** from Yahoo Finance. "
+                    "This may be a temporary API issue. The ticker symbol screening will use "
+                    "the known-ticker list only.")
+                # Build minimal sd from ticker list screening only
+                sd = {
+                    "debt_to_mktcap": 0, "debt_to_assets": 0, "cash_to_assets": 0,
+                    "market_cap": 0, "total_debt": 0, "total_assets": 0, "total_cash": 0,
+                    "sector": "Unknown", "industry": "Unknown", "company_name": ticker,
+                }
+            if sd is not None:
+                cr      = check_shariah_compliance(ticker, sd)
+                verdict = cr["verdict"]
+                v_color = {"COMPLIANT": C_GREEN, "NON-COMPLIANT": C_RED, "QUESTIONABLE": C_YELLOW}[verdict]
+                v_bg    = {"COMPLIANT": "rgba(0,212,160,0.05)", "NON-COMPLIANT": "rgba(255,71,87,0.05)",
+                           "QUESTIONABLE": "rgba(255,211,42,0.05)"}[verdict]
+                v_icon  = {"COMPLIANT": "✅", "NON-COMPLIANT": "❌", "QUESTIONABLE": "⚠️"}[verdict]
 
-    st.markdown("---")
-    st.markdown('<div class="stat-row">⚠ For educational purposes only. Not financial advice.</div>',
-                unsafe_allow_html=True)
+                st.markdown(
+                    f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};'
+                    f'padding:1.2rem 2rem;margin:1rem 0;text-align:center;">'
+                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#4a5a6a;'
+                    f'letter-spacing:.15em;text-transform:uppercase;">{sd["company_name"]} ({ticker})</div>'
+                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;'
+                    f'color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{verdict}</div>'
+                    f'<div style="font-size:.78rem;color:#8a9bb0;margin-top:.3rem;">'
+                    f'Sector: {sd["sector"]} | Industry: {sd["industry"]}</div>'
+                    f'</div>', unsafe_allow_html=True)
+
+                st.markdown("#### Screening Criteria Breakdown")
+                cl, cr2 = st.columns(2)
+                with cl:
+                    bs = cr["business"]
+                    if bs["haram_hit"]:
+                        st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>'
+                                    f'Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
+                    elif bs["questionable"]:
+                        st.markdown('<div class="halal-card" style="border-left-color:#ffd32a">'
+                                    '<b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>',
+                                    unsafe_allow_html=True)
+                    else:
+                        st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>'
+                                    f'No Haram core business detected<br>'
+                                    f'<small style="color:#4a5a6a">Sector: {sd["sector"]}</small></div>',
+                                    unsafe_allow_html=True)
+                    dm = cr["debt_mktcap"]
+                    cc = "halal-card" if dm["pass"] else "halal-card-fail"
+                    st.markdown(f'<div class="{cc}"><b>{"✅" if dm["pass"] else "❌"} Debt / Market Cap</b>'
+                                f'<br>{dm["label"]}</div>', unsafe_allow_html=True)
+                with cr2:
+                    da = cr["debt_assets"]
+                    cc = "halal-card" if da["pass"] else "halal-card-fail"
+                    st.markdown(f'<div class="{cc}"><b>{"✅" if da["pass"] else "❌"} Debt / Total Assets</b>'
+                                f'<br>{da["label"]}</div>', unsafe_allow_html=True)
+                    ca = cr["cash_assets"]
+                    cc = "halal-card" if ca["pass"] else "halal-card-fail"
+                    st.markdown(f'<div class="{cc}"><b>{"✅" if ca["pass"] else "❌"} Cash / Total Assets</b>'
+                                f'<br>{ca["label"]}</div>', unsafe_allow_html=True)
+
+                st.markdown("#### Financial Snapshot")
+                f1, f2, f3, f4 = st.columns(4)
+                f1.metric("Market Cap",   f'${sd["market_cap"]/1e9:.2f}B')
+                f2.metric("Total Debt",   f'${sd["total_debt"]/1e9:.2f}B')
+                f3.metric("Total Assets", f'${sd["total_assets"]/1e9:.2f}B')
+                f4.metric("Cash",         f'${sd["total_cash"]/1e9:.2f}B')
+
+                st.markdown(
+                    '<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.2rem;'
+                    'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#4a5a6a;margin-top:1rem;">'
+                    '⚠ Automated screen based on AAOIFI Standard No.21. '
+                    'Does not constitute a fatwa. Consult a qualified Islamic finance scholar for binding rulings.</div>',
+                    unsafe_allow_html=True)
+
+        # ── Download ───────────────────────────────────────────────────────────────
+        st.subheader("Download Report")
+        export_df = df[['Open','High','Low','Close','Volume',
+                        'MA50','MA200','RSI','MACD','BB_Upper','BB_Lower','ATR']].copy()
+        csv_hist    = export_df.to_csv().encode('utf-8')
+        csv_signals = signal_df.to_csv(index=False).encode('utf-8')
+        csv_future  = future_df.to_csv(index=False).encode('utf-8')
+
+        dl1, dl2, dl3 = st.columns(3)
+        with dl1:
+            st.download_button("⬇ Historical Data + Indicators", data=csv_hist,
+                               file_name=f"{ticker}_historical.csv", mime="text/csv")
+        with dl2:
+            st.download_button("⬇ Buy/Sell Signals", data=csv_signals,
+                               file_name=f"{ticker}_signals.csv", mime="text/csv")
+        with dl3:
+            st.download_button("⬇ Forecast Data", data=csv_future,
+                               file_name=f"{ticker}_forecast.csv", mime="text/csv")
+
+        st.markdown("---")
+        st.markdown('<div class="stat-row">⚠ For educational purposes only. Not financial advice.</div>',
+                    unsafe_allow_html=True)
 
 else:
-    import streamlit.components.v1 as components
-    components.html("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: transparent; }
-    </style>
-    <div style="padding:2.5rem 0 1rem 0; font-family:'IBM Plex Sans',sans-serif;">
+    land_tab_overview, land_tab_methodology = st.tabs(["🏠  Overview", "📖  Methodology"])
 
-        <!-- Hero -->
-        <div style="text-align:center;margin-bottom:2.5rem;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
-                 letter-spacing:.25em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.6rem;">
-                Institutional-grade analysis &amp; Free &amp; open
-            </div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
-                 color:#e8edf2;letter-spacing:.06em;line-height:1.2;">
-                STOCK<span style="color:#00d4a0;">CAST</span>
-            </div>
-            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.9rem;color:#8a9bb0;
-                 margin-top:.5rem;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6;">
-                Enter any NYSE / NASDAQ ticker in the sidebar and press
-                <span style="color:#00d4a0;font-family:'IBM Plex Mono',monospace;font-weight:600;">▶ RUN FORECAST</span>
-                to generate a full ML-powered market intelligence report.
-            </div>
-        </div>
+    with land_tab_overview:
+        import streamlit.components.v1 as components
+        components.html("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: transparent; }
+        </style>
+        <div style="padding:2.5rem 0 1rem 0; font-family:'IBM Plex Sans',sans-serif;">
 
-        <!-- Feature cards grid -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem;">
-
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">📈 XGBoost Forecast</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                    ML model trained on 20 technical features + lag windows. Predicts next
-                    <em>N</em> days with full 95% bootstrap confidence intervals — not just a single line.
+            <!-- Hero -->
+            <div style="text-align:center;margin-bottom:2.5rem;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+                     letter-spacing:.25em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.6rem;">
+                    Institutional-grade analysis &amp; Free &amp; open
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
+                     color:#e8edf2;letter-spacing:.06em;line-height:1.2;">
+                    STOCK<span style="color:#00d4a0;">CAST</span>
+                </div>
+                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.9rem;color:#8a9bb0;
+                     margin-top:.5rem;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6;">
+                    Enter any NYSE / NASDAQ ticker in the sidebar and press
+                    <span style="color:#00d4a0;font-family:'IBM Plex Mono',monospace;font-weight:600;">▶ RUN FORECAST</span>
+                    to generate a full ML-powered market intelligence report.
                 </div>
             </div>
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⚙ Technical Signals</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                    RSI, MACD, Bollinger Bands, MA50/200, ATR, Volume Ratio — all computed live.
-                    BUY / SELL / HOLD signals generated from model predictions.
-                </div>
-            </div>
+            <!-- Feature cards grid -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem;">
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ffd32a;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#ffd32a;margin-bottom:.5rem;">📊 Backtesting Engine</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                    Simulate your strategy on historical data. Get Sharpe ratio, max drawdown,
-                    win rate, profit factor, and full equity curve vs buy-and-hold.
-                </div>
-            </div>
-
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ff4757;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#ff4757;margin-bottom:.5rem;">🔬 Model Comparison</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                    Benchmark XGBoost against Prophet and Linear Regression side-by-side.
-                    RMSE, MAE, MAPE and R² reported for every model.
-                </div>
-            </div>
-
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">☪ Shariah Screening</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                    Automated Halal compliance check based on AAOIFI Standard No.21.
-                    Screens business activity, debt ratios, and cash ratios instantly.
-                </div>
-            </div>
-
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⬇ Export Reports</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                    Download historical data + indicators, buy/sell signal log, forecast
-                    prices, and full trade history as CSV — ready for your own analysis.
-                </div>
-            </div>
-
-        </div>
-
-        <!-- How it works -->
-        <div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid #00d4a0;
-             padding:1.4rem 1.8rem;margin-bottom:2rem;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.8rem;">How it works</div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;">
-                <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">01</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
-                        Historical OHLCV data fetched via yfinance (up to 7 years)
+                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                         text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">📈 XGBoost Forecast</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+                        ML model trained on 20 technical features + lag windows. Predicts next
+                        <em>N</em> days with full 95% bootstrap confidence intervals — not just a single line.
                     </div>
                 </div>
-                <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">02</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
-                        20 technical indicators engineered as model features
-                    </div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">03</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
-                        XGBoost trained on 80% of data, evaluated on held-out 20%
-                    </div>
-                </div>
-                <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">04</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
-                        Bootstrap CI quantifies forecast uncertainty across all predictions
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- Disclaimer + tickers -->
-        <div style="text-align:center;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#2a3a4e;
-                 letter-spacing:.1em;margin-bottom:.5rem;">
-                AAPL · TSLA · GOOGL · MSFT · AMZN · NFLX · META · NVDA · JPM · AMD · ORCL · BABA
-            </div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;color:#1e2a38;letter-spacing:.08em;">
-                ⚠ For educational purposes only. Not financial advice. Past model performance does not guarantee future results.
-            </div>
-        </div>
+                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                         text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⚙ Technical Signals</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+                        RSI, MACD, Bollinger Bands, MA50/200, ATR, Volume Ratio — all computed live.
+                        BUY / SELL / HOLD signals generated from model predictions.
+                    </div>
+                </div>
 
-    </div>
-    """, height=900, scrolling=True)
+                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ffd32a;padding:1.3rem 1.4rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                         text-transform:uppercase;color:#ffd32a;margin-bottom:.5rem;">📊 Backtesting Engine</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+                        Simulate your strategy on historical data. Get Sharpe ratio, max drawdown,
+                        win rate, profit factor, and full equity curve vs buy-and-hold.
+                    </div>
+                </div>
+
+                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ff4757;padding:1.3rem 1.4rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                         text-transform:uppercase;color:#ff4757;margin-bottom:.5rem;">🔬 Model Comparison</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+                        Benchmark XGBoost against Prophet and Linear Regression side-by-side.
+                        RMSE, MAE, MAPE and R² reported for every model.
+                    </div>
+                </div>
+
+                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                         text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">☪ Shariah Screening</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+                        Automated Halal compliance check based on AAOIFI Standard No.21.
+                        Screens business activity, debt ratios, and cash ratios instantly.
+                    </div>
+                </div>
+
+                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                         text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⬇ Export Reports</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+                        Download historical data + indicators, buy/sell signal log, forecast
+                        prices, and full trade history as CSV — ready for your own analysis.
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Pipeline progress bar -->
+            <div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid #00d4a0;
+                 padding:1.4rem 1.8rem;margin-bottom:2rem;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                     text-transform:uppercase;color:#4a5a6a;margin-bottom:1rem;">Pipeline — How It Works</div>
+                <div style="display:flex;align-items:center;gap:0;margin-bottom:1rem;">
+                    <div style="flex:1;text-align:center;position:relative;">
+                        <div style="width:36px;height:36px;border-radius:50%;background:#00d4a0;
+                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
+                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">01</div>
+                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
+                            OHLCV Data<br><span style="color:#4a5a6a;font-size:.65rem;">yfinance · 7yr</span>
+                        </div>
+                        <div style="position:absolute;top:18px;left:calc(50% + 18px);right:0;height:2px;background:#1e2a38;"></div>
+                    </div>
+                    <div style="flex:1;text-align:center;position:relative;">
+                        <div style="width:36px;height:36px;border-radius:50%;background:#3d9eff;
+                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
+                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">02</div>
+                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
+                            Feature Engineering<br><span style="color:#4a5a6a;font-size:.65rem;">20 indicators</span>
+                        </div>
+                        <div style="position:absolute;top:18px;left:calc(50% + 18px);right:0;height:2px;background:#1e2a38;"></div>
+                    </div>
+                    <div style="flex:1;text-align:center;position:relative;">
+                        <div style="width:36px;height:36px;border-radius:50%;background:#ffd32a;
+                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
+                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">03</div>
+                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
+                            XGBoost Train<br><span style="color:#4a5a6a;font-size:.65rem;">80/20 split</span>
+                        </div>
+                        <div style="position:absolute;top:18px;left:calc(50% + 18px);right:0;height:2px;background:#1e2a38;"></div>
+                    </div>
+                    <div style="flex:1;text-align:center;position:relative;">
+                        <div style="width:36px;height:36px;border-radius:50%;background:#00d4a0;
+                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
+                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">04</div>
+                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
+                            Forecast + CI<br><span style="color:#4a5a6a;font-size:.65rem;">Bootstrap 95%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disclaimer + tickers -->
+            <div style="text-align:center;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#2a3a4e;
+                     letter-spacing:.1em;margin-bottom:.5rem;">
+                    AAPL · TSLA · GOOGL · MSFT · AMZN · NFLX · META · NVDA · JPM · AMD · ORCL · BABA
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;color:#1e2a38;letter-spacing:.08em;">
+                    ⚠ For educational purposes only. Not financial advice. Past model performance does not guarantee future results.
+                </div>
+            </div>
+
+        </div>
+        """, height=950, scrolling=True)
+
+    with land_tab_methodology:
+        render_methodology_page()
