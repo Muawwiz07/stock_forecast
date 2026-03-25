@@ -14,32 +14,39 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide",
                    initial_sidebar_state="expanded")
 
-# ── Bloomberg-style CSS ────────────────────────────────────────────────────────
+# ── Enhanced Terminal UI CSS ───────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
 /* ── ROOT VARS ── */
 :root {
-    --bg:         #0a0c0f;
-    --bg2:        #0f1318;
-    --bg3:        #131920;
-    --bg4:        #161d26;
-    --green:      #00d4a0;
-    --green-dim:  rgba(0,212,160,0.12);
-    --red:        #ff4757;
-    --red-dim:    rgba(255,71,87,0.12);
-    --blue:       #3d9eff;
-    --blue-dim:   rgba(61,158,255,0.12);
-    --yellow:     #ffd32a;
-    --yellow-dim: rgba(255,211,42,0.12);
-    --t1:         #e8edf2;
-    --t2:         #8a9bb0;
-    --t3:         #4a5a6a;
-    --border:     #1e2a38;
-    --border2:    #2a3a4e;
+    --bg:         #080b0e;
+    --bg2:        #0d1117;
+    --bg3:        #111820;
+    --bg4:        #151e28;
+    --bg5:        #0a0e14;
+    --green:      #00e5b0;
+    --green-dim:  rgba(0,229,176,0.10);
+    --green-glow: rgba(0,229,176,0.22);
+    --red:        #ff3d57;
+    --red-dim:    rgba(255,61,87,0.10);
+    --blue:       #4da6ff;
+    --blue-dim:   rgba(77,166,255,0.10);
+    --yellow:     #ffce2e;
+    --yellow-dim: rgba(255,206,46,0.10);
+    --purple:     #c084fc;
+    --purple-dim: rgba(192,132,252,0.10);
+    --t1:         #edf2f7;
+    --t2:         #8fa8c0;
+    --t3:         #3d5166;
+    --t4:         #1e2e3e;
+    --border:     #192535;
+    --border2:    #253547;
+    --border3:    #0e1822;
     --mono:       'IBM Plex Mono', monospace;
-    --sans:       'IBM Plex Sans', sans-serif;
+    --sans:       'Space Grotesk', sans-serif;
+    --sans2:      'IBM Plex Sans', sans-serif;
 }
 
 /* ── GLOBAL ── */
@@ -51,34 +58,49 @@ html, body, [class*="css"], [data-testid="stApp"],
 }
 .block-container { padding: 1.5rem 2rem !important; max-width: 100% !important; }
 
-/* scanline */
+/* deep background gradient */
+[data-testid="stApp"] {
+    background: radial-gradient(ellipse 80% 50% at 50% -10%,
+        rgba(0,229,176,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 100%,
+        rgba(77,166,255,0.03) 0%, transparent 50%),
+        var(--bg) !important;
+}
+
+/* subtle scanline */
 [data-testid="stApp"]::before {
     content: '';
     position: fixed; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px,
-        rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px,
+        rgba(0,0,0,0.015) 3px, rgba(0,0,0,0.015) 4px);
     pointer-events: none; z-index: 9999;
 }
 
 /* ── SIDEBAR ── */
 [data-testid="stSidebar"],
 [data-testid="stSidebar"] > div:first-child {
-    background-color: var(--bg2) !important;
+    background: linear-gradient(180deg, #0c1219 0%, #080d12 100%) !important;
     border-right: 1px solid var(--border) !important;
+}
+[data-testid="stSidebar"]::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--green), var(--blue), transparent);
 }
 [data-testid="stSidebar"] * { color: var(--t2) !important; }
 [data-testid="stSidebar"] input {
     background-color: var(--bg3) !important;
     border: 1px solid var(--border2) !important;
-    border-radius: 0 !important;
+    border-radius: 3px !important;
     color: var(--green) !important;
     font-family: var(--mono) !important;
     font-weight: 600 !important;
     letter-spacing: 0.06em !important;
+    transition: all 0.2s ease !important;
 }
 [data-testid="stSidebar"] input:focus {
     border-color: var(--green) !important;
-    box-shadow: 0 0 0 1px var(--green), 0 0 12px rgba(0,212,160,0.1) !important;
+    box-shadow: 0 0 0 1px var(--green), 0 0 16px rgba(0,229,176,0.12) !important;
 }
 
 /* ── BUTTONS ── */
@@ -86,67 +108,104 @@ html, body, [class*="css"], [data-testid="stApp"],
     background: transparent !important;
     color: var(--green) !important;
     border: 1px solid var(--green) !important;
-    border-radius: 0 !important;
+    border-radius: 3px !important;
     font-family: var(--mono) !important;
-    font-weight: 600 !important;
-    font-size: 0.75rem !important;
-    letter-spacing: 0.12em !important;
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.16em !important;
     text-transform: uppercase !important;
-    padding: 0.6rem 1.4rem !important;
-    transition: all 0.15s ease !important;
+    padding: 0.65rem 1.6rem !important;
+    transition: all 0.2s ease !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+.stButton > button::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,176,0.08), transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 .stButton > button:hover {
     background: var(--green) !important;
     color: #000 !important;
-    box-shadow: 0 0 20px rgba(0,212,160,0.25) !important;
+    box-shadow: 0 0 24px rgba(0,229,176,0.3), 0 4px 12px rgba(0,0,0,0.4) !important;
+    transform: translateY(-1px) !important;
+}
+.stButton > button:active {
+    transform: translateY(0) !important;
 }
 
 /* ── METRICS ── */
 [data-testid="metric-container"] {
-    background: var(--bg2) !important;
+    background: linear-gradient(145deg, var(--bg2) 0%, var(--bg3) 100%) !important;
     border: 1px solid var(--border) !important;
     border-top: 2px solid var(--green) !important;
-    border-radius: 0 !important;
-    padding: 1rem 1.2rem !important;
+    border-radius: 4px !important;
+    padding: 1.1rem 1.3rem !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+[data-testid="metric-container"]::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 100%;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,229,176,0.04), transparent);
+    pointer-events: none;
+}
+[data-testid="metric-container"]:hover {
+    border-color: rgba(0,229,176,0.5) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,229,176,0.1) !important;
 }
 [data-testid="stMetricLabel"] {
     font-family: var(--mono) !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.15em !important;
+    font-size: 0.62rem !important;
+    letter-spacing: 0.18em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
 }
 [data-testid="stMetricValue"] {
     font-family: var(--mono) !important;
-    font-size: 1.6rem !important;
-    font-weight: 600 !important;
+    font-size: 1.65rem !important;
+    font-weight: 700 !important;
     color: var(--green) !important;
+    text-shadow: 0 0 20px rgba(0,229,176,0.3) !important;
 }
+[data-testid="stMetricDelta"] svg { vertical-align: middle; }
 
 /* ── HEADINGS ── */
 h2, h3 {
     font-family: var(--mono) !important;
     color: var(--t1) !important;
-    font-size: 0.8rem !important;
-    letter-spacing: 0.15em !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.18em !important;
     text-transform: uppercase !important;
     border-bottom: 1px solid var(--border) !important;
-    padding-bottom: 0.5rem !important;
-    margin-top: 1.4rem !important;
+    padding-bottom: 0.6rem !important;
+    margin-top: 1.6rem !important;
+    position: relative !important;
+}
+h2::after, h3::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0;
+    width: 40px; height: 1px;
+    background: var(--green);
 }
 h4 {
     font-family: var(--mono) !important;
-    font-size: 0.7rem !important;
-    letter-spacing: 0.12em !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.14em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
 }
 
-hr { border-color: var(--border) !important; }
+hr { border-color: var(--border) !important; margin: 1.5rem 0 !important; }
 
 p, .stMarkdown p {
     color: var(--t2) !important;
-    font-size: 0.85rem !important;
+    font-size: 0.87rem !important;
+    line-height: 1.65 !important;
 }
 
 /* ── DATAFRAME ── */
@@ -170,191 +229,257 @@ label, [data-testid="stSelectbox"] label,
 [data-testid="stTabs"] [role="tablist"] {
     background: var(--bg2) !important;
     border-bottom: 1px solid var(--border) !important;
+    gap: 0 !important;
 }
 [data-testid="stTabs"] [role="tab"] {
     font-family: var(--mono) !important;
-    font-size: 0.7rem !important;
-    letter-spacing: 0.08em !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.1em !important;
     color: var(--t3) !important;
     border-radius: 0 !important;
     border: none !important;
-    padding: 8px 18px !important;
+    padding: 10px 20px !important;
+    transition: color 0.2s ease !important;
+}
+[data-testid="stTabs"] [role="tab"]:hover {
+    color: var(--t2) !important;
+    background: rgba(255,255,255,0.02) !important;
 }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
     color: var(--green) !important;
     border-bottom: 2px solid var(--green) !important;
     background: transparent !important;
+    text-shadow: 0 0 12px rgba(0,229,176,0.4) !important;
 }
 
 /* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--t3); }
 
 /* ── HIDE STREAMLIT CHROME ── */
 footer { visibility: hidden !important; }
-/* Keep header and sidebar toggle visible */
+
+/* ── DATAFRAME ── */
+[data-testid="stDataFrame"] {
+    border: 1px solid var(--border) !important;
+    background: var(--bg2) !important;
+    border-radius: 4px !important;
+    overflow: hidden !important;
+}
+
+/* ── SELECTBOX / SLIDER LABELS ── */
+label, [data-testid="stSelectbox"] label,
+[data-testid="stSlider"] label,
+[data-testid="stTextInput"] label {
+    font-family: var(--mono) !important;
+    font-size: 0.62rem !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    color: var(--t3) !important;
+}
+
+/* Slider track color */
+[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] {
+    background: var(--green) !important;
+    box-shadow: 0 0 8px rgba(0,229,176,0.4) !important;
+}
 
 /* ── CUSTOM COMPONENTS ── */
 
 /* Top header banner */
 .app-header {
-    background: var(--bg2);
+    background: linear-gradient(135deg, #0d141c 0%, #0a1019 60%, #080d14 100%);
     border-bottom: 1px solid var(--border);
     border-left: 3px solid var(--green);
-    padding: 1rem 1.8rem;
-    margin-bottom: 1.5rem;
+    padding: 1.1rem 1.8rem;
+    margin-bottom: 1.6rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0 4px 4px 0;
+}
+.app-header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 100% at 0% 50%, rgba(0,229,176,0.05), transparent);
+    pointer-events: none;
+}
+.app-header::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, var(--green), rgba(77,166,255,0.5), transparent);
 }
 .app-header-left {}
 .app-title {
     font-family: var(--mono);
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: var(--t1);
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
 }
-.app-title span { color: var(--green); }
+.app-title span { color: var(--green); text-shadow: 0 0 16px rgba(0,229,176,0.5); }
 .app-sub {
-    font-family: var(--sans);
-    font-size: 0.78rem;
+    font-family: var(--sans2);
+    font-size: 0.77rem;
     color: var(--t3);
     letter-spacing: 0.04em;
-    margin-top: 2px;
+    margin-top: 3px;
 }
 .live-dot {
     display: inline-block;
     width: 7px; height: 7px;
     background: var(--green);
     border-radius: 50%;
-    animation: pulse 2s infinite;
+    animation: pulse 2.5s infinite;
     margin-right: 6px;
     vertical-align: middle;
+    box-shadow: 0 0 8px rgba(0,229,176,0.6);
 }
 @keyframes pulse {
-    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,212,160,0.5); }
-    50%      { opacity:.7; box-shadow: 0 0 0 6px rgba(0,212,160,0); }
+    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,229,176,0.6); }
+    60%      { opacity:.8; box-shadow: 0 0 0 7px rgba(0,229,176,0); }
 }
 .live-label {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.64rem;
     color: var(--green);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     vertical-align: middle;
 }
 
 /* Sidebar stat row label */
 .stat-row {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.62rem;
     color: var(--t3);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    margin-bottom: 4px;
-    margin-top: 2px;
+    margin-bottom: 5px;
+    margin-top: 3px;
 }
 
 /* Model badge */
 .model-badge {
     display: inline-block;
-    background: var(--blue-dim);
-    border: 1px solid rgba(61,158,255,0.3);
+    background: linear-gradient(135deg, rgba(77,166,255,0.08), rgba(77,166,255,0.04));
+    border: 1px solid rgba(77,166,255,0.28);
+    border-top: 1px solid rgba(77,166,255,0.45);
     color: var(--blue);
     font-family: var(--mono);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 600;
-    padding: 0.25rem 0.9rem;
-    letter-spacing: 0.1em;
+    padding: 0.3rem 1rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    margin-bottom: 0.8rem;
+    margin-bottom: 0.9rem;
+    border-radius: 3px;
 }
 
 /* CI badge */
 .ci-badge {
     display: inline-block;
-    background: var(--blue-dim);
-    border: 1px solid rgba(61,158,255,0.3);
+    background: linear-gradient(135deg, rgba(77,166,255,0.08), rgba(77,166,255,0.04));
+    border: 1px solid rgba(77,166,255,0.28);
     color: var(--blue);
     font-family: var(--mono);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 600;
-    padding: 0.25rem 0.9rem;
-    letter-spacing: 0.1em;
+    padding: 0.3rem 1rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    margin-bottom: 0.8rem;
+    margin-bottom: 0.9rem;
+    border-radius: 3px;
 }
 
 /* Alert box */
 .alert-box {
-    background: rgba(0,212,160,0.05);
-    border: 1px solid rgba(0,212,160,0.3);
+    background: linear-gradient(135deg, rgba(0,229,176,0.06), rgba(0,229,176,0.02));
+    border: 1px solid rgba(0,229,176,0.25);
     border-left: 3px solid var(--green);
-    padding: 0.9rem 1.4rem;
+    padding: 1rem 1.4rem;
     font-family: var(--mono);
     font-size: 0.8rem;
     color: var(--green);
-    margin: 0.8rem 0;
+    margin: 0.9rem 0;
     letter-spacing: 0.04em;
+    border-radius: 0 4px 4px 0;
+    box-shadow: inset 0 1px 0 rgba(0,229,176,0.08);
 }
 
 /* Signal badges */
 .signal-badge-buy {
     display: inline-block;
-    background: rgba(0,212,160,0.08);
+    background: linear-gradient(135deg, rgba(0,229,176,0.1), rgba(0,229,176,0.05));
     border: 1px solid var(--green);
+    border-top: 1px solid rgba(0,229,176,0.8);
     color: var(--green);
     font-family: var(--mono);
     font-size: 1.2rem;
     font-weight: 700;
-    padding: 0.5rem 2rem;
-    letter-spacing: 0.12em;
+    padding: 0.55rem 2.2rem;
+    letter-spacing: 0.14em;
+    border-radius: 3px;
+    text-shadow: 0 0 14px rgba(0,229,176,0.5);
+    box-shadow: 0 4px 16px rgba(0,229,176,0.12), inset 0 1px 0 rgba(0,229,176,0.15);
 }
 .signal-badge-sell {
     display: inline-block;
-    background: var(--red-dim);
+    background: linear-gradient(135deg, rgba(255,61,87,0.1), rgba(255,61,87,0.05));
     border: 1px solid var(--red);
+    border-top: 1px solid rgba(255,61,87,0.8);
     color: var(--red);
     font-family: var(--mono);
     font-size: 1.2rem;
     font-weight: 700;
-    padding: 0.5rem 2rem;
-    letter-spacing: 0.12em;
+    padding: 0.55rem 2.2rem;
+    letter-spacing: 0.14em;
+    border-radius: 3px;
+    text-shadow: 0 0 14px rgba(255,61,87,0.5);
+    box-shadow: 0 4px 16px rgba(255,61,87,0.12), inset 0 1px 0 rgba(255,61,87,0.15);
 }
 .signal-badge-hold {
     display: inline-block;
-    background: var(--yellow-dim);
+    background: linear-gradient(135deg, rgba(255,206,46,0.1), rgba(255,206,46,0.05));
     border: 1px solid var(--yellow);
+    border-top: 1px solid rgba(255,206,46,0.8);
     color: var(--yellow);
     font-family: var(--mono);
     font-size: 1.2rem;
     font-weight: 700;
-    padding: 0.5rem 2rem;
-    letter-spacing: 0.12em;
+    padding: 0.55rem 2.2rem;
+    letter-spacing: 0.14em;
+    border-radius: 3px;
+    text-shadow: 0 0 14px rgba(255,206,46,0.4);
+    box-shadow: 0 4px 16px rgba(255,206,46,0.1), inset 0 1px 0 rgba(255,206,46,0.15);
 }
 
 /* Backtest KPI cards */
 .bt-card {
-    background: var(--bg2);
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border);
     border-top: 2px solid var(--border2);
-    padding: 1rem 1.2rem;
-    margin-bottom: 0.4rem;
+    padding: 1.1rem 1.3rem;
+    margin-bottom: 0.5rem;
     font-family: var(--mono);
+    border-radius: 4px;
+    transition: border-color 0.2s ease;
 }
+.bt-card:hover { border-color: var(--border2); }
 .bt-card-label {
-    font-size: 0.62rem;
+    font-size: 0.60rem;
     color: var(--t3);
-    letter-spacing: 0.15em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    margin-bottom: 4px;
+    margin-bottom: 5px;
 }
 .bt-card-value       { font-size: 1.4rem; font-weight: 700; color: var(--t1); }
-.bt-card-value-green { font-size: 1.4rem; font-weight: 700; color: var(--green); }
-.bt-card-value-red   { font-size: 1.4rem; font-weight: 700; color: var(--red); }
+.bt-card-value-green { font-size: 1.4rem; font-weight: 700; color: var(--green); text-shadow: 0 0 14px rgba(0,229,176,0.3); }
+.bt-card-value-red   { font-size: 1.4rem; font-weight: 700; color: var(--red); text-shadow: 0 0 14px rgba(255,61,87,0.3); }
 .bt-win              { color: var(--green) !important; font-weight: 700; }
 .bt-loss             { color: var(--red) !important; font-weight: 700; }
 
@@ -362,31 +487,118 @@ footer { visibility: hidden !important; }
 .halal-pass { color: var(--green); font-weight: 700; }
 .halal-fail { color: var(--red); font-weight: 700; }
 .halal-card {
-    background: rgba(0,212,160,0.04);
-    border: 1px solid rgba(0,212,160,0.15);
+    background: linear-gradient(135deg, rgba(0,229,176,0.05), rgba(0,229,176,0.02));
+    border: 1px solid rgba(0,229,176,0.15);
     border-left: 3px solid var(--green);
-    padding: 0.9rem 1.3rem;
+    padding: 1rem 1.4rem;
     margin: 0.4rem 0;
     font-family: var(--mono);
     font-size: 0.82rem;
     color: var(--t2);
+    border-radius: 0 4px 4px 0;
+    transition: background 0.2s ease;
 }
+.halal-card:hover { background: rgba(0,229,176,0.06); }
 .halal-card-fail {
-    background: rgba(255,71,87,0.04);
-    border: 1px solid rgba(255,71,87,0.15);
+    background: linear-gradient(135deg, rgba(255,61,87,0.05), rgba(255,61,87,0.02));
+    border: 1px solid rgba(255,61,87,0.15);
     border-left: 3px solid var(--red);
-    padding: 0.9rem 1.3rem;
+    padding: 1rem 1.4rem;
     margin: 0.4rem 0;
     font-family: var(--mono);
     font-size: 0.82rem;
     color: var(--t2);
+    border-radius: 0 4px 4px 0;
 }
 
 /* Feature importance label */
 .feature-importance-label {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.63rem;
     color: var(--t3);
+    letter-spacing: 0.05em;
+}
+
+/* Section dividers */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin: 1.8rem 0 1rem 0;
+}
+.section-header-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border2), transparent);
+}
+.section-header-text {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--t3);
+    white-space: nowrap;
+}
+
+/* Ticker chip in header */
+.ticker-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(0,229,176,0.06);
+    border: 1px solid rgba(0,229,176,0.2);
+    border-radius: 3px;
+    padding: 0.3rem 0.9rem;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: 0.1em;
+    margin-left: 1rem;
+    vertical-align: middle;
+}
+
+/* Number input */
+[data-testid="stNumberInput"] input {
+    font-family: var(--mono) !important;
+    color: var(--t1) !important;
+    background: var(--bg3) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 3px !important;
+}
+
+/* Checkbox */
+[data-testid="stCheckbox"] label {
+    font-family: var(--mono) !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.06em !important;
+    text-transform: none !important;
+    color: var(--t2) !important;
+}
+
+/* Download buttons */
+[data-testid="stDownloadButton"] button {
+    background: transparent !important;
+    color: var(--blue) !important;
+    border: 1px solid rgba(77,166,255,0.4) !important;
+    border-radius: 3px !important;
+    font-family: var(--mono) !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.1em !important;
+    transition: all 0.2s ease !important;
+}
+[data-testid="stDownloadButton"] button:hover {
+    background: rgba(77,166,255,0.1) !important;
+    border-color: var(--blue) !important;
+    box-shadow: 0 0 16px rgba(77,166,255,0.2) !important;
+}
+
+/* Info / warning boxes */
+.stAlert {
+    border-radius: 3px !important;
+    border-left-width: 3px !important;
+    font-family: var(--mono) !important;
+    font-size: 0.78rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -470,7 +682,7 @@ def validate_ticker(sym):
 with st.sidebar:
     st.markdown("""
 <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.18em;
-     text-transform:uppercase;color:#00d4a0;border-bottom:1px solid #1e2a38;
+     text-transform:uppercase;color:#00e5b0;border-bottom:1px solid #192535;
      padding-bottom:.6rem;margin-bottom:1rem;">⚙ Parameters</div>
 """, unsafe_allow_html=True)
 
@@ -489,18 +701,18 @@ with st.sidebar:
             selected = st.selectbox("Select", search_results, label_visibility="collapsed")
             ticker = selected.split(" — ")[0].strip()
             st.markdown(
-                f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
-                f'border-left:3px solid #00d4a0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
-                f'font-size:.72rem;color:#00d4a0;letter-spacing:.06em;margin:.3rem 0;">'
+                f'<div style="background:rgba(0,229,176,0.07);border:1px solid rgba(0,229,176,0.3);'
+                f'border-left:3px solid #00e5b0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+                f'font-size:.72rem;color:#00e5b0;letter-spacing:.06em;margin:.3rem 0;">'
                 f'✓ {ticker}</div>',
                 unsafe_allow_html=True)
         else:
             # Treat the query itself as a direct ticker entry
             ticker = search_query.strip().upper()
             st.markdown(
-                f'<div style="background:rgba(255,211,42,0.07);border:1px solid rgba(255,211,42,0.3);'
-                f'border-left:3px solid #ffd32a;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
-                f'font-size:.72rem;color:#ffd32a;letter-spacing:.06em;margin:.3rem 0;">'
+                f'<div style="background:rgba(255,206,46,0.07);border:1px solid rgba(255,206,46,0.3);'
+                f'border-left:3px solid #ffce2e;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+                f'font-size:.72rem;color:#ffce2e;letter-spacing:.06em;margin:.3rem 0;">'
                 f'Using: {ticker} — verify symbol is correct</div>',
                 unsafe_allow_html=True)
     else:
@@ -509,9 +721,9 @@ with st.sidebar:
                                placeholder="AAPL, TSLA, MSFT…",
                                label_visibility="collapsed", key="direct_ticker").strip().upper() or "AAPL"
         st.markdown(
-            f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
-            f'border-left:3px solid #00d4a0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
-            f'font-size:.75rem;color:#00d4a0;letter-spacing:.08em;margin:.3rem 0;">'
+            f'<div style="background:rgba(0,229,176,0.07);border:1px solid rgba(0,229,176,0.3);'
+            f'border-left:3px solid #00e5b0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+            f'font-size:.75rem;color:#00e5b0;letter-spacing:.08em;margin:.3rem 0;">'
             f'● ACTIVE: {ticker}</div>',
             unsafe_allow_html=True)
 
@@ -555,23 +767,29 @@ with st.sidebar:
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
 PLOTLY_LAYOUT = dict(
-    paper_bgcolor="#0f1318",
-    plot_bgcolor="#0f1318",
-    font=dict(family="IBM Plex Mono", color="#8a9bb0", size=10),
-    xaxis=dict(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color="#4a5a6a", size=10), showgrid=True, zeroline=False),
-    yaxis=dict(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color="#4a5a6a", size=10), showgrid=True, zeroline=False),
-    legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="#1e2a38", borderwidth=1, font=dict(size=10)),
-    margin=dict(l=10, r=10, t=40, b=10),
+    paper_bgcolor="#0d1117",
+    plot_bgcolor="#0d1117",
+    font=dict(family="IBM Plex Mono", color="#8fa8c0", size=10),
+    xaxis=dict(gridcolor="#192535", linecolor="#192535", tickfont=dict(color="#3d5166", size=10),
+               showgrid=True, zeroline=False, showspikes=True,
+               spikecolor="#253547", spikemode="across", spikethickness=1),
+    yaxis=dict(gridcolor="#192535", linecolor="#192535", tickfont=dict(color="#3d5166", size=10),
+               showgrid=True, zeroline=False),
+    legend=dict(bgcolor="rgba(13,17,23,0.8)", bordercolor="#192535", borderwidth=1,
+                font=dict(size=10), itemsizing="constant"),
+    margin=dict(l=10, r=10, t=44, b=10),
     hovermode="x unified",
-    hoverlabel=dict(bgcolor="#131920", bordercolor="#2a3a4e", font=dict(family="IBM Plex Mono", size=11, color="#e8edf2")),
+    hoverlabel=dict(bgcolor="#111820", bordercolor="#253547",
+                    font=dict(family="IBM Plex Mono", size=11, color="#edf2f7")),
 )
 
 # Colour constants
-C_GREEN  = "#00d4a0"
-C_RED    = "#ff4757"
-C_BLUE   = "#3d9eff"
-C_YELLOW = "#ffd32a"
-C_GREY   = "#4a5a6a"
+C_GREEN  = "#00e5b0"
+C_RED    = "#ff3d57"
+C_BLUE   = "#4da6ff"
+C_YELLOW = "#ffce2e"
+C_GREY   = "#3d5166"
+C_PURPLE = "#c084fc"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 @st.cache_data
@@ -893,7 +1111,7 @@ if run_btn:
         _prog.progress(pct)
         _status.markdown(
             f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.72rem;'
-            f'color:#00d4a0;letter-spacing:.06em;">[ {pct}% ] {msg}</div>',
+            f'color:#00e5b0;letter-spacing:.06em;">[ {pct}% ] {msg}</div>',
             unsafe_allow_html=True)
 
     update_progress(5, "Fetching market data...")
@@ -942,7 +1160,7 @@ if run_btn:
         name="BB Upper", line=dict(color=C_GREY, width=0.8, dash='dot')), row=1, col=1)
     fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Lower'].squeeze(),
         name="BB Lower", line=dict(color=C_GREY, width=0.8, dash='dot'),
-        fill='tonexty', fillcolor='rgba(61,158,255,0.04)'), row=1, col=1)
+        fill='tonexty', fillcolor='rgba(77,166,255,0.04)'), row=1, col=1)
     colors_vol = [C_GREEN if c >= o else C_RED
                   for c, o in zip(close_series, df['Open'].squeeze())]
     fig_candle.add_trace(go.Bar(x=df.index, y=df['Volume'].squeeze(),
@@ -954,8 +1172,8 @@ if run_btn:
                    font=dict(color=C_GREEN, size=12)),
         xaxis_rangeslider_visible=False, height=560,
     )
-    fig_candle.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-    fig_candle.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+    fig_candle.update_xaxes(gridcolor="#192535", linecolor="#192535", tickfont=dict(color=C_GREY))
+    fig_candle.update_yaxes(gridcolor="#192535", linecolor="#192535", tickfont=dict(color=C_GREY))
     st.plotly_chart(fig_candle, use_container_width=True)
 
     # ── RSI + MACD ─────────────────────────────────────────────────────────────
@@ -967,8 +1185,8 @@ if run_btn:
         name="RSI", line=dict(color=C_GREEN, width=1.5)), row=1, col=1)
     fig_tech.add_hline(y=70, line_dash="dash", line_color=C_RED,  row=1, col=1)
     fig_tech.add_hline(y=30, line_dash="dash", line_color=C_GREEN, row=1, col=1)
-    fig_tech.add_hrect(y0=70, y1=100, fillcolor="rgba(255,71,87,0.04)",   line_width=0, row=1, col=1)
-    fig_tech.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,212,160,0.04)",   line_width=0, row=1, col=1)
+    fig_tech.add_hrect(y0=70, y1=100, fillcolor="rgba(255,61,87,0.04)",   line_width=0, row=1, col=1)
+    fig_tech.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,229,176,0.04)",   line_width=0, row=1, col=1)
     fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD'].squeeze(),
         name="MACD",   line=dict(color=C_GREEN, width=1.2)), row=2, col=1)
     fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD_Signal'].squeeze(),
@@ -979,8 +1197,8 @@ if run_btn:
         name="Histogram", marker_color=hist_colors, opacity=0.65), row=2, col=1)
     subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis', 'yaxis')}
     fig_tech.update_layout(**subplot_layout, height=450)
-    fig_tech.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-    fig_tech.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+    fig_tech.update_xaxes(gridcolor="#192535", linecolor="#192535", tickfont=dict(color=C_GREY))
+    fig_tech.update_yaxes(gridcolor="#192535", linecolor="#192535", tickfont=dict(color=C_GREY))
     fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
     st.plotly_chart(fig_tech, use_container_width=True)
 
@@ -990,42 +1208,42 @@ if run_btn:
 
     with st.expander("📖  How this model works — methodology & limitations", expanded=False):
         st.markdown(f"""
-        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;color:#8a9bb0;line-height:1.7;">
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;color:#8fa8c0;line-height:1.7;">
 
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+        <b style="color:#edf2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
         Feature Engineering</b><br>
-        Each trading day is represented by <b style="color:#00d4a0;">20 technical indicators</b> computed from raw OHLCV data —
+        Each trading day is represented by <b style="color:#00e5b0;">20 technical indicators</b> computed from raw OHLCV data —
         moving averages (MA5–200, EMA12/26), RSI, MACD with histogram, Bollinger Bands width &amp; position,
-        ATR, volume ratio, and momentum — plus <b style="color:#00d4a0;">{seq_len} lag closes</b> as sequential context.
+        ATR, volume ratio, and momentum — plus <b style="color:#00e5b0;">{seq_len} lag closes</b> as sequential context.
         This gives the model both market-state awareness and short-term price memory.
         <br><br>
 
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+        <b style="color:#edf2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
         Training &amp; Evaluation</b><br>
-        Data is split <b style="color:#00d4a0;">80% train / 20% test</b> chronologically (no data leakage).
+        Data is split <b style="color:#00e5b0;">80% train / 20% test</b> chronologically (no data leakage).
         XGBoost is trained to predict the <em>next day's closing price</em> given today's features.
         Model quality is measured on the held-out test set using RMSE, MAE, MAPE and R².
         <br><br>
 
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+        <b style="color:#edf2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
         Confidence Intervals</b><br>
-        The 95% CI ribbon is produced via <b style="color:#00d4a0;">bootstrap resampling</b>: the model is run
+        The 95% CI ribbon is produced via <b style="color:#00e5b0;">bootstrap resampling</b>: the model is run
         {ci_bootstrap_n if show_conf_interval else 100}x on inputs with small Gaussian noise added (sigma=1.5%), and the 5th-95th percentile
         range across all runs forms the band. A <em>wider band = higher uncertainty</em>.
         <br><br>
 
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+        <b style="color:#edf2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
         Forward Forecast Reliability</b><br>
         Multi-day forecasts roll predictions iteratively — each day's output feeds the next day's lag input.
-        <b style="color:#ffd32a;">Prediction errors compound.</b> Day 1–3 forecasts are most reliable.
+        <b style="color:#ffce2e;">Prediction errors compound.</b> Day 1–3 forecasts are most reliable.
         Days 7+ should be treated as directional trend signals only, not price targets.
         <br><br>
 
-        <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+        <b style="color:#edf2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
         Key Limitations</b><br>
         This model uses <em>only price and volume data</em>. It has no awareness of earnings releases,
         macroeconomic events, analyst upgrades, or breaking news. A single unexpected event
-        can invalidate any technical forecast. <b style="color:#ff4757;">This is a research tool, not financial advice.</b>
+        can invalidate any technical forecast. <b style="color:#ff3d57;">This is a research tool, not financial advice.</b>
 
         </div>
         """, unsafe_allow_html=True)
@@ -1077,21 +1295,21 @@ if run_btn:
     # Accuracy verdict
     if mape < 2:
         acc_verdict = "excellent — predictions are within 2% of actual prices on average"
-        acc_color   = "#00d4a0"
+        acc_color   = "#00e5b0"
     elif mape < 5:
         acc_verdict = "good — predictions are within 5% of actual prices on average"
-        acc_color   = "#00d4a0"
+        acc_color   = "#00e5b0"
     elif mape < 10:
         acc_verdict = "moderate — some deviation but useful for trend direction"
-        acc_color   = "#ffd32a"
+        acc_color   = "#ffce2e"
     else:
         acc_verdict = "limited — high error rate, use for direction only"
-        acc_color   = "#ff4757"
+        acc_color   = "#ff3d57"
 
     # Trend verdict
     trend = "UPTREND" if last_close > ma50_now > ma200_now else \
             "DOWNTREND" if last_close < ma50_now < ma200_now else "SIDEWAYS"
-    trend_color = "#00d4a0" if trend == "UPTREND" else "#ff4757" if trend == "DOWNTREND" else "#ffd32a"
+    trend_color = "#00e5b0" if trend == "UPTREND" else "#ff3d57" if trend == "DOWNTREND" else "#ffce2e"
 
     # RSI verdict
     if rsi_now > 70:
@@ -1107,19 +1325,19 @@ if run_btn:
                 "MACD is below signal line — bearish momentum"
 
     st.markdown(f"""
-<div style="background:rgba(0,212,160,0.04);border:1px solid #1e2a38;border-left:3px solid #00d4a0;
+<div style="background:rgba(0,229,176,0.04);border:1px solid #192535;border-left:3px solid #00e5b0;
      padding:1.2rem 1.6rem;margin:1rem 0;font-family:'IBM Plex Sans',sans-serif;">
   <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-       text-transform:uppercase;color:#4a5a6a;margin-bottom:.8rem;">📋 Plain-English Summary</div>
-  <div style="font-size:0.88rem;color:#8a9bb0;line-height:1.8;">
+       text-transform:uppercase;color:#3d5166;margin-bottom:.8rem;">📋 Plain-English Summary</div>
+  <div style="font-size:0.88rem;color:#8fa8c0;line-height:1.8;">
     The model accuracy is <span style="color:{acc_color};font-weight:600;">{acc_verdict}</span>
     (MAPE = {mape:.1f}%, R² = {r2:.3f}).<br>
     {ticker} is currently in a <span style="color:{trend_color};font-weight:600;">{trend}</span>
-    — price is <b style="color:#e8edf2;">${last_close:.2f}</b>,
-    MA50 is <b style="color:#e8edf2;">${ma50_now:.2f}</b>,
-    MA200 is <b style="color:#e8edf2;">${ma200_now:.2f}</b>.<br>
+    — price is <b style="color:#edf2f7;">${last_close:.2f}</b>,
+    MA50 is <b style="color:#edf2f7;">${ma50_now:.2f}</b>,
+    MA200 is <b style="color:#edf2f7;">${ma200_now:.2f}</b>.<br>
     {rsi_note}. {macd_note}.<br>
-    <span style="font-size:0.78rem;color:#4a5a6a;">
+    <span style="font-size:0.78rem;color:#3d5166;">
     ⚠ This summary is auto-generated from technical data only. Not financial advice.
     </span>
   </div>
@@ -1130,12 +1348,12 @@ if run_btn:
     mape_label  = ("🟢 Excellent" if mape < 2 else "🟡 Good" if mape < 5 else "🟠 Fair" if mape < 10 else "🔴 Poor")
     r2_label    = ("🟢 Excellent" if r2 > 0.95 else "🟡 Good" if r2 > 0.85 else "🟠 Fair" if r2 > 0.70 else "🔴 Poor")
     st.markdown(
-        f'<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.3rem;'
-        f'font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#4a5a6a;'
+        f'<div style="background:#0d1117;border:1px solid #192535;padding:.7rem 1.3rem;'
+        f'font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#3d5166;'
         f'display:flex;gap:2rem;flex-wrap:wrap;margin-top:-.3rem;">'
         f'<span>MAPE: {mape_label} &nbsp;·&nbsp; &lt;2% excellent · &lt;5% good · &lt;10% fair</span>'
         f'<span>R²: {r2_label} &nbsp;·&nbsp; &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span>'
-        f'<span style="color:#2a3a4e;">RMSE/MAE are in $ — lower is better</span>'
+        f'<span style="color:#253547;">RMSE/MAE are in $ — lower is better</span>'
         f'</div>', unsafe_allow_html=True)
 
     # ── Feature Importance ─────────────────────────────────────────────────────
@@ -1156,7 +1374,7 @@ if run_btn:
     fig_imp = go.Figure(go.Bar(
         x=imp_df['importance'], y=imp_df['feature'], orientation='h',
         marker=dict(color=imp_df['importance'],
-                    colorscale=[[0, "#0f1318"], [0.5, "#0d3d2e"], [1, C_GREEN]],
+                    colorscale=[[0, "#0d1117"], [0.5, "#0d3d2e"], [1, C_GREEN]],
                     showscale=False)
     ))
     fig_imp.update_layout(**PLOTLY_LAYOUT,
@@ -1169,7 +1387,7 @@ if run_btn:
     fig1 = go.Figure()
     fig1.add_trace(go.Scatter(y=actual, name="Actual",
         line=dict(color=C_BLUE, width=1.5),
-        fill='tozeroy', fillcolor='rgba(61,158,255,0.04)'))
+        fill='tozeroy', fillcolor='rgba(77,166,255,0.04)'))
     fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted",
         line=dict(color=C_GREEN, width=1.5, dash='dot')))
     fig1.update_layout(**PLOTLY_LAYOUT,
@@ -1249,11 +1467,11 @@ if run_btn:
     # Expanding uncertainty shading
     fig3.add_trace(go.Scatter(
         x=list(range(future_days)), y=decay_upper,
-        line=dict(color="rgba(0,212,160,0)"), showlegend=False, hoverinfo="skip"))
+        line=dict(color="rgba(0,229,176,0)"), showlegend=False, hoverinfo="skip"))
     fig3.add_trace(go.Scatter(
         x=list(range(future_days)), y=decay_lower,
         name="Uncertainty band", fill="tonexty",
-        fillcolor="rgba(0,212,160,0.07)", line=dict(color="rgba(0,212,160,0)"), hoverinfo="skip"))
+        fillcolor="rgba(0,229,176,0.07)", line=dict(color="rgba(0,229,176,0)"), hoverinfo="skip"))
 
     fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
                    annotation_text=f"Last close ${last_close:.2f}",
@@ -1270,9 +1488,9 @@ if run_btn:
     ))
     # Vertical reliability boundary at day 5
     if future_days > 5:
-        fig3.add_vline(x=4.5, line_dash="dot", line_color="#2a3a4e",
+        fig3.add_vline(x=4.5, line_dash="dot", line_color="#253547",
                        annotation_text="↑ Higher confidence  |  Lower confidence ↓",
-                       annotation_font=dict(color="#4a5a6a", size=9),
+                       annotation_font=dict(color="#3d5166", size=9),
                        annotation_position="top")
 
     fig3.update_layout(**PLOTLY_LAYOUT,
@@ -1283,9 +1501,9 @@ if run_btn:
 
     if future_days > 5:
         st.markdown(
-            '<div style="background:rgba(255,211,42,0.04);border:1px solid rgba(255,211,42,0.2);'
-            'border-left:3px solid #ffd32a;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
-            'font-size:0.7rem;color:#ffd32a;letter-spacing:.05em;margin-top:-.5rem;">'
+            '<div style="background:rgba(255,206,46,0.04);border:1px solid rgba(255,206,46,0.2);'
+            'border-left:3px solid #ffce2e;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
+            'font-size:0.7rem;color:#ffce2e;letter-spacing:.05em;margin-top:-.5rem;">'
             '⚠ Forecast reliability decreases significantly beyond Day 5. '
             'Errors compound in iterative multi-step prediction. Use Days 6+ as directional signals only.'
             '</div>', unsafe_allow_html=True)
@@ -1342,7 +1560,7 @@ if run_btn:
         fig_eq = go.Figure()
         fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy",
             line=dict(color=C_GREEN, width=2),
-            fill="tozeroy", fillcolor="rgba(0,212,160,0.05)"))
+            fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
         fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold",
             line=dict(color=C_BLUE, width=1.5, dash="dot")))
         fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY,
@@ -1358,7 +1576,7 @@ if run_btn:
         fig_dd = go.Figure()
         fig_dd.add_trace(go.Scatter(y=[d * 100 for d in bt["drawdown_series"]],
             name="Drawdown", line=dict(color=C_RED, width=1.5),
-            fill="tozeroy", fillcolor="rgba(255,71,87,0.07)"))
+            fill="tozeroy", fillcolor="rgba(255,61,87,0.07)"))
         fig_dd.update_layout(**PLOTLY_LAYOUT,
             title=dict(text=f"{ticker} · Strategy Drawdown (%)", font=dict(color=C_RED, size=12)),
             yaxis_title="Drawdown (%)", xaxis_title="Trading Day (test set)", height=250)
@@ -1388,11 +1606,11 @@ if run_btn:
                 model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
 
         fig_ci = go.Figure()
-        fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,212,160,0)"),
+        fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,229,176,0)"),
             showlegend=False))
         fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band",
-            fill="tonexty", fillcolor="rgba(0,212,160,0.10)",
-            line=dict(color="rgba(0,212,160,0)")))
+            fill="tonexty", fillcolor="rgba(0,229,176,0.10)",
+            line=dict(color="rgba(0,229,176,0)")))
         fig_ci.add_trace(go.Scatter(y=actual, name="Actual",
             line=dict(color=C_BLUE, width=1.5)))
         fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median",
@@ -1419,10 +1637,10 @@ if run_btn:
 
         fig_fci = go.Figure()
         fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_u,
-            line=dict(color="rgba(0,212,160,0)"), showlegend=False))
+            line=dict(color="rgba(0,229,176,0)"), showlegend=False))
         fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_l,
-            name="95% CI", fill="tonexty", fillcolor="rgba(0,212,160,0.12)",
-            line=dict(color="rgba(0,212,160,0)")))
+            name="95% CI", fill="tonexty", fillcolor="rgba(0,229,176,0.12)",
+            line=dict(color="rgba(0,229,176,0)")))
         fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_m,
             name="Forecast", mode="lines+markers",
             line=dict(color=C_GREEN, width=2), marker=dict(size=7)))
@@ -1504,14 +1722,14 @@ if run_btn:
     # ── Halal / Shariah ────────────────────────────────────────────────────────
     if run_halal_check:
         st.markdown("""
-        <div style="background:rgba(0,212,160,0.03);border:1px solid rgba(0,212,160,0.15);
-             border-left:4px solid #00d4a0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
+        <div style="background:rgba(0,229,176,0.03);border:1px solid rgba(0,229,176,0.15);
+             border-left:4px solid #00e5b0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
              display:flex;align-items:center;gap:1rem;">
             <div style="font-size:1.4rem;">☪</div>
             <div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#00d4a0;">Halal / Shariah Compliance Screen</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#4a5a6a;margin-top:2px;">
+                     text-transform:uppercase;color:#00e5b0;">Halal / Shariah Compliance Screen</div>
+                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#3d5166;margin-top:2px;">
                     Automated screening based on AAOIFI Standard No.21 — a unique feature not found in mainstream platforms
                 </div>
             </div>
@@ -1539,18 +1757,18 @@ if run_btn:
             cr      = check_shariah_compliance(ticker, sd)
             verdict = cr["verdict"]
             v_color = {"COMPLIANT": C_GREEN, "NON-COMPLIANT": C_RED, "QUESTIONABLE": C_YELLOW}[verdict]
-            v_bg    = {"COMPLIANT": "rgba(0,212,160,0.05)", "NON-COMPLIANT": "rgba(255,71,87,0.05)",
-                       "QUESTIONABLE": "rgba(255,211,42,0.05)"}[verdict]
+            v_bg    = {"COMPLIANT": "rgba(0,229,176,0.05)", "NON-COMPLIANT": "rgba(255,61,87,0.05)",
+                       "QUESTIONABLE": "rgba(255,206,46,0.05)"}[verdict]
             v_icon  = {"COMPLIANT": "✅", "NON-COMPLIANT": "❌", "QUESTIONABLE": "⚠️"}[verdict]
 
             st.markdown(
                 f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};'
                 f'padding:1.2rem 2rem;margin:1rem 0;text-align:center;">'
-                f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#4a5a6a;'
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#3d5166;'
                 f'letter-spacing:.15em;text-transform:uppercase;">{sd["company_name"]} ({ticker})</div>'
                 f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;'
                 f'color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{verdict}</div>'
-                f'<div style="font-size:.78rem;color:#8a9bb0;margin-top:.3rem;">'
+                f'<div style="font-size:.78rem;color:#8fa8c0;margin-top:.3rem;">'
                 f'Sector: {sd["sector"]} | Industry: {sd["industry"]}</div>'
                 f'</div>', unsafe_allow_html=True)
 
@@ -1562,13 +1780,13 @@ if run_btn:
                     st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>'
                                 f'Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
                 elif bs["questionable"]:
-                    st.markdown('<div class="halal-card" style="border-left-color:#ffd32a">'
+                    st.markdown('<div class="halal-card" style="border-left-color:#ffce2e">'
                                 '<b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>',
                                 unsafe_allow_html=True)
                 else:
                     st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>'
                                 f'No Haram core business detected<br>'
-                                f'<small style="color:#4a5a6a">Sector: {sd["sector"]}</small></div>',
+                                f'<small style="color:#3d5166">Sector: {sd["sector"]}</small></div>',
                                 unsafe_allow_html=True)
                 dm = cr["debt_mktcap"]
                 cc = "halal-card" if dm["pass"] else "halal-card-fail"
@@ -1592,8 +1810,8 @@ if run_btn:
             f4.metric("Cash",         f'${sd["total_cash"]/1e9:.2f}B')
 
             st.markdown(
-                '<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.2rem;'
-                'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#4a5a6a;margin-top:1rem;">'
+                '<div style="background:#0d1117;border:1px solid #192535;padding:.7rem 1.2rem;'
+                'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3d5166;margin-top:1rem;">'
                 '⚠ Automated screen based on AAOIFI Standard No.21. '
                 'Does not constitute a fatwa. Consult a qualified Islamic finance scholar for binding rulings.</div>',
                 unsafe_allow_html=True)
@@ -1625,78 +1843,113 @@ if run_btn:
 
 else:
     st.markdown("""
-<div style="padding:2.5rem 0 1rem 0; font-family:'IBM Plex Sans',sans-serif;">
+<div style="padding:2.5rem 0 1rem 0; font-family:'Space Grotesk','IBM Plex Sans',sans-serif;">
 
         <!-- Hero -->
-        <div style="text-align:center;margin-bottom:2.5rem;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
-                 letter-spacing:.25em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.6rem;">
-                Institutional-grade analysis &amp; Free &amp; open
+        <div style="text-align:center;margin-bottom:3rem;position:relative;">
+            <div style="position:absolute;top:-2rem;left:50%;transform:translateX(-50%);
+                 width:500px;height:200px;
+                 background:radial-gradient(ellipse,rgba(0,229,176,0.06) 0%,transparent 70%);
+                 pointer-events:none;"></div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+                 letter-spacing:.3em;text-transform:uppercase;color:#3d5166;margin-bottom:.8rem;">
+                ◈ &nbsp; Institutional-grade analysis &nbsp;·&nbsp; Free &amp; open source &nbsp; ◈
             </div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
-                 color:#e8edf2;letter-spacing:.06em;line-height:1.2;">
-                STOCK<span style="color:#00d4a0;">CAST</span>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:2.4rem;font-weight:700;
+                 color:#edf2f7;letter-spacing:.08em;line-height:1.15;margin-bottom:.2rem;">
+                STOCK<span style="color:#00e5b0;text-shadow:0 0 30px rgba(0,229,176,0.4);">CAST</span>
             </div>
-            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.9rem;color:#8a9bb0;
-                 margin-top:.5rem;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;
+                 letter-spacing:.25em;text-transform:uppercase;color:#253547;margin-bottom:1rem;">
+                ── Market Intelligence Platform ──
+            </div>
+            <div style="font-family:'Space Grotesk','IBM Plex Sans',sans-serif;font-size:0.95rem;color:#8fa8c0;
+                 margin-top:.6rem;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.7;">
                 Enter any NYSE / NASDAQ ticker in the sidebar and press
-                <span style="color:#00d4a0;font-family:'IBM Plex Mono',monospace;font-weight:600;">▶ RUN FORECAST</span>
+                <span style="color:#00e5b0;font-family:'IBM Plex Mono',monospace;font-weight:600;
+                      background:rgba(0,229,176,0.06);padding:.1rem .5rem;border-radius:2px;
+                      border:1px solid rgba(0,229,176,0.2);">▶ RUN FORECAST</span>
                 to generate a full ML-powered market intelligence report.
             </div>
         </div>
 
         <!-- Feature cards grid -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-bottom:2.5rem;">
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">📈 XGBoost Forecast</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+            <div style="background:linear-gradient(145deg,#0d1419,#0a1017);border:1px solid #192535;
+                 border-top:2px solid #00e5b0;padding:1.4rem 1.5rem;border-radius:4px;
+                 transition:all 0.2s;position:relative;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;height:100%;
+                     background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(0,229,176,0.04),transparent);
+                     pointer-events:none;"></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.2em;
+                     text-transform:uppercase;color:#00e5b0;margin-bottom:.7rem;">📈 &nbsp; XGBoost Forecast</div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.83rem;color:#8fa8c0;line-height:1.6;">
                     ML model trained on 20 technical features + lag windows. Predicts next
                     <em>N</em> days with full 95% bootstrap confidence intervals — not just a single line.
                 </div>
             </div>
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⚙ Technical Signals</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+            <div style="background:linear-gradient(145deg,#0d1419,#0a1017);border:1px solid #192535;
+                 border-top:2px solid #4da6ff;padding:1.4rem 1.5rem;border-radius:4px;overflow:hidden;position:relative;">
+                <div style="position:absolute;top:0;left:0;right:0;height:100%;
+                     background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(77,166,255,0.04),transparent);
+                     pointer-events:none;"></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.2em;
+                     text-transform:uppercase;color:#4da6ff;margin-bottom:.7rem;">⚙ &nbsp; Technical Signals</div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.83rem;color:#8fa8c0;line-height:1.6;">
                     RSI, MACD, Bollinger Bands, MA50/200, ATR, Volume Ratio — all computed live.
                     BUY / SELL / HOLD signals generated from model predictions.
                 </div>
             </div>
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ffd32a;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#ffd32a;margin-bottom:.5rem;">📊 Backtesting Engine</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+            <div style="background:linear-gradient(145deg,#0d1419,#0a1017);border:1px solid #192535;
+                 border-top:2px solid #ffce2e;padding:1.4rem 1.5rem;border-radius:4px;overflow:hidden;position:relative;">
+                <div style="position:absolute;top:0;left:0;right:0;height:100%;
+                     background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(255,206,46,0.03),transparent);
+                     pointer-events:none;"></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.2em;
+                     text-transform:uppercase;color:#ffce2e;margin-bottom:.7rem;">📊 &nbsp; Backtesting Engine</div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.83rem;color:#8fa8c0;line-height:1.6;">
                     Simulate your strategy on historical data. Get Sharpe ratio, max drawdown,
                     win rate, profit factor, and full equity curve vs buy-and-hold.
                 </div>
             </div>
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ff4757;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#ff4757;margin-bottom:.5rem;">🔬 Model Comparison</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+            <div style="background:linear-gradient(145deg,#0d1419,#0a1017);border:1px solid #192535;
+                 border-top:2px solid #ff3d57;padding:1.4rem 1.5rem;border-radius:4px;overflow:hidden;position:relative;">
+                <div style="position:absolute;top:0;left:0;right:0;height:100%;
+                     background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(255,61,87,0.03),transparent);
+                     pointer-events:none;"></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.2em;
+                     text-transform:uppercase;color:#ff3d57;margin-bottom:.7rem;">🔬 &nbsp; Model Comparison</div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.83rem;color:#8fa8c0;line-height:1.6;">
                     Benchmark XGBoost against Prophet and Linear Regression side-by-side.
                     RMSE, MAE, MAPE and R² reported for every model.
                 </div>
             </div>
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">☪ Shariah Screening</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+            <div style="background:linear-gradient(145deg,#0d1419,#0a1017);border:1px solid #192535;
+                 border-top:2px solid #00e5b0;padding:1.4rem 1.5rem;border-radius:4px;overflow:hidden;position:relative;">
+                <div style="position:absolute;top:0;left:0;right:0;height:100%;
+                     background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(0,229,176,0.04),transparent);
+                     pointer-events:none;"></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.2em;
+                     text-transform:uppercase;color:#00e5b0;margin-bottom:.7rem;">☪ &nbsp; Shariah Screening</div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.83rem;color:#8fa8c0;line-height:1.6;">
                     Automated Halal compliance check based on AAOIFI Standard No.21.
                     Screens business activity, debt ratios, and cash ratios instantly.
                 </div>
             </div>
 
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⬇ Export Reports</div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
+            <div style="background:linear-gradient(145deg,#0d1419,#0a1017);border:1px solid #192535;
+                 border-top:2px solid #4da6ff;padding:1.4rem 1.5rem;border-radius:4px;overflow:hidden;position:relative;">
+                <div style="position:absolute;top:0;left:0;right:0;height:100%;
+                     background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(77,166,255,0.04),transparent);
+                     pointer-events:none;"></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.2em;
+                     text-transform:uppercase;color:#4da6ff;margin-bottom:.7rem;">⬇ &nbsp; Export Reports</div>
+                <div style="font-family:'Space Grotesk',sans-serif;font-size:0.83rem;color:#8fa8c0;line-height:1.6;">
                     Download historical data + indicators, buy/sell signal log, forecast
                     prices, and full trade history as CSV — ready for your own analysis.
                 </div>
@@ -1705,32 +1958,52 @@ else:
         </div>
 
         <!-- How it works -->
-        <div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid #00d4a0;
-             padding:1.4rem 1.8rem;margin-bottom:2rem;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.8rem;">How it works</div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;">
+        <div style="background:linear-gradient(135deg,#0d1419,#0a1017);border:1px solid #192535;
+             border-left:3px solid #00e5b0;padding:1.6rem 2rem;margin-bottom:2.5rem;border-radius:0 4px 4px 0;
+             position:relative;overflow:hidden;">
+            <div style="position:absolute;inset:0;
+                 background:radial-gradient(ellipse 40% 100% at 0% 50%,rgba(0,229,176,0.04),transparent);
+                 pointer-events:none;"></div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:.22em;
+                 text-transform:uppercase;color:#3d5166;margin-bottom:1.2rem;">How it works</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1.2rem;">
                 <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">01</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.5rem;color:#00e5b0;
+                         font-weight:700;text-shadow:0 0 20px rgba(0,229,176,0.35);">01</div>
+                    <div style="width:30px;height:1px;background:rgba(0,229,176,0.3);
+                         margin:.5rem auto;"></div>
+                    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.76rem;color:#8fa8c0;
+                         margin-top:.4rem;line-height:1.5;">
                         Historical OHLCV data fetched via yfinance (up to 7 years)
                     </div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">02</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.5rem;color:#00e5b0;
+                         font-weight:700;text-shadow:0 0 20px rgba(0,229,176,0.35);">02</div>
+                    <div style="width:30px;height:1px;background:rgba(0,229,176,0.3);
+                         margin:.5rem auto;"></div>
+                    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.76rem;color:#8fa8c0;
+                         margin-top:.4rem;line-height:1.5;">
                         20 technical indicators engineered as model features
                     </div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">03</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.5rem;color:#00e5b0;
+                         font-weight:700;text-shadow:0 0 20px rgba(0,229,176,0.35);">03</div>
+                    <div style="width:30px;height:1px;background:rgba(0,229,176,0.3);
+                         margin:.5rem auto;"></div>
+                    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.76rem;color:#8fa8c0;
+                         margin-top:.4rem;line-height:1.5;">
                         XGBoost trained on 80% of data, evaluated on held-out 20%
                     </div>
                 </div>
                 <div style="text-align:center;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;color:#00d4a0;font-weight:700;">04</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.75rem;color:#8a9bb0;margin-top:.3rem;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:1.5rem;color:#00e5b0;
+                         font-weight:700;text-shadow:0 0 20px rgba(0,229,176,0.35);">04</div>
+                    <div style="width:30px;height:1px;background:rgba(0,229,176,0.3);
+                         margin:.5rem auto;"></div>
+                    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.76rem;color:#8fa8c0;
+                         margin-top:.4rem;line-height:1.5;">
                         Bootstrap CI quantifies forecast uncertainty across all predictions
                     </div>
                 </div>
@@ -1739,11 +2012,11 @@ else:
 
         <!-- Disclaimer + tickers -->
         <div style="text-align:center;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#2a3a4e;
-                 letter-spacing:.1em;margin-bottom:.5rem;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;color:#1e2e3e;
+                 letter-spacing:.12em;margin-bottom:.6rem;">
                 AAPL · TSLA · GOOGL · MSFT · AMZN · NFLX · META · NVDA · JPM · AMD · ORCL · BABA
             </div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;color:#1e2a38;letter-spacing:.08em;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:#192535;letter-spacing:.08em;">
                 ⚠ For educational purposes only. Not financial advice. Past model performance does not guarantee future results.
             </div>
         </div>
