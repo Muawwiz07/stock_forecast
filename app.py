@@ -468,14 +468,8 @@ def validate_ticker(sym):
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
-<div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.18em;
-     text-transform:uppercase;color:#00d4a0;border-bottom:1px solid #1e2a38;
-     padding-bottom:.6rem;margin-bottom:1rem;">⚙ Parameters</div>
-""", unsafe_allow_html=True)
+    st.markdown("### ⚙ PARAMETERS")
 
-    # ── Section 1: Stock ──
-    st.markdown('<div class="stat-row">① Stock Selection</div>', unsafe_allow_html=True)
     # ── Ticker Search ──────────────────────────────────────────────────────────
     st.markdown('<div class="stat-row">🔍 Search Company / Ticker</div>', unsafe_allow_html=True)
     search_query = st.text_input("Search", placeholder="e.g. Apple, TSLA, Saudi Aramco…",
@@ -515,28 +509,30 @@ with st.sidebar:
             f'● ACTIVE: {ticker}</div>',
             unsafe_allow_html=True)
 
-    st.markdown('<div class="stat-row" style="margin-top:.6rem;">② Date Range</div>', unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input("From", value=pd.to_datetime("2018-01-01"))
     with col2:
         end_date = st.date_input("To", value=pd.Timestamp.today())
 
-    st.markdown('<div class="stat-row" style="margin-top:.6rem;">③ Model Settings</div>', unsafe_allow_html=True)
     st.markdown('<div class="stat-row">Lookback Window (days)</div>', unsafe_allow_html=True)
     seq_len = st.slider("", 10, 60, 30, label_visibility="collapsed")
+
     st.markdown('<div class="stat-row">Forecast Horizon (days)</div>', unsafe_allow_html=True)
     future_days = st.slider(" ", 1, 30, 7, label_visibility="collapsed")
+
+    st.markdown("---")
+    st.markdown('<div class="stat-row">XGBoost Settings</div>', unsafe_allow_html=True)
     n_estimators  = st.slider("Trees", 100, 500, 200, step=50)
     max_depth     = st.slider("Max Depth", 2, 8, 4)
     learning_rate = st.select_slider("Learning Rate", options=[0.01, 0.05, 0.1, 0.2], value=0.05)
 
     st.markdown("---")
-    st.markdown('<div class="stat-row">④ Price Alert Target ($)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="stat-row">Price Alert Target ($)</div>', unsafe_allow_html=True)
     alert_price = st.number_input("", min_value=0.0, value=0.0, step=1.0, label_visibility="collapsed")
 
     st.markdown("---")
-    st.markdown('<div class="stat-row">⑤ Backtesting</div>', unsafe_allow_html=True)
+    st.markdown('<div class="stat-row">Backtesting</div>', unsafe_allow_html=True)
     run_backtest        = st.checkbox("Enable Backtesting Engine", value=True)
     bt_initial_capital  = st.number_input("Initial Capital ($)", min_value=1000, value=10000, step=1000)
     bt_commission       = st.number_input("Commission per Trade ($)", min_value=0.0, value=1.0, step=0.5)
@@ -544,8 +540,8 @@ with st.sidebar:
         help="Min predicted % move to trigger BUY/SELL")
 
     st.markdown("---")
-    st.markdown('<div class="stat-row">⑥ Extra Features</div>', unsafe_allow_html=True)
-    run_model_compare  = st.checkbox("Model Comparison (XGB vs LR)", value=False)
+    st.markdown('<div class="stat-row">Extra Features</div>', unsafe_allow_html=True)
+    run_model_compare  = st.checkbox("Model Comparison (XGB vs Prophet vs LR)", value=False)
     run_halal_check    = st.checkbox("Halal / Shariah Compliance Check", value=True)
     show_conf_interval = st.checkbox("Confidence Intervals on Forecast", value=True)
     ci_bootstrap_n     = st.slider("Bootstrap Samples (CI)", 50, 300, 100, step=50) if show_conf_interval else 100
@@ -885,25 +881,13 @@ def check_shariah_compliance(ticker_sym, data):
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 if run_btn:
-    # ── Unified progress bar ───────────────────────────────────────────────────
-    _prog  = st.progress(0)
-    _status = st.empty()
-
-    def update_progress(pct, msg):
-        _prog.progress(pct)
-        _status.markdown(
-            f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.72rem;'
-            f'color:#00d4a0;letter-spacing:.06em;">[ {pct}% ] {msg}</div>',
-            unsafe_allow_html=True)
-
-    update_progress(5, "Fetching market data...")
-    df = fetch_data(ticker, start_date, end_date)
+    with st.spinner(f"Fetching {ticker} data..."):
+        df = fetch_data(ticker, start_date, end_date)
 
     if df.empty:
         st.error(f"No data found for '{ticker}'. Please check the symbol.")
         st.stop()
 
-    update_progress(20, f"Loaded {len(df)} trading days — engineering features...")
     st.success(f"✓ {len(df)} trading days loaded for {ticker}")
 
     # ── Price Alert ────────────────────────────────────────────────────────────
@@ -918,8 +902,8 @@ if run_btn:
                         unsafe_allow_html=True)
 
     # ── Feature Engineering ────────────────────────────────────────────────────
-    update_progress(30, "Computing 20 technical indicators...")
-    df = add_technical_features(df)
+    with st.spinner("Engineering technical features..."):
+        df = add_technical_features(df)
     close_series = df['Close'].squeeze()
 
     # ── Candlestick Chart ──────────────────────────────────────────────────────
@@ -1030,8 +1014,8 @@ if run_btn:
         </div>
         """, unsafe_allow_html=True)
 
-    update_progress(45, "Building XGBoost feature matrix...")
-    X, y = build_xgb_dataset(df, seq_len)
+    with st.spinner("Building feature matrix..."):
+        X, y = build_xgb_dataset(df, seq_len)
 
     if len(X) < 50:
         st.error("Not enough data to train. Try a longer date range or smaller lookback window.")
@@ -1041,15 +1025,13 @@ if run_btn:
     X_train, X_test = X[:split], X[split:]
     y_train, y_test = y[:split], y[split:]
 
-    update_progress(60, "Training XGBoost model...")
-    model = XGBRegressor(
+    with st.spinner("Training XGBoost model..."):
+        model = XGBRegressor(
             n_estimators=n_estimators, max_depth=max_depth,
             learning_rate=learning_rate, subsample=0.8,
             colsample_bytree=0.8, random_state=42, verbosity=0
         )
-    model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
-
-    update_progress(80, "Evaluating model & generating summary...")
+        model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
 
     preds  = model.predict(X_test)
     actual = y_test
@@ -1065,66 +1047,6 @@ if run_btn:
     c2.metric("MAE",  f"${mae:.2f}")
     c3.metric("MAPE", f"{mape:.2f}%")
     c4.metric("R²",   f"{r2:.4f}")
-
-    # ── Plain-English AI Summary ───────────────────────────────────────────────
-    last_close   = float(df['Close'].squeeze().iloc[-1])
-    rsi_now      = float(df['RSI'].squeeze().iloc[-1])
-    macd_now     = float(df['MACD'].squeeze().iloc[-1])
-    macd_sig_now = float(df['MACD_Signal'].squeeze().iloc[-1])
-    ma50_now     = float(df['MA50'].squeeze().iloc[-1])
-    ma200_now    = float(df['MA200'].squeeze().iloc[-1])
-
-    # Accuracy verdict
-    if mape < 2:
-        acc_verdict = "excellent — predictions are within 2% of actual prices on average"
-        acc_color   = "#00d4a0"
-    elif mape < 5:
-        acc_verdict = "good — predictions are within 5% of actual prices on average"
-        acc_color   = "#00d4a0"
-    elif mape < 10:
-        acc_verdict = "moderate — some deviation but useful for trend direction"
-        acc_color   = "#ffd32a"
-    else:
-        acc_verdict = "limited — high error rate, use for direction only"
-        acc_color   = "#ff4757"
-
-    # Trend verdict
-    trend = "UPTREND" if last_close > ma50_now > ma200_now else \
-            "DOWNTREND" if last_close < ma50_now < ma200_now else "SIDEWAYS"
-    trend_color = "#00d4a0" if trend == "UPTREND" else "#ff4757" if trend == "DOWNTREND" else "#ffd32a"
-
-    # RSI verdict
-    if rsi_now > 70:
-        rsi_note = f"RSI is {rsi_now:.0f} — overbought territory, potential pullback ahead"
-    elif rsi_now < 30:
-        rsi_note = f"RSI is {rsi_now:.0f} — oversold territory, potential bounce ahead"
-    else:
-        rsi_note = f"RSI is {rsi_now:.0f} — neutral zone, no extreme signal"
-
-    # MACD verdict
-    macd_note = "MACD is above signal line — bullish momentum" \
-                if macd_now > macd_sig_now else \
-                "MACD is below signal line — bearish momentum"
-
-    st.markdown(f"""
-<div style="background:rgba(0,212,160,0.04);border:1px solid #1e2a38;border-left:3px solid #00d4a0;
-     padding:1.2rem 1.6rem;margin:1rem 0;font-family:'IBM Plex Sans',sans-serif;">
-  <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-       text-transform:uppercase;color:#4a5a6a;margin-bottom:.8rem;">📋 Plain-English Summary</div>
-  <div style="font-size:0.88rem;color:#8a9bb0;line-height:1.8;">
-    The model accuracy is <span style="color:{acc_color};font-weight:600;">{acc_verdict}</span>
-    (MAPE = {mape:.1f}%, R² = {r2:.3f}).<br>
-    {ticker} is currently in a <span style="color:{trend_color};font-weight:600;">{trend}</span>
-    — price is <b style="color:#e8edf2;">${last_close:.2f}</b>,
-    MA50 is <b style="color:#e8edf2;">${ma50_now:.2f}</b>,
-    MA200 is <b style="color:#e8edf2;">${ma200_now:.2f}</b>.<br>
-    {rsi_note}. {macd_note}.<br>
-    <span style="font-size:0.78rem;color:#4a5a6a;">
-    ⚠ This summary is auto-generated from technical data only. Not financial advice.
-    </span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
 
     # Metric interpretation
     mape_label  = ("🟢 Excellent" if mape < 2 else "🟡 Good" if mape < 5 else "🟠 Fair" if mape < 10 else "🔴 Poor")
@@ -1620,12 +1542,16 @@ if run_btn:
     st.markdown("---")
     st.markdown('<div class="stat-row">⚠ For educational purposes only. Not financial advice.</div>',
                 unsafe_allow_html=True)
-    update_progress(100, "Done! ✓")
-    _status.empty()
 
 else:
-    st.markdown("""
-<div style="padding:2.5rem 0 1rem 0; font-family:'IBM Plex Sans',sans-serif;">
+    import streamlit.components.v1 as components
+    components.html("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: transparent; }
+    </style>
+    <div style="padding:2.5rem 0 1rem 0; font-family:'IBM Plex Sans',sans-serif;">
 
         <!-- Hero -->
         <div style="text-align:center;margin-bottom:2.5rem;">
@@ -1749,4 +1675,4 @@ else:
         </div>
 
     </div>
-""", unsafe_allow_html=True)
+    """, height=900, scrolling=True)
