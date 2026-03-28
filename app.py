@@ -11,8 +11,16 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ── Page config ────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="StockCast — Ghani Team Intelligence", page_icon="📈", layout="wide",
+st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide",
                    initial_sidebar_state="expanded")
+
+# ── Session state: Watchlist & Alerts ─────────────────────────────────────────
+if "watchlist" not in st.session_state:
+    st.session_state.watchlist = []           # list of ticker strings
+if "alert_signals" not in st.session_state:
+    st.session_state.alert_signals = {}       # {ticker: last_known_verdict}
+if "signal_alerts_fired" not in st.session_state:
+    st.session_state.signal_alerts_fired = [] # banners to show this run
 
 # ── Bloomberg-style CSS ────────────────────────────────────────────────────────
 st.markdown("""
@@ -856,6 +864,70 @@ with st.sidebar:
 
     st.markdown("---")
     run_btn = st.button("▶  RUN FORECAST", use_container_width=True)
+
+    # ── Watchlist ──────────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### ⭐ WATCHLIST")
+
+    wl_col1, wl_col2 = st.columns([3, 1])
+    with wl_col1:
+        add_ticker_input = st.text_input(
+            "Add ticker", placeholder="e.g. AAPL",
+            label_visibility="collapsed", key="wl_add_input"
+        ).strip().upper()
+    with wl_col2:
+        add_clicked = st.button("＋ Add", use_container_width=True, key="wl_add_btn")
+
+    if add_clicked and add_ticker_input:
+        if add_ticker_input not in st.session_state.watchlist:
+            st.session_state.watchlist.append(add_ticker_input)
+
+    if st.session_state.watchlist:
+        for wl_sym in list(st.session_state.watchlist):
+            wc1, wc2 = st.columns([3, 1])
+            with wc1:
+                # Quick live price badge
+                try:
+                    _qt = yf.Ticker(wl_sym).fast_info
+                    _px = _qt.get("last_price") or _qt.get("regularMarketPrice") or 0
+                    _chg = _qt.get("regularMarketChangePercent") or 0
+                    _color = "#00d4a0" if _chg >= 0 else "#ff4757"
+                    _sign = "▲" if _chg >= 0 else "▼"
+                    st.markdown(
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;'
+                        f'color:#e8edf2;padding:.25rem 0;">'
+                        f'<span style="color:#4a5a6a;">{wl_sym}</span>  '
+                        f'<span style="color:{_color};">{_sign} ${_px:.2f} ({_chg:+.1f}%)</span></div>',
+                        unsafe_allow_html=True
+                    )
+                except Exception:
+                    st.markdown(
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;'
+                        f'color:#4a5a6a;padding:.25rem 0;">{wl_sym}</div>',
+                        unsafe_allow_html=True
+                    )
+            with wc2:
+                if st.button("✕", key=f"wl_del_{wl_sym}", use_container_width=True):
+                    st.session_state.watchlist.remove(wl_sym)
+                    if wl_sym in st.session_state.alert_signals:
+                        del st.session_state.alert_signals[wl_sym]
+                    st.rerun()
+    else:
+        st.markdown(
+            '<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#2a3a4e;'
+            'padding:.4rem 0;">No stocks saved yet.</div>',
+            unsafe_allow_html=True
+        )
+
+    # ── Signal Alert Toggle ────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 🔔 SIGNAL ALERTS")
+    alert_on_signal_change = st.checkbox(
+        "Alert when signal changes (BUY/SELL/HOLD)",
+        value=True,
+        help="Shows a banner at the top of the analysis if the signal has changed since last run"
+    )
+    st.caption("Run the forecast to detect signal changes.")
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
 PLOTLY_LAYOUT = dict(
@@ -1710,143 +1782,156 @@ if run_btn:
             height=350)
         st.plotly_chart(fig1, use_container_width=True)
 
-        # ── Signal Intelligence (Visual, Grouped, Interactive) ──────────────────
+        # ── Multi-Factor Buy/Sell Signal Engine ──────────────────────────────────
         st.subheader("Signal Intelligence")
 
         # Build composite signal
-        composite     = compute_composite_signal(df, last_close, preds[-1], preds, actual)
-        verdict       = composite['verdict']
-        verdict_short = composite['verdict_short']
-        total_score   = composite['total_score']
-        xgb_pct       = composite['xgb_pct']
-        stop_loss     = composite['stop_loss']
-        take_profit   = composite['take_profit']
-        risk_reward   = composite['risk_reward']
-        rsi_val       = composite['rsi']
-        vol_ratio     = composite['vol_ratio']
-        atr_val       = composite['atr']
-        sigs          = composite['signals']
-        sign          = '+' if xgb_pct >= 0 else ''
+        composite = compute_composite_signal(df, last_close, preds[-1], preds, actual)
+        verdict        = composite['verdict']
+        verdict_short  = composite['verdict_short']
+        total_score    = composite['total_score']
+        xgb_pct        = composite['xgb_pct']
+        stop_loss      = composite['stop_loss']
+        take_profit    = composite['take_profit']
+        risk_reward    = composite['risk_reward']
+        rsi_val        = composite['rsi']
+        vol_ratio      = composite['vol_ratio']
+        atr_val        = composite['atr']
+        sigs           = composite['signals']
 
-        # ── 1. Final Summary Card — instant top-level decision ─────────────────
-        conf_label = (
-            "HIGH ✅" if confidence_score >= 80 else
-            "MODERATE ⚠" if confidence_score >= 60 else "LOW ⛔"
+        # ── 🔔 Signal Alert Detection ──────────────────────────────────────────
+        if alert_on_signal_change:
+            prev_verdict = st.session_state.alert_signals.get(ticker)
+            if prev_verdict is not None and prev_verdict != verdict_short:
+                _alert_color = {"BUY": "#00d4a0", "SELL": "#ff4757"}.get(verdict_short, "#ffd32a")
+                _alert_icon  = {"BUY": "⬆", "SELL": "⬇"}.get(verdict_short, "◆")
+                st.markdown(
+                    f'<div style="background:rgba({",".join(str(int(_alert_color.lstrip("#")[i:i+2],16)) for i in (0,2,4))},0.12);'
+                    f'border:1px solid {_alert_color};border-left:4px solid {_alert_color};'
+                    f'padding:.8rem 1.4rem;margin-bottom:1rem;font-family:IBM Plex Mono,monospace;'
+                    f'font-size:.8rem;color:{_alert_color};letter-spacing:.04em;">'
+                    f'🔔 <b>SIGNAL ALERT — {ticker}</b> &nbsp;|&nbsp; '
+                    f'{prev_verdict} → {_alert_icon} {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+            # Always update stored verdict after this run
+            st.session_state.alert_signals[ticker] = verdict_short
+
+        verdict_css = 'sell' if verdict_short == 'SELL' else 'hold' if verdict_short == 'HOLD' else ''
+        sign        = '+' if xgb_pct >= 0 else ''
+
+        # ── Main Signal Panel ──────────────────────────────────────────────────
+        rr_color    = 'positive' if risk_reward >= 1.5 else 'negative' if risk_reward < 1 else 'neutral'
+        sl_color    = 'negative'
+        tp_color    = 'positive'
+        score_color = '#00d4a0' if total_score > 0 else '#ff4757' if total_score < 0 else '#ffd32a'
+
+        st.markdown(f"""
+        <div class="signal-panel-v2">
+            <div class="signal-main-v2 {verdict_css}">
+                <div class="signal-label-v2">Composite Signal</div>
+                <div class="signal-action-v2 {verdict_css}">{verdict}</div>
+                <div class="signal-pct-v2">{sign}{xgb_pct:.2f}% forecast</div>
+                <div class="signal-label-v2" style="margin-top:8px;">Score: <span style="color:{score_color};font-size:0.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
+            </div>
+            <div class="signal-details-v2">
+                <div class="sig-detail-card-v2 {tp_color}">
+                    <div class="sig-detail-label-v2">Take Profit</div>
+                    <div class="sig-detail-val-v2">${take_profit:.2f}</div>
+                    <div class="sig-detail-sub-v2">+{((take_profit-last_close)/last_close*100):.1f}% · 3× ATR</div>
+                </div>
+                <div class="sig-detail-card-v2 {sl_color}">
+                    <div class="sig-detail-label-v2">Stop Loss</div>
+                    <div class="sig-detail-val-v2">${stop_loss:.2f}</div>
+                    <div class="sig-detail-sub-v2">{((stop_loss-last_close)/last_close*100):.1f}% · 2× ATR</div>
+                </div>
+                <div class="sig-detail-card-v2 {rr_color}">
+                    <div class="sig-detail-label-v2">Risk / Reward</div>
+                    <div class="sig-detail-val-v2">{risk_reward:.2f}×</div>
+                    <div class="sig-detail-sub-v2">{"✓ Favorable" if risk_reward >= 1.5 else "⚠ Marginal" if risk_reward >= 1 else "✗ Unfavorable"}</div>
+                </div>
+                <div class="sig-detail-card-v2 {'positive' if rsi_val < 50 else 'negative'}">
+                    <div class="sig-detail-label-v2">RSI (14)</div>
+                    <div class="sig-detail-val-v2">{rsi_val:.1f}</div>
+                    <div class="sig-detail-sub-v2">{"Oversold" if rsi_val < 30 else "Overbought" if rsi_val > 70 else "Neutral zone"}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Per-Indicator Breakdown ────────────────────────────────────────────
+        st.markdown('<div class="composite-meter"><div class="meter-title">⚙ Per-Indicator Signal Breakdown</div>', unsafe_allow_html=True)
+
+        indicator_rows_html = ""
+        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
+            bar_width = min(100, abs(ind_score) / 35 * 100)
+            sig_class = ind_sig.lower() if ind_sig in ('BUY','SELL') else 'hold'
+            indicator_rows_html += f"""
+            <div class="signal-indicator-row">
+                <span class="sir-label">{ind_name}</span>
+                <div class="sir-bar-bg"><div class="sir-bar {ind_class}" style="width:{bar_width:.0f}%;"></div></div>
+                <span class="sir-val">{ind_val:.2f}</span>
+                <span class="sir-signal {sig_class}">{ind_sig}</span>
+            </div>"""
+
+        st.markdown(indicator_rows_html + '</div>', unsafe_allow_html=True)
+
+        # ── Why This Signal? Human-readable explanation ────────────────────────
+        reason_lines = []
+        emoji_map = {'BUY': '🟢', 'SELL': '🔴', 'HOLD': '🟡'}
+        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
+            if ind_sig == 'BUY':
+                if ind_name == 'XGBoost Forecast':
+                    reason_lines.append(f"🟢 XGBoost model predicts <b style='color:#00d4a0;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                elif ind_name == 'RSI (14)':
+                    reason_lines.append(f"🟢 RSI is <b style='color:#00d4a0;'>{ind_val:.1f}</b> — {'oversold territory' if ind_val < 30 else 'leaning oversold'}")
+                elif ind_name == 'MACD Cross':
+                    reason_lines.append(f"🟢 MACD shows {'fresh bullish crossover' if abs(ind_score) >= 20 else 'bullish momentum'}")
+                elif ind_name == 'Bollinger %B':
+                    reason_lines.append(f"🟢 Price near lower Bollinger Band (%B = {ind_val:.2f}) — potential bounce")
+                elif ind_name == 'MA Cross':
+                    reason_lines.append(f"🟢 MA50 above MA200 — Golden Cross (uptrend)")
+                elif ind_name == 'Volume':
+                    reason_lines.append(f"🟢 Volume {ind_val:.1f}× average confirms buying pressure")
+            elif ind_sig == 'SELL':
+                if ind_name == 'XGBoost Forecast':
+                    reason_lines.append(f"🔴 XGBoost model predicts <b style='color:#ff4757;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                elif ind_name == 'RSI (14)':
+                    reason_lines.append(f"🔴 RSI is <b style='color:#ff4757;'>{ind_val:.1f}</b> — {'overbought territory' if ind_val > 70 else 'leaning overbought'}")
+                elif ind_name == 'MACD Cross':
+                    reason_lines.append(f"🔴 MACD shows {'fresh bearish crossover' if abs(ind_score) >= 20 else 'bearish momentum'}")
+                elif ind_name == 'Bollinger %B':
+                    reason_lines.append(f"🔴 Price near upper Bollinger Band (%B = {ind_val:.2f}) — potential reversal")
+                elif ind_name == 'MA Cross':
+                    reason_lines.append(f"🔴 MA50 below MA200 — Death Cross (downtrend)")
+                elif ind_name == 'Volume':
+                    reason_lines.append(f"🔴 Volume {ind_val:.1f}× average confirms selling pressure")
+            else:
+                if ind_name == 'XGBoost Forecast':
+                    reason_lines.append(f"🟡 XGBoost predicts only {xgb_pct:+.2f}% — not enough directional conviction")
+
+        border_color = '#00d4a0' if verdict_short == 'BUY' else '#ff4757' if verdict_short == 'SELL' else '#ffd32a'
+        reasons_html = "".join(
+            f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#8a9bb0;">{r}</div>'
+            for r in reason_lines
         )
-        verdict_display = {
-            "STRONG BUY":  "⬆ STRONG BUY",
-            "BUY":         "▲ BUY",
-            "STRONG SELL": "⬇ STRONG SELL",
-            "SELL":        "▼ SELL",
-            "HOLD":        "◆ HOLD",
-        }.get(verdict, verdict)
-
-        sc1, sc2, sc3, sc4 = st.columns(4)
-        sc1.metric("Final Signal",    verdict_display,
-                   delta=f"{sign}{xgb_pct:.2f}% XGB forecast")
-        sc2.metric("Confidence",      conf_label,
-                   delta=f"{confidence_score:.0f} / 100")
-        sc3.metric("Composite Score", f"{total_score:+.0f}",
-                   delta="out of ±100")
-        sc4.metric("Risk : Reward",   f"{risk_reward:.2f}×",
-                   delta="Favorable" if risk_reward >= 1.5 else "Marginal" if risk_reward >= 1 else "Unfavorable",
-                   delta_color="normal" if risk_reward >= 1.5 else "inverse")
-
-        # SL / TP row
-        sl1, sl2, sl3 = st.columns(3)
-        sl1.metric("Last Close",  f"${last_close:.2f}")
-        sl2.metric("Stop Loss",   f"${stop_loss:.2f}",
-                   delta=f"{((stop_loss - last_close) / last_close * 100):.1f}%  (2× ATR)",
-                   delta_color="inverse")
-        sl3.metric("Take Profit", f"${take_profit:.2f}",
-                   delta=f"+{((take_profit - last_close) / last_close * 100):.1f}%  (3× ATR)")
-
-        st.divider()
-
-        # ── 2. Visual grouped signals with % score impact ──────────────────────
-        st.markdown("**💡 Why This Signal? — Grouped by Direction**")
-
-        bullish_sigs = [(n, sc, v, cl) for n, (sg, sc, v, cl) in sigs.items() if sg == 'BUY']
-        bearish_sigs = [(n, sc, v, cl) for n, (sg, sc, v, cl) in sigs.items() if sg == 'SELL']
-        neutral_sigs = [(n, sc, v, cl) for n, (sg, sc, v, cl) in sigs.items() if sg == 'HOLD']
-
-        def _explain(name, score, val, xgb_pct_val, rsi_v):
-            impact = f"(**{score:+.0f} pts**)"
-            if name == 'XGBoost Forecast':
-                return f"Model predicts {xgb_pct_val:+.2f}% move tomorrow  {impact}"
-            elif name == 'RSI (14)':
-                zone = ("oversold" if rsi_v < 30 else "overbought" if rsi_v > 70
-                        else "leaning oversold" if rsi_v < 45 else "leaning overbought")
-                return f"RSI = {val:.1f} — {zone}  {impact}"
-            elif name == 'MACD Cross':
-                trend = "fresh crossover" if abs(score) >= 20 else "trend continuation"
-                return f"MACD {trend}  {impact}"
-            elif name == 'Bollinger %B':
-                pos = "near lower band — potential bounce" if val < 0.2 else "near upper band — potential reversal"
-                return f"Bollinger %B = {val:.2f}  ({pos})  {impact}"
-            elif name == 'MA Cross':
-                cross = "Golden Cross — uptrend" if score > 0 else "Death Cross — downtrend"
-                return f"MA50 {'above' if score > 0 else 'below'} MA200 — {cross}  {impact}"
-            elif name == 'Volume':
-                conf = "confirms direction" if abs(score) > 0 else "neutral"
-                return f"Volume {val:.1f}× average — {conf}  {impact}"
-            return f"{name}  {impact}"
-
-        _sep = "  \n"
-
-        if bullish_sigs:
-            msgs = _sep.join(
-                f"🟢 **{n}** — {_explain(n, sc, v, xgb_pct, rsi_val)}"
-                for n, sc, v, cl in sorted(bullish_sigs, key=lambda x: -x[1])
-            )
-            st.success(f"**🟢 Bullish Signals ({len(bullish_sigs)})**\n\n{msgs}")
-
-        if bearish_sigs:
-            msgs = _sep.join(
-                f"🔴 **{n}** — {_explain(n, sc, v, xgb_pct, rsi_val)}"
-                for n, sc, v, cl in sorted(bearish_sigs, key=lambda x: x[1])
-            )
-            st.error(f"**🔴 Bearish Signals ({len(bearish_sigs)})**\n\n{msgs}")
-
-        if neutral_sigs:
-            msgs = _sep.join(
-                f"⚪ **{n}** — {_explain(n, sc, v, xgb_pct, rsi_val)}"
-                for n, sc, v, cl in neutral_sigs
-            )
-            st.info(f"**⚪ Neutral Signals ({len(neutral_sigs)})**\n\n{msgs}")
-
-        if not bullish_sigs and not bearish_sigs:
-            st.info("⚪ All indicators are neutral — no strong directional edge detected.")
-
-        st.caption("⚠ Model uses price & volume only — no awareness of earnings, news, or macro events.")
-
-        # ── 3. Per-indicator score bar chart ──────────────────────────────────
-        with st.expander("📊 Full Indicator Breakdown with Score Impact", expanded=False):
-            bar_data = {"Indicator": [], "Score": [], "Signal": [], "Value": []}
-            for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
-                bar_data["Indicator"].append(ind_name)
-                bar_data["Score"].append(ind_score)
-                bar_data["Signal"].append(ind_sig)
-                bar_data["Value"].append(f"{ind_val:.2f}")
-            bar_df = pd.DataFrame(bar_data).sort_values("Score")
-            colors = [C_GREEN if s > 0 else C_RED if s < 0 else C_YELLOW for s in bar_df["Score"]]
-            fig_bar = go.Figure(go.Bar(
-                x=bar_df["Score"], y=bar_df["Indicator"], orientation="h",
-                marker_color=colors,
-                text=[f"{s:+.0f} pts  |  val: {v}  |  {sig}"
-                      for s, v, sig in zip(bar_df["Score"], bar_df["Value"], bar_df["Signal"])],
-                textposition="outside",
-                textfont=dict(family="IBM Plex Mono", size=10, color="#8a9bb0"),
-            ))
-            fig_bar.add_vline(x=0, line_color="#2a3a4e", line_width=1)
-            _bar_layout = {**PLOTLY_LAYOUT, "margin": dict(l=10, r=120, t=40, b=10)}
-            fig_bar.update_layout(
-                **_bar_layout,
-                title=dict(text=f"{ticker} · Signal Score Impact (positive = bullish, negative = bearish)",
-                           font=dict(color=C_GREEN, size=12)),
-                height=320, xaxis_title="Score contribution (pts)",
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+        st.markdown(f"""
+        <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid {border_color};
+             padding:1.1rem 1.5rem;margin:.8rem 0;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.18em;
+               text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
+            💡 Why This Signal? — <span style="color:{border_color};">{verdict}</span>
+          </div>
+          <div style="font-family:'IBM Plex Sans',sans-serif;line-height:1.7;">
+            {reasons_html if reasons_html else '<span style="color:#4a5a6a;font-size:.8rem;">All indicators neutral — no strong directional edge detected.</span>'}
+          </div>
+          <div style="margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border);
+               font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#4a5a6a;">
+            ⚠ This is model output only — no awareness of earnings, news, or macro events.
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # ── Historical signal list ─────────────────────────────────────────────
         signal_list = []
@@ -2410,149 +2495,162 @@ else:
     land_tab_overview, land_tab_methodology = st.tabs(["🏠  Overview", "📖  Methodology"])
 
     with land_tab_overview:
+
+        # ── Hero ──────────────────────────────────────────────────────────────
+        st.markdown("""
+        <div style="text-align:center;padding:3rem 1rem 1.5rem 1rem;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.3em;
+                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
+                Free · Open-source · No login required
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:2.8rem;font-weight:700;
+                 color:#e8edf2;letter-spacing:.05em;line-height:1.15;margin-bottom:.8rem;">
+                STOCK<span style="color:#00d4a0;">CAST</span>
+            </div>
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:1.1rem;color:#8a9bb0;
+                 max-width:580px;margin:0 auto 1.5rem auto;line-height:1.7;">
+                AI-powered stock intelligence with <span style="color:#e8edf2;">explainable signals</span> —
+                not just a prediction, but <span style="color:#00d4a0;">why</span> the model thinks it.
+            </div>
+            <div style="display:flex;justify-content:center;gap:.8rem;flex-wrap:wrap;margin-bottom:2.5rem;">
+                <span style="background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);
+                      color:#00d4a0;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                      letter-spacing:.1em;padding:.3rem .9rem;">✓ XGBoost ML</span>
+                <span style="background:rgba(61,158,255,0.1);border:1px solid rgba(61,158,255,0.3);
+                      color:#3d9eff;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                      letter-spacing:.1em;padding:.3rem .9rem;">✓ 6-Factor Signals</span>
+                <span style="background:rgba(255,211,42,0.1);border:1px solid rgba(255,211,42,0.3);
+                      color:#ffd32a;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                      letter-spacing:.1em;padding:.3rem .9rem;">✓ Backtesting Engine</span>
+                <span style="background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);
+                      color:#00d4a0;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                      letter-spacing:.1em;padding:.3rem .9rem;">✓ Watchlist + Alerts</span>
+                <span style="background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);
+                      color:#ff4757;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                      letter-spacing:.1em;padding:.3rem .9rem;">✓ Shariah Screening</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Live Watchlist Preview on landing ────────────────────────────────
+        if st.session_state.watchlist:
+            st.markdown("#### ⭐ Your Watchlist — Live Prices")
+            wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
+            for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
+                with wl_cols[i % 4]:
+                    try:
+                        _fi   = yf.Ticker(wl_sym).fast_info
+                        _px   = _fi.get("last_price") or _fi.get("regularMarketPrice") or 0
+                        _chg  = _fi.get("regularMarketChangePercent") or 0
+                        _col  = "#00d4a0" if _chg >= 0 else "#ff4757"
+                        _sign = "▲" if _chg >= 0 else "▼"
+                        st.markdown(
+                            f'<div style="background:#0f1318;border:1px solid #1e2a38;'
+                            f'border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;">'
+                            f'<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;'
+                            f'letter-spacing:.15em;color:#4a5a6a;text-transform:uppercase;">{wl_sym}</div>'
+                            f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;'
+                            f'font-weight:700;color:#e8edf2;margin:.3rem 0;">${_px:.2f}</div>'
+                            f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;'
+                            f'color:{_col};">{_sign} {_chg:+.2f}%</div></div>',
+                            unsafe_allow_html=True
+                        )
+                    except Exception:
+                        st.markdown(
+                            f'<div style="background:#0f1318;border:1px solid #1e2a38;'
+                            f'padding:1rem 1.2rem;text-align:center;font-family:IBM Plex Mono,monospace;'
+                            f'font-size:.7rem;color:#4a5a6a;">{wl_sym}<br>—</div>',
+                            unsafe_allow_html=True
+                        )
+            st.markdown("---")
+
+        # ── How it works (3 steps) ───────────────────────────────────────────
+        st.markdown("#### How It Works")
+        hw1, hw2, hw3 = st.columns(3)
+        with hw1:
+            st.markdown("""
+            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;
+                 padding:1.4rem 1.5rem;height:100%;">
+                <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;
+                     color:#00d4a0;margin-bottom:.5rem;">01</div>
+                <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
+                     text-transform:uppercase;color:#e8edf2;margin-bottom:.5rem;">Enter a Ticker</div>
+                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#8a9bb0;line-height:1.6;">
+                    Search by company name or symbol. Add it to your watchlist to track it persistently.
+                </div>
+            </div>""", unsafe_allow_html=True)
+        with hw2:
+            st.markdown("""
+            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;
+                 padding:1.4rem 1.5rem;height:100%;">
+                <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;
+                     color:#3d9eff;margin-bottom:.5rem;">02</div>
+                <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
+                     text-transform:uppercase;color:#e8edf2;margin-bottom:.5rem;">Run the Model</div>
+                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#8a9bb0;line-height:1.6;">
+                    XGBoost trains on 7 years of OHLCV data with 20 engineered features. Results in seconds.
+                </div>
+            </div>""", unsafe_allow_html=True)
+        with hw3:
+            st.markdown("""
+            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ffd32a;
+                 padding:1.4rem 1.5rem;height:100%;">
+                <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;
+                     color:#ffd32a;margin-bottom:.5rem;">03</div>
+                <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
+                     text-transform:uppercase;color:#e8edf2;margin-bottom:.5rem;">Read the Signal</div>
+                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#8a9bb0;line-height:1.6;">
+                    Get a BUY / SELL / HOLD verdict with a full explanation of <em>every</em> contributing factor.
+                </div>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Feature grid ────────────────────────────────────────────────────
+        st.markdown("#### What's Inside")
         import streamlit.components.v1 as components
         components.html("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: transparent; }
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500&display=swap');
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { background:transparent; font-family:'IBM Plex Sans',sans-serif; }
+        .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:.9rem; }
+        .card { background:#0f1318; border:1px solid #1e2a38; padding:1.2rem 1.3rem; }
+        .card-title { font-family:'IBM Plex Mono',monospace; font-size:.62rem; letter-spacing:.18em;
+                      text-transform:uppercase; margin-bottom:.4rem; }
+        .card-body  { font-family:'IBM Plex Sans',sans-serif; font-size:.8rem; color:#8a9bb0; line-height:1.5; }
         </style>
-        <div style="padding:2.5rem 0 1rem 0; font-family:'IBM Plex Sans',sans-serif;">
-
-            <!-- Hero -->
-            <div style="text-align:center;margin-bottom:2.5rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
-                     letter-spacing:.25em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.6rem;">
-                    Institutional-grade analysis &amp; Free &amp; open
-                </div>
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
-                     color:#e8edf2;letter-spacing:.06em;line-height:1.2;">
-                    STOCK<span style="color:#00d4a0;">CAST</span>
-                </div>
-                <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.9rem;color:#8a9bb0;
-                     margin-top:.5rem;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6;">
-                    Enter any NYSE / NASDAQ ticker in the sidebar and press
-                    <span style="color:#00d4a0;font-family:'IBM Plex Mono',monospace;font-weight:600;">▶ RUN FORECAST</span>
-                    to generate a full ML-powered market intelligence report.
-                </div>
+        <div class="grid">
+            <div class="card" style="border-top:2px solid #00d4a0;">
+                <div class="card-title" style="color:#00d4a0;">📈 XGBoost Forecast</div>
+                <div class="card-body">ML trained on 20 technical features. N-day forecast with 95% bootstrap CI.</div>
             </div>
-
-            <!-- Feature cards grid -->
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem;">
-
-                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">📈 XGBoost Forecast</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                        ML model trained on 20 technical features + lag windows. Predicts next
-                        <em>N</em> days with full 95% bootstrap confidence intervals — not just a single line.
-                    </div>
-                </div>
-
-                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⚙ Technical Signals</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                        RSI, MACD, Bollinger Bands, MA50/200, ATR, Volume Ratio — all computed live.
-                        BUY / SELL / HOLD signals generated from model predictions.
-                    </div>
-                </div>
-
-                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ffd32a;padding:1.3rem 1.4rem;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#ffd32a;margin-bottom:.5rem;">📊 Backtesting Engine</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                        Simulate your strategy on historical data. Get Sharpe ratio, max drawdown,
-                        win rate, profit factor, and full equity curve vs buy-and-hold.
-                    </div>
-                </div>
-
-                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ff4757;padding:1.3rem 1.4rem;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#ff4757;margin-bottom:.5rem;">🔬 Model Comparison</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                        Benchmark XGBoost against Prophet and Linear Regression side-by-side.
-                        RMSE, MAE, MAPE and R² reported for every model.
-                    </div>
-                </div>
-
-                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;padding:1.3rem 1.4rem;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#00d4a0;margin-bottom:.5rem;">☪ Shariah Screening</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                        Automated Halal compliance check based on AAOIFI Standard No.21.
-                        Screens business activity, debt ratios, and cash ratios instantly.
-                    </div>
-                </div>
-
-                <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;padding:1.3rem 1.4rem;">
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#3d9eff;margin-bottom:.5rem;">⬇ Export Reports</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.5;">
-                        Download historical data + indicators, buy/sell signal log, forecast
-                        prices, and full trade history as CSV — ready for your own analysis.
-                    </div>
-                </div>
-
+            <div class="card" style="border-top:2px solid #3d9eff;">
+                <div class="card-title" style="color:#3d9eff;">⚙ Explainable Signals</div>
+                <div class="card-body">RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain English.</div>
             </div>
-
-            <!-- Pipeline progress bar -->
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid #00d4a0;
-                 padding:1.4rem 1.8rem;margin-bottom:2rem;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                     text-transform:uppercase;color:#4a5a6a;margin-bottom:1rem;">Pipeline — How It Works</div>
-                <div style="display:flex;align-items:center;gap:0;margin-bottom:1rem;">
-                    <div style="flex:1;text-align:center;position:relative;">
-                        <div style="width:36px;height:36px;border-radius:50%;background:#00d4a0;
-                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
-                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">01</div>
-                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
-                            OHLCV Data<br><span style="color:#4a5a6a;font-size:.65rem;">yfinance · 7yr</span>
-                        </div>
-                        <div style="position:absolute;top:18px;left:calc(50% + 18px);right:0;height:2px;background:#1e2a38;"></div>
-                    </div>
-                    <div style="flex:1;text-align:center;position:relative;">
-                        <div style="width:36px;height:36px;border-radius:50%;background:#3d9eff;
-                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
-                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">02</div>
-                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
-                            Feature Engineering<br><span style="color:#4a5a6a;font-size:.65rem;">20 indicators</span>
-                        </div>
-                        <div style="position:absolute;top:18px;left:calc(50% + 18px);right:0;height:2px;background:#1e2a38;"></div>
-                    </div>
-                    <div style="flex:1;text-align:center;position:relative;">
-                        <div style="width:36px;height:36px;border-radius:50%;background:#ffd32a;
-                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
-                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">03</div>
-                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
-                            XGBoost Train<br><span style="color:#4a5a6a;font-size:.65rem;">80/20 split</span>
-                        </div>
-                        <div style="position:absolute;top:18px;left:calc(50% + 18px);right:0;height:2px;background:#1e2a38;"></div>
-                    </div>
-                    <div style="flex:1;text-align:center;position:relative;">
-                        <div style="width:36px;height:36px;border-radius:50%;background:#00d4a0;
-                             margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;
-                             font-family:'IBM Plex Mono',monospace;font-size:.8rem;font-weight:700;color:#000;">04</div>
-                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.72rem;color:#8a9bb0;line-height:1.4;">
-                            Forecast + CI<br><span style="color:#4a5a6a;font-size:.65rem;">Bootstrap 95%</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="card" style="border-top:2px solid #ffd32a;">
+                <div class="card-title" style="color:#ffd32a;">📊 Backtesting Engine</div>
+                <div class="card-body">Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold.</div>
             </div>
-
-            <!-- Disclaimer + tickers -->
-            <div style="text-align:center;">
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#2a3a4e;
-                     letter-spacing:.1em;margin-bottom:.5rem;">
-                    AAPL · TSLA · GOOGL · MSFT · AMZN · NFLX · META · NVDA · JPM · AMD · ORCL · BABA
-                </div>
-                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;color:#1e2a38;letter-spacing:.08em;">
-                    ⚠ For educational purposes only. Not financial advice. Past model performance does not guarantee future results.
-                </div>
+            <div class="card" style="border-top:2px solid #ff4757;">
+                <div class="card-title" style="color:#ff4757;">⭐ Watchlist + 🔔 Alerts</div>
+                <div class="card-body">Save stocks, see live prices on the dashboard, get banners when signals flip.</div>
             </div>
-
+            <div class="card" style="border-top:2px solid #00d4a0;">
+                <div class="card-title" style="color:#00d4a0;">☪ Shariah Screening</div>
+                <div class="card-body">AAOIFI Standard No.21 — screens business activity, debt & cash ratios automatically.</div>
+            </div>
+            <div class="card" style="border-top:2px solid #3d9eff;">
+                <div class="card-title" style="color:#3d9eff;">🔬 Model Comparison</div>
+                <div class="card-body">Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
+            </div>
         </div>
-        """, height=950, scrolling=True)
+        <div style="text-align:center;margin-top:1.6rem;font-family:'IBM Plex Mono',monospace;
+             font-size:.6rem;color:#1e2a38;letter-spacing:.08em;">
+            ⚠ For educational purposes only. Not financial advice.
+        </div>
+        """, height=310, scrolling=False)
 
     with land_tab_methodology:
         render_methodology_page()
