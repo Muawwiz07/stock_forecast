@@ -253,10 +253,11 @@ footer { visibility: hidden !important; }
     border-left: 3px solid var(--green);
     padding: 0.9rem 1.8rem;
     margin-bottom: 1.2rem;
+    margin-left: -2rem;
+    margin-right: -2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-radius: 0 var(--radius) var(--radius) 0;
     box-shadow: 0 2px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(0,229,176,0.04);
 }
 .app-header-left {}
