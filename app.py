@@ -1135,6 +1135,7 @@ if st.session_state.user is None:
             </div>
             <div style="font-size:.82rem;color:#3d5068;margin-top:.5rem;font-family:'Inter',sans-serif;letter-spacing:.03em;">
                 AI-powered stock intelligence platform
+                Developed by Muawwiz Ghani
             </div>
         </div>
         """, unsafe_allow_html=True)
