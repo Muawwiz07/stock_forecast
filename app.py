@@ -1364,7 +1364,7 @@ if st.session_state.user is None:
 st.markdown("""
 <div class="wi-header">
   <div>
-    <div class="wi-logo">Stock<span>cast</span> &nbsp;<span style="color:#424754;font-weight:300;">·</span>&nbsp; Ai Market Intelligence</div>
+    <div class="wi-logo">Stock<span>cast</span> 
     <div class="wi-sub">XGBoost · 6-Factor Signals · Backtesting · Shariah Screening · News NLP</div>
   </div>
   <div style="display:flex;align-items:center;gap:1.5rem;">
@@ -1667,7 +1667,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.5;">{body}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;">⚠ For educational purposes only. Not financial advice.</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> SupportTeam :- ghani24by7@gmail.com </div>', unsafe_allow_html=True)
 
 else:
     # ═══════════════════════════════════════════════════════════════
