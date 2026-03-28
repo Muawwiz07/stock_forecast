@@ -731,7 +731,11 @@ if st.session_state.user is None:
 
     /* Full page override for auth screen */
     html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
-        background: #0a0f1e !important;
+        background:
+            radial-gradient(circle at 20% 30%, rgba(34,197,94,0.09), transparent 40%),
+            radial-gradient(circle at 80% 70%, rgba(61,158,255,0.08), transparent 40%),
+            radial-gradient(circle at 55% 10%, rgba(139,92,246,0.05), transparent 35%),
+            #0a0c0f !important;
         font-family: 'Inter', sans-serif !important;
     }
     .block-container { padding: 0 !important; max-width: 100% !important; }
@@ -774,16 +778,18 @@ if st.session_state.user is None:
     /* Card */
     .auth-card {
         position: relative; z-index: 10;
-        background: rgba(17, 24, 39, 0.85);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(34,197,94,0.15);
+        background: rgba(17, 24, 39, 0.75);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border: 1px solid rgba(255,255,255,0.06);
         border-radius: 20px;
         padding: 2.5rem 2.2rem 2rem;
         max-width: 420px;
         margin: 0 auto;
-        box-shadow: 0 0 0 1px rgba(255,255,255,0.03),
-                    0 25px 50px rgba(0,0,0,0.5),
-                    0 0 80px rgba(34,197,94,0.04);
+        box-shadow:
+            0 10px 40px rgba(0,0,0,0.6),
+            inset 0 1px 0 rgba(255,255,255,0.05),
+            0 0 0 1px rgba(255,255,255,0.02);
         animation: cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
     }
     @keyframes cardIn {
@@ -872,50 +878,70 @@ if st.session_state.user is None:
         pointer-events: none; z-index: 1;
     }
 
-    /* Override Streamlit inputs */
+    /* Override Streamlit inputs — Upgrade 1 */
     [data-testid="stTextInput"] input {
-        background: rgba(255,255,255,0.04) !important;
-        border: 1px solid rgba(255,255,255,0.08) !important;
+        background: rgba(15, 23, 42, 0.6) !important;
+        border: 1px solid #1f2937 !important;
         border-radius: 10px !important;
-        color: #f1f5f9 !important;
+        color: #e5e7eb !important;
         font-family: 'Inter', sans-serif !important;
         font-size: 0.875rem !important;
-        padding: 0.65rem 1rem 0.65rem 2.6rem !important;
-        transition: border-color 0.2s, box-shadow 0.2s !important;
-    }
-    [data-testid="stTextInput"] input:focus {
-        border-color: rgba(34,197,94,0.5) !important;
-        box-shadow: 0 0 0 3px rgba(34,197,94,0.08) !important;
+        padding: 12px 14px 12px 36px !important;
+        transition: all 0.25s ease !important;
         outline: none !important;
     }
-    [data-testid="stTextInput"] input::placeholder { color: #475569 !important; }
-    [data-testid="stTextInput"] label {
-        display: none !important;
+    [data-testid="stTextInput"] input:focus {
+        border: 1px solid #22c55e !important;
+        box-shadow: 0 0 0 2px rgba(34,197,94,0.2) !important;
+        background: rgba(15, 23, 42, 0.9) !important;
     }
+    [data-testid="stTextInput"] input::placeholder { color: #64748b !important; }
+    [data-testid="stTextInput"] label { display: none !important; }
 
-    /* Button */
-    .stButton > button {
-        background: linear-gradient(135deg, #16a34a, #22c55e) !important;
+    /* Upgrade 3: Smooth fade-up animation for each input */
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    [data-testid="stTextInput"] {
+        animation: fadeUp 0.4s ease forwards;
+    }
+    [data-testid="stTextInput"]:nth-child(1) { animation-delay: 0.05s; }
+    [data-testid="stTextInput"]:nth-child(2) { animation-delay: 0.12s; }
+    [data-testid="stTextInput"]:nth-child(3) { animation-delay: 0.19s; }
+
+    /* Upgrade 2: Premium button */
+    div.stButton > button {
+        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
         color: #fff !important;
-        border: none !important;
-        border-radius: 10px !important;
-        font-family: 'Inter', sans-serif !important;
-        font-size: 0.875rem !important;
         font-weight: 600 !important;
+        border-radius: 12px !important;
+        height: 48px !important;
+        border: none !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.9rem !important;
         letter-spacing: 0.04em !important;
-        padding: 0.7rem 1rem !important;
         width: 100% !important;
         margin-top: 0.4rem !important;
         transition: all 0.2s ease !important;
-        box-shadow: 0 4px 15px rgba(34,197,94,0.25) !important;
+        box-shadow: 0 4px 20px rgba(34,197,94,0.28) !important;
+        position: relative !important;
+        overflow: hidden !important;
     }
-    .stButton > button:hover {
-        transform: translateY(-1px) scale(1.01) !important;
-        box-shadow: 0 6px 25px rgba(34,197,94,0.35) !important;
-        background: linear-gradient(135deg, #15803d, #16a34a) !important;
+    div.stButton > button::after {
+        content: '';
+        position: absolute; inset: 0;
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), transparent);
+        pointer-events: none;
     }
-    .stButton > button:active {
+    div.stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 25px rgba(34,197,94,0.35) !important;
+        background: linear-gradient(135deg, #4ade80, #22c55e) !important;
+    }
+    div.stButton > button:active {
         transform: scale(0.98) !important;
+        box-shadow: 0 2px 10px rgba(34,197,94,0.2) !important;
     }
 
     /* Divider */
@@ -995,12 +1021,12 @@ if st.session_state.user is None:
 
         # ── Card wrapper open ──────────────────────────────────────────────────
         st.markdown("""
-        <div style="background:rgba(17,24,39,0.88);backdrop-filter:blur(20px);
-             border:1px solid rgba(34,197,94,0.13);border-radius:20px;
+        <div style="background:rgba(17,24,39,0.75);backdrop-filter:blur(25px);-webkit-backdrop-filter:blur(25px);
+             border:1px solid rgba(255,255,255,0.06);border-radius:20px;
              padding:2rem 1.8rem 1.6rem;
-             box-shadow:0 0 0 1px rgba(255,255,255,0.03),
-                        0 25px 50px rgba(0,0,0,0.55),
-                        0 0 80px rgba(34,197,94,0.05);
+             box-shadow:0 10px 40px rgba(0,0,0,0.6),
+                        inset 0 1px 0 rgba(255,255,255,0.05),
+                        0 0 0 1px rgba(255,255,255,0.02);
              animation:cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both 0.1s;
              opacity:0;animation-fill-mode:forwards;">
         """, unsafe_allow_html=True)
@@ -1032,7 +1058,7 @@ if st.session_state.user is None:
 
             if st.button("Login →", use_container_width=True, key="login_btn"):
                 if login_email and login_password:
-                    with st.spinner("Authenticating..."):
+                    with st.spinner("🔐 Securing session..."):
                         try:
                             res = supabase.auth.sign_in_with_password({
                                 "email":    login_email,
@@ -1081,7 +1107,7 @@ if st.session_state.user is None:
                     elif len(signup_password) < 6:
                         st.error("⚠ Password must be at least 6 characters.")
                     else:
-                        with st.spinner("Creating your account..."):
+                        with st.spinner("✨ Setting up your account..."):
                             try:
                                 res = supabase.auth.sign_up({
                                     "email":    signup_email,
