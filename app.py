@@ -388,6 +388,217 @@ footer { visibility: hidden !important; }
     font-size: 0.65rem;
     color: var(--t3);
 }
+
+/* ── TICKER TAPE ── */
+.ticker-tape-wrap {
+    overflow: hidden;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0.35rem 0;
+    margin-bottom: 0;
+}
+.ticker-tape {
+    display: inline-flex;
+    gap: 2.5rem;
+    animation: tape 35s linear infinite;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    color: var(--t2);
+}
+@keyframes tape { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.tape-up   { color: var(--green); font-weight: 700; }
+.tape-down { color: var(--red);   font-weight: 700; }
+
+/* ── SIGNAL PANEL v2 ── */
+.signal-panel-v2 {
+    display: flex;
+    gap: 1rem;
+    align-items: stretch;
+    margin: 1.2rem 0;
+    flex-wrap: wrap;
+}
+.signal-main-v2 {
+    flex: 0 0 240px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.8rem 1.5rem;
+    border: 2px solid var(--green);
+    background: rgba(0,212,160,0.04);
+    position: relative;
+    overflow: hidden;
+}
+.signal-main-v2::before {
+    content: '';
+    position: absolute;
+    bottom: -20px; right: -20px;
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,212,160,0.12) 0%, transparent 70%);
+}
+.signal-main-v2.sell { border-color: var(--red);    background: rgba(255,71,87,0.04); }
+.signal-main-v2.sell::before { background: radial-gradient(circle, rgba(255,71,87,0.12) 0%, transparent 70%); }
+.signal-main-v2.hold { border-color: var(--yellow); background: rgba(255,211,42,0.04); }
+.signal-main-v2.hold::before { background: radial-gradient(circle, rgba(255,211,42,0.12) 0%, transparent 70%); }
+.signal-action-v2 {
+    font-family: var(--mono);
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: var(--green);
+    line-height: 1;
+}
+.signal-action-v2.sell { color: var(--red); }
+.signal-action-v2.hold { color: var(--yellow); }
+.signal-pct-v2 {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+    color: var(--t1);
+}
+.signal-label-v2 {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    color: var(--t3);
+    margin-top: 8px;
+    text-transform: uppercase;
+}
+.signal-details-v2 {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+    min-width: 200px;
+}
+.sig-detail-card-v2 {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 0.75rem 1rem;
+    position: relative;
+    overflow: hidden;
+}
+.sig-detail-card-v2::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--border2);
+}
+.sig-detail-card-v2.positive::after { background: var(--green); }
+.sig-detail-card-v2.negative::after { background: var(--red); }
+.sig-detail-card-v2.neutral::after  { background: var(--yellow); }
+.sig-detail-label-v2 {
+    font-family: var(--mono);
+    font-size: 0.57rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--t3);
+    margin-bottom: 4px;
+}
+.sig-detail-val-v2 {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--t1);
+}
+.sig-detail-sub-v2 {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    color: var(--t3);
+    margin-top: 2px;
+}
+
+/* ── COMPOSITE SIGNAL METER ── */
+.composite-meter {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--blue);
+    padding: 1.1rem 1.5rem;
+    margin: 0.8rem 0;
+}
+.meter-title {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--t3);
+    margin-bottom: 0.8rem;
+}
+.signal-indicator-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 0.45rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+}
+.sir-label { color: var(--t2); width: 110px; flex-shrink: 0; }
+.sir-bar-bg {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.sir-bar { height: 100%; border-radius: 2px; }
+.sir-bar.positive { background: var(--green); }
+.sir-bar.negative { background: var(--red); }
+.sir-bar.neutral  { background: var(--yellow); }
+.sir-val { width: 55px; text-align: right; font-weight: 600; color: var(--t1); }
+.sir-signal { width: 40px; text-align: right; font-size: 0.6rem; letter-spacing: 0.1em; font-weight: 700; }
+.sir-signal.buy  { color: var(--green); }
+.sir-signal.sell { color: var(--red); }
+.sir-signal.hold { color: var(--yellow); }
+
+/* ── GLASS SUMMARY CARDS ── */
+.glass-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.7rem;
+    margin: 0.8rem 0;
+}
+.glass-summary-card {
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--green);
+    padding: 1rem 1.1rem;
+    position: relative;
+    overflow: hidden;
+}
+.glass-summary-card.red   { border-top-color: var(--red); }
+.glass-summary-card.blue  { border-top-color: var(--blue); }
+.glass-summary-card.yellow{ border-top-color: var(--yellow); }
+.gsc-label {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--t3);
+    margin-bottom: 4px;
+}
+.gsc-value {
+    font-family: var(--mono);
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--green);
+    line-height: 1.1;
+}
+.gsc-value.red    { color: var(--red); }
+.gsc-value.blue   { color: var(--blue); }
+.gsc-value.yellow { color: var(--yellow); }
+.gsc-value.white  { color: var(--t1); }
+.gsc-sub {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--t3);
+    margin-top: 3px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -402,6 +613,32 @@ st.markdown("""
         <span class="live-dot"></span>
         <span class="live-label">LIVE DATA · NYSE/NASDAQ</span>
     </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Animated Ticker Tape ───────────────────────────────────────────────────────
+st.markdown("""
+<div class="ticker-tape-wrap">
+  <div class="ticker-tape">
+    <span>AAPL <span class="tape-up">▲ $189.42 +1.2%</span></span>
+    <span>TSLA <span class="tape-down">▼ $248.11 -0.8%</span></span>
+    <span>NVDA <span class="tape-up">▲ $875.33 +2.1%</span></span>
+    <span>MSFT <span class="tape-up">▲ $421.05 +0.5%</span></span>
+    <span>GOOGL <span class="tape-down">▼ $168.22 -0.3%</span></span>
+    <span>META <span class="tape-up">▲ $512.88 +1.7%</span></span>
+    <span>AMZN <span class="tape-up">▲ $186.44 +0.9%</span></span>
+    <span>AMD <span class="tape-up">▲ $167.55 +3.2%</span></span>
+    <span>JPM <span class="tape-down">▼ $198.30 -0.4%</span></span>
+    <span>SPY <span class="tape-up">▲ $521.67 +0.6%</span></span>
+    <span>QQQ <span class="tape-up">▲ $448.90 +0.8%</span></span>
+    <span>AAPL <span class="tape-up">▲ $189.42 +1.2%</span></span>
+    <span>TSLA <span class="tape-down">▼ $248.11 -0.8%</span></span>
+    <span>NVDA <span class="tape-up">▲ $875.33 +2.1%</span></span>
+    <span>MSFT <span class="tape-up">▲ $421.05 +0.5%</span></span>
+    <span>GOOGL <span class="tape-down">▼ $168.22 -0.3%</span></span>
+    <span>META <span class="tape-up">▲ $512.88 +1.7%</span></span>
+    <span>AMZN <span class="tape-up">▲ $186.44 +0.9%</span></span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -667,6 +904,133 @@ def generate_forward_signal(last_close, forecast_price):
         return "SELL", diff_pct
     else:
         return "HOLD", diff_pct
+
+
+def compute_composite_signal(df, last_close, forecast_price, preds, actual):
+    """
+    Multi-factor composite Buy/Sell/Hold signal engine.
+    Combines: XGBoost forecast, RSI, MACD crossover, Bollinger Band position,
+    MA crossover (Golden/Death Cross), Volume confirmation, Momentum.
+    Returns a dict with per-indicator signals and a weighted composite score.
+    Score > 0 = bullish, < 0 = bearish, range approx -100 to +100.
+    """
+    close = df['Close'].squeeze()
+    rsi   = float(df['RSI'].squeeze().iloc[-1])
+    macd  = float(df['MACD'].squeeze().iloc[-1])
+    macd_s= float(df['MACD_Signal'].squeeze().iloc[-1])
+    macd_h= float(df['MACD_Hist'].squeeze().iloc[-1])
+    bb_pct= float(df['BB_Pct'].squeeze().iloc[-1])      # 0=lower band, 1=upper band
+    ma50  = float(df['MA50'].squeeze().iloc[-1])
+    ma200 = float(df['MA200'].squeeze().iloc[-1])
+    vol_r = float(df['Volume_Ratio'].squeeze().iloc[-1])
+    mom   = float(df['Momentum'].squeeze().iloc[-1])
+    atr   = float(df['ATR'].squeeze().iloc[-1])
+
+    signals = {}
+
+    # 1. XGBoost forecast direction (weight: 35)
+    xgb_pct = (forecast_price - last_close) / last_close * 100
+    if xgb_pct > 1.5:
+        signals['XGBoost Forecast'] = ('BUY',  min(35, abs(xgb_pct) * 6),  xgb_pct, 'positive')
+    elif xgb_pct < -1.5:
+        signals['XGBoost Forecast'] = ('SELL', -min(35, abs(xgb_pct) * 6), xgb_pct, 'negative')
+    else:
+        signals['XGBoost Forecast'] = ('HOLD', 0, xgb_pct, 'neutral')
+
+    # 2. RSI (weight: 20)
+    if rsi < 30:
+        signals['RSI (14)'] = ('BUY',  20, rsi, 'positive')
+    elif rsi > 70:
+        signals['RSI (14)'] = ('SELL', -20, rsi, 'negative')
+    elif rsi < 45:
+        signals['RSI (14)'] = ('BUY',  8, rsi, 'positive')
+    elif rsi > 55:
+        signals['RSI (14)'] = ('SELL', -8, rsi, 'negative')
+    else:
+        signals['RSI (14)'] = ('HOLD', 0, rsi, 'neutral')
+
+    # 3. MACD crossover (weight: 20)
+    prev_hist = float(df['MACD_Hist'].squeeze().iloc[-2]) if len(df) > 2 else 0
+    if macd_h > 0 and prev_hist <= 0:
+        signals['MACD Cross'] = ('BUY',  20, macd_h, 'positive')   # fresh bullish cross
+    elif macd_h < 0 and prev_hist >= 0:
+        signals['MACD Cross'] = ('SELL', -20, macd_h, 'negative')  # fresh bearish cross
+    elif macd > macd_s:
+        signals['MACD Cross'] = ('BUY',  10, macd_h, 'positive')
+    elif macd < macd_s:
+        signals['MACD Cross'] = ('SELL', -10, macd_h, 'negative')
+    else:
+        signals['MACD Cross'] = ('HOLD', 0, macd_h, 'neutral')
+
+    # 4. Bollinger Band position (weight: 10)
+    if bb_pct < 0.1:
+        signals['Bollinger %B'] = ('BUY',  10, bb_pct, 'positive')
+    elif bb_pct > 0.9:
+        signals['Bollinger %B'] = ('SELL', -10, bb_pct, 'negative')
+    else:
+        signals['Bollinger %B'] = ('HOLD', 0, bb_pct, 'neutral')
+
+    # 5. MA50 vs MA200 Golden/Death Cross (weight: 10)
+    if not (ma50 == 0 or ma200 == 0):
+        if ma50 > ma200:
+            signals['MA Cross'] = ('BUY',  8, (ma50 - ma200) / ma200 * 100, 'positive')
+        else:
+            signals['MA Cross'] = ('SELL', -8, (ma50 - ma200) / ma200 * 100, 'negative')
+    else:
+        signals['MA Cross'] = ('HOLD', 0, 0, 'neutral')
+
+    # 6. Volume confirmation (weight: 5)
+    if vol_r > 1.5:
+        # High volume confirms direction from XGBoost
+        direction = signals['XGBoost Forecast'][0]
+        score     = 5 if direction == 'BUY' else -5 if direction == 'SELL' else 0
+        signals['Volume'] = (direction, score, vol_r, 'positive' if score > 0 else 'negative' if score < 0 else 'neutral')
+    else:
+        signals['Volume'] = ('HOLD', 0, vol_r, 'neutral')
+
+    # Composite score
+    total_score = sum(v[1] for v in signals.values())
+
+    # Determine verdict
+    if total_score >= 20:
+        verdict = 'STRONG BUY'
+        verdict_short = 'BUY'
+    elif total_score >= 8:
+        verdict = 'BUY'
+        verdict_short = 'BUY'
+    elif total_score <= -20:
+        verdict = 'STRONG SELL'
+        verdict_short = 'SELL'
+    elif total_score <= -8:
+        verdict = 'SELL'
+        verdict_short = 'SELL'
+    else:
+        verdict = 'HOLD'
+        verdict_short = 'HOLD'
+
+    # Stop-loss / Take-profit levels (ATR-based)
+    if atr > 0:
+        stop_loss    = last_close - 2.0 * atr
+        take_profit  = last_close + 3.0 * atr
+        risk_reward  = (take_profit - last_close) / (last_close - stop_loss) if (last_close - stop_loss) > 0 else 0
+    else:
+        stop_loss = last_close * 0.97
+        take_profit = last_close * 1.05
+        risk_reward = 1.5
+
+    return {
+        'signals':       signals,
+        'total_score':   total_score,
+        'verdict':       verdict,
+        'verdict_short': verdict_short,
+        'xgb_pct':       xgb_pct,
+        'rsi':           rsi,
+        'stop_loss':     stop_loss,
+        'take_profit':   take_profit,
+        'risk_reward':   risk_reward,
+        'vol_ratio':     vol_r,
+        'atr':           atr,
+    }
 
 def run_backtest_engine(actual_prices, predicted_prices, initial_capital, commission, threshold_pct):
     capital     = float(initial_capital)
@@ -1246,8 +1610,83 @@ if run_btn:
             height=350)
         st.plotly_chart(fig1, use_container_width=True)
 
-        # ── Buy/Sell Signals ───────────────────────────────────────────────────────
-        st.subheader("Buy / Sell Signals")
+        # ── Multi-Factor Buy/Sell Signal Engine ──────────────────────────────────
+        st.subheader("Signal Intelligence")
+
+        # Build composite signal
+        composite = compute_composite_signal(df, last_close, preds[-1], preds, actual)
+        verdict        = composite['verdict']
+        verdict_short  = composite['verdict_short']
+        total_score    = composite['total_score']
+        xgb_pct        = composite['xgb_pct']
+        stop_loss      = composite['stop_loss']
+        take_profit    = composite['take_profit']
+        risk_reward    = composite['risk_reward']
+        rsi_val        = composite['rsi']
+        vol_ratio      = composite['vol_ratio']
+        atr_val        = composite['atr']
+        sigs           = composite['signals']
+
+        verdict_css = 'sell' if verdict_short == 'SELL' else 'hold' if verdict_short == 'HOLD' else ''
+        sign        = '+' if xgb_pct >= 0 else ''
+
+        # ── Main Signal Panel ──────────────────────────────────────────────────
+        rr_color    = 'positive' if risk_reward >= 1.5 else 'negative' if risk_reward < 1 else 'neutral'
+        sl_color    = 'negative'
+        tp_color    = 'positive'
+        score_color = '#00d4a0' if total_score > 0 else '#ff4757' if total_score < 0 else '#ffd32a'
+
+        st.markdown(f"""
+        <div class="signal-panel-v2">
+            <div class="signal-main-v2 {verdict_css}">
+                <div class="signal-label-v2">Composite Signal</div>
+                <div class="signal-action-v2 {verdict_css}">{verdict}</div>
+                <div class="signal-pct-v2">{sign}{xgb_pct:.2f}% forecast</div>
+                <div class="signal-label-v2" style="margin-top:8px;">Score: <span style="color:{score_color};font-size:0.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
+            </div>
+            <div class="signal-details-v2">
+                <div class="sig-detail-card-v2 {tp_color}">
+                    <div class="sig-detail-label-v2">Take Profit</div>
+                    <div class="sig-detail-val-v2">${take_profit:.2f}</div>
+                    <div class="sig-detail-sub-v2">+{((take_profit-last_close)/last_close*100):.1f}% · 3× ATR</div>
+                </div>
+                <div class="sig-detail-card-v2 {sl_color}">
+                    <div class="sig-detail-label-v2">Stop Loss</div>
+                    <div class="sig-detail-val-v2">${stop_loss:.2f}</div>
+                    <div class="sig-detail-sub-v2">{((stop_loss-last_close)/last_close*100):.1f}% · 2× ATR</div>
+                </div>
+                <div class="sig-detail-card-v2 {rr_color}">
+                    <div class="sig-detail-label-v2">Risk / Reward</div>
+                    <div class="sig-detail-val-v2">{risk_reward:.2f}×</div>
+                    <div class="sig-detail-sub-v2">{"✓ Favorable" if risk_reward >= 1.5 else "⚠ Marginal" if risk_reward >= 1 else "✗ Unfavorable"}</div>
+                </div>
+                <div class="sig-detail-card-v2 {'positive' if rsi_val < 50 else 'negative'}">
+                    <div class="sig-detail-label-v2">RSI (14)</div>
+                    <div class="sig-detail-val-v2">{rsi_val:.1f}</div>
+                    <div class="sig-detail-sub-v2">{"Oversold" if rsi_val < 30 else "Overbought" if rsi_val > 70 else "Neutral zone"}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── Per-Indicator Breakdown ────────────────────────────────────────────
+        st.markdown('<div class="composite-meter"><div class="meter-title">⚙ Per-Indicator Signal Breakdown</div>', unsafe_allow_html=True)
+
+        indicator_rows_html = ""
+        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
+            bar_width = min(100, abs(ind_score) / 35 * 100)
+            sig_class = ind_sig.lower() if ind_sig in ('BUY','SELL') else 'hold'
+            indicator_rows_html += f"""
+            <div class="signal-indicator-row">
+                <span class="sir-label">{ind_name}</span>
+                <div class="sir-bar-bg"><div class="sir-bar {ind_class}" style="width:{bar_width:.0f}%;"></div></div>
+                <span class="sir-val">{ind_val:.2f}</span>
+                <span class="sir-signal {sig_class}">{ind_sig}</span>
+            </div>"""
+
+        st.markdown(indicator_rows_html + '</div>', unsafe_allow_html=True)
+
+        # ── Historical signal list ─────────────────────────────────────────────
         signal_list = []
         for i in range(len(preds)):
             diff_pct = (preds[i] - actual[i]) / actual[i] * 100
@@ -1258,14 +1697,6 @@ if run_btn:
             else:
                 signal_list.append("HOLD")
 
-        latest_signal, latest_diff = generate_forward_signal(last_close, preds[-1])
-        badge_class = {"BUY": "signal-badge-buy", "SELL": "signal-badge-sell", "HOLD": "signal-badge-hold"}[latest_signal]
-        icon        = {"BUY": "▲", "SELL": "▼", "HOLD": "◆"}[latest_signal]
-        direction   = "+" if latest_diff >= 0 else ""
-        st.markdown(
-            f'<div class="{badge_class}">{icon} &nbsp; SIGNAL: {latest_signal} &nbsp; ({direction}{latest_diff:.2f}%)</div><br>',
-            unsafe_allow_html=True)
-
         buy_idx  = [i for i, s in enumerate(signal_list) if s == "BUY"]
         sell_idx = [i for i, s in enumerate(signal_list) if s == "SELL"]
 
@@ -1274,20 +1705,29 @@ if run_btn:
             line=dict(color=C_GREY, width=1)))
         fig2.add_trace(go.Scatter(x=buy_idx,  y=[actual[i] for i in buy_idx],
             mode='markers', name='BUY',
-            marker=dict(color=C_GREEN, symbol='triangle-up', size=9)))
+            marker=dict(color=C_GREEN, symbol='triangle-up', size=10,
+                        line=dict(width=1, color='#0a0c0f'))))
         fig2.add_trace(go.Scatter(x=sell_idx, y=[actual[i] for i in sell_idx],
             mode='markers', name='SELL',
-            marker=dict(color=C_RED, symbol='triangle-down', size=9)))
+            marker=dict(color=C_RED, symbol='triangle-down', size=10,
+                        line=dict(width=1, color='#0a0c0f'))))
+        # Add stop-loss and take-profit reference lines
+        fig2.add_hline(y=stop_loss,   line_dash="dot", line_color=C_RED,    line_width=1,
+                       annotation_text=f"Stop ${stop_loss:.2f}", annotation_font=dict(color=C_RED,   size=9))
+        fig2.add_hline(y=take_profit, line_dash="dot", line_color=C_GREEN,  line_width=1,
+                       annotation_text=f"Target ${take_profit:.2f}", annotation_font=dict(color=C_GREEN, size=9))
         fig2.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · Signal Map (±1% threshold)", font=dict(color=C_GREEN, size=12)),
-            height=350)
+            title=dict(text=f"{ticker} · Signal Map — BUY ▲ / SELL ▼ (XGBoost ±1% threshold) · SL/TP lines shown",
+                       font=dict(color=C_GREEN, size=12)),
+            height=380)
         st.plotly_chart(fig2, use_container_width=True)
 
         signal_df = pd.DataFrame({
             "Day":               range(1, len(signal_list) + 1),
             "Actual Price ($)":  [f"${p:.2f}" for p in actual],
             "Predicted ($)":     [f"${p:.2f}" for p in preds],
-            "Signal":            signal_list
+            "Signal":            signal_list,
+            "Δ%":                [f"{(preds[i]-actual[i])/actual[i]*100:+.2f}%" for i in range(len(preds))],
         })
         st.dataframe(signal_df.tail(10), use_container_width=True, hide_index=True)
 
