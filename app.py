@@ -1364,7 +1364,7 @@ if st.session_state.user is None:
 st.markdown("""
 <div class="wi-header">
   <div>
-    <div class="wi-logo">Stock<span>cast</span>&nbsp;
+    <div class="wi-logo">Stock<span>cast</span>
     <div class="wi-sub">XGBoost · 6-Factor Signals · Backtesting · Shariah Screening · News NLP</div>
   </div>
   <div style="display:flex;align-items:center;gap:1.5rem;">
