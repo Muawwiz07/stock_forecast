@@ -759,29 +759,100 @@ with st.sidebar:
     future_days = st.slider(" ", 1, 30, 7, label_visibility="collapsed")
 
     st.markdown("---")
-    st.markdown('<div class="stat-row">XGBoost Settings</div>', unsafe_allow_html=True)
-    n_estimators  = st.slider("Trees", 100, 500, 200, step=50)
-    max_depth     = st.slider("Max Depth", 2, 8, 4)
-    learning_rate = st.select_slider("Learning Rate", options=[0.01, 0.05, 0.1, 0.2], value=0.05)
+    # ── Mode Switch ────────────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="background:rgba(0,212,160,0.04);border:1px solid rgba(0,212,160,0.2);
+         padding:.65rem 1rem;font-family:'IBM Plex Mono',monospace;font-size:.6rem;
+         letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.3rem;">
+      Experience Level
+    </div>""", unsafe_allow_html=True)
+
+    ui_mode = st.radio(
+        "Mode",
+        ["🟢 Beginner", "🔴 Pro"],
+        index=1,
+        horizontal=True,
+        label_visibility="collapsed",
+        help="Beginner: simple clean view. Pro: full control + advanced features."
+    )
+    is_beginner = (ui_mode == "🟢 Beginner")
+
+    if is_beginner:
+        st.markdown("""<div style="background:rgba(0,212,160,0.06);border-left:3px solid #00d4a0;
+             padding:.45rem .9rem;font-family:'IBM Plex Mono',monospace;font-size:.63rem;
+             color:#00d4a0;letter-spacing:.05em;margin-bottom:.2rem;">
+        ✓ Simple view active — just pick a ticker and run</div>""", unsafe_allow_html=True)
+    else:
+        st.markdown("""<div style="background:rgba(255,71,87,0.06);border-left:3px solid #ff4757;
+             padding:.45rem .9rem;font-family:'IBM Plex Mono',monospace;font-size:.63rem;
+             color:#ff4757;letter-spacing:.05em;margin-bottom:.2rem;">
+        ⚡ Pro view — all parameters unlocked</div>""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    # ── Fast Mode (always visible) ─────────────────────────────────────────────
+    fast_mode = st.checkbox("⚡ Fast Mode (skip CI + backtest)", value=is_beginner,
+        help="Disables bootstrap CI and backtesting for much faster results")
+
+    # ── Pro-only: XGBoost tuning ───────────────────────────────────────────────
+    if not is_beginner:
+        st.markdown('<div class="stat-row">XGBoost Settings</div>', unsafe_allow_html=True)
+        n_estimators  = st.slider("Trees", 100, 500, 200, step=50)
+        max_depth     = st.slider("Max Depth", 2, 8, 4)
+        learning_rate = st.select_slider("Learning Rate", options=[0.01, 0.05, 0.1, 0.2], value=0.05)
+    else:
+        n_estimators  = 200
+        max_depth     = 4
+        learning_rate = 0.05
 
     st.markdown("---")
     st.markdown('<div class="stat-row">Price Alert Target ($)</div>', unsafe_allow_html=True)
     alert_price = st.number_input("", min_value=0.0, value=0.0, step=1.0, label_visibility="collapsed")
 
-    st.markdown("---")
-    st.markdown('<div class="stat-row">Backtesting</div>', unsafe_allow_html=True)
-    run_backtest        = st.checkbox("Enable Backtesting Engine", value=True)
-    bt_initial_capital  = st.number_input("Initial Capital ($)", min_value=1000, value=10000, step=1000)
-    bt_commission       = st.number_input("Commission per Trade ($)", min_value=0.0, value=1.0, step=0.5)
-    bt_signal_threshold = st.slider("Signal Threshold (%)", min_value=0.5, max_value=5.0, value=1.0, step=0.5,
-        help="Min predicted % move to trigger BUY/SELL")
+    # ── Pro-only: Backtesting ──────────────────────────────────────────────────
+    if not is_beginner:
+        st.markdown("---")
+        st.markdown('<div class="stat-row">Backtesting</div>', unsafe_allow_html=True)
+        run_backtest        = st.checkbox("Enable Backtesting Engine", value=True)
+        bt_initial_capital  = st.number_input("Initial Capital ($)", min_value=1000, value=10000, step=1000)
+        bt_commission       = st.number_input("Commission per Trade ($)", min_value=0.0, value=1.0, step=0.5)
+        bt_signal_threshold = st.slider("Signal Threshold (%)", min_value=0.5, max_value=5.0, value=1.0, step=0.5,
+            help="Min predicted % move to trigger BUY/SELL")
+    else:
+        run_backtest        = False
+        bt_initial_capital  = 10000
+        bt_commission       = 1.0
+        bt_signal_threshold = 1.0
 
-    st.markdown("---")
-    st.markdown('<div class="stat-row">Extra Features</div>', unsafe_allow_html=True)
-    run_model_compare  = st.checkbox("Model Comparison (XGB vs Prophet vs LR)", value=False)
-    run_halal_check    = st.checkbox("Halal / Shariah Compliance Check", value=True)
-    show_conf_interval = st.checkbox("Confidence Intervals on Forecast", value=True)
-    ci_bootstrap_n     = st.slider("Bootstrap Samples (CI)", 50, 300, 100, step=50) if show_conf_interval else 100
+    # ── Pro-only: Extra features ───────────────────────────────────────────────
+    if not is_beginner:
+        st.markdown("---")
+        st.markdown('<div class="stat-row">Extra Features</div>', unsafe_allow_html=True)
+        run_model_compare  = st.checkbox("Model Comparison (XGB vs Prophet vs LR)", value=False)
+        run_halal_check    = st.checkbox("Halal / Shariah Compliance Check", value=True)
+        show_conf_interval = st.checkbox("Confidence Intervals on Forecast", value=True) and not fast_mode
+        ci_bootstrap_n     = st.slider("Bootstrap Samples (CI)", 50, 300, 100, step=50) if show_conf_interval else 100
+    else:
+        run_model_compare  = False
+        run_halal_check    = True
+        show_conf_interval = False
+        ci_bootstrap_n     = 100
+
+    # ── Pro only: Multi-Stock Comparison ─────────────────────────────────────
+    if not is_beginner:
+        st.markdown("---")
+        st.markdown('<div class="stat-row">🔥 Multi-Stock Comparison</div>', unsafe_allow_html=True)
+        compare_tickers_raw = st.text_input(
+            "Compare Tickers (comma-separated)",
+            value="",
+            placeholder="e.g. AAPL,TSLA,NVDA",
+            label_visibility="collapsed",
+            key="compare_input",
+            help="Leave blank to skip. Fetches live data and ranks by composite signal score."
+        )
+        compare_tickers = [t.strip().upper() for t in compare_tickers_raw.split(",")
+                           if t.strip()] if compare_tickers_raw.strip() else []
+    else:
+        compare_tickers = []
 
     st.markdown("---")
     run_btn = st.button("▶  RUN FORECAST", use_container_width=True)
@@ -1334,6 +1405,28 @@ if run_btn:
 
     st.success(f"✓ {len(df)} trading days loaded for {ticker}")
 
+    # ── Realism Warning Banner ─────────────────────────────────────────────────
+    st.markdown(f"""
+    <div style="background:rgba(255,211,42,0.05);border:1px solid rgba(255,211,42,0.35);
+         border-left:4px solid #ffd32a;padding:1rem 1.5rem;margin:.5rem 0 1rem 0;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:.62rem;letter-spacing:.16em;
+           text-transform:uppercase;color:#ffd32a;margin-bottom:.4rem;">
+        ⚠ Model Reality Check — Read Before Trading
+      </div>
+      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:.8rem;color:#8a9bb0;line-height:1.6;">
+        This model uses <b style="color:#e8edf2;">price &amp; volume data only.</b>
+        It has <b style="color:#ff4757;">zero awareness</b> of:
+        &nbsp;📰 breaking news &nbsp;·&nbsp;
+        📊 earnings releases &nbsp;·&nbsp;
+        🏦 Fed/macro events &nbsp;·&nbsp;
+        🧠 analyst upgrades &nbsp;·&nbsp;
+        🌍 geopolitical events.
+        A single unexpected headline can invalidate any technical forecast instantly.
+        <b style="color:#ffd32a;">Use signals as one input — never as sole decision.</b>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     # ── Top-level tabs ─────────────────────────────────────────────────────────
     tab_analysis, tab_methodology = st.tabs(["📊  Analysis", "📖  Methodology"])
 
@@ -1477,13 +1570,20 @@ if run_btn:
         X_train, X_test = X[:split], X[split:]
         y_train, y_test = y[:split], y[split:]
 
-        with st.spinner("Training XGBoost model..."):
-            model = XGBRegressor(
-                n_estimators=n_estimators, max_depth=max_depth,
-                learning_rate=learning_rate, subsample=0.8,
+        @st.cache_resource(show_spinner=False)
+        def train_xgb_cached(_X_train, _y_train, _X_test, _y_test,
+                              _n_est, _depth, _lr):
+            m = XGBRegressor(
+                n_estimators=_n_est, max_depth=_depth,
+                learning_rate=_lr, subsample=0.8,
                 colsample_bytree=0.8, random_state=42, verbosity=0
             )
-            model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=False)
+            m.fit(_X_train, _y_train, eval_set=[(_X_test, _y_test)], verbose=False)
+            return m
+
+        with st.spinner("Training XGBoost model (cached after first run)..."):
+            model = train_xgb_cached(X_train, y_train, X_test, y_test,
+                                     n_estimators, max_depth, learning_rate)
 
         preds  = model.predict(X_test)
         actual = y_test
@@ -1686,6 +1786,62 @@ if run_btn:
 
         st.markdown(indicator_rows_html + '</div>', unsafe_allow_html=True)
 
+        # ── Why This Signal? Human-readable explanation ────────────────────────
+        reason_lines = []
+        emoji_map = {'BUY': '🟢', 'SELL': '🔴', 'HOLD': '🟡'}
+        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
+            if ind_sig == 'BUY':
+                if ind_name == 'XGBoost Forecast':
+                    reason_lines.append(f"🟢 XGBoost model predicts <b style='color:#00d4a0;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                elif ind_name == 'RSI (14)':
+                    reason_lines.append(f"🟢 RSI is <b style='color:#00d4a0;'>{ind_val:.1f}</b> — {'oversold territory' if ind_val < 30 else 'leaning oversold'}")
+                elif ind_name == 'MACD Cross':
+                    reason_lines.append(f"🟢 MACD shows {'fresh bullish crossover' if abs(ind_score) >= 20 else 'bullish momentum'}")
+                elif ind_name == 'Bollinger %B':
+                    reason_lines.append(f"🟢 Price near lower Bollinger Band (%B = {ind_val:.2f}) — potential bounce")
+                elif ind_name == 'MA Cross':
+                    reason_lines.append(f"🟢 MA50 above MA200 — Golden Cross (uptrend)")
+                elif ind_name == 'Volume':
+                    reason_lines.append(f"🟢 Volume {ind_val:.1f}× average confirms buying pressure")
+            elif ind_sig == 'SELL':
+                if ind_name == 'XGBoost Forecast':
+                    reason_lines.append(f"🔴 XGBoost model predicts <b style='color:#ff4757;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                elif ind_name == 'RSI (14)':
+                    reason_lines.append(f"🔴 RSI is <b style='color:#ff4757;'>{ind_val:.1f}</b> — {'overbought territory' if ind_val > 70 else 'leaning overbought'}")
+                elif ind_name == 'MACD Cross':
+                    reason_lines.append(f"🔴 MACD shows {'fresh bearish crossover' if abs(ind_score) >= 20 else 'bearish momentum'}")
+                elif ind_name == 'Bollinger %B':
+                    reason_lines.append(f"🔴 Price near upper Bollinger Band (%B = {ind_val:.2f}) — potential reversal")
+                elif ind_name == 'MA Cross':
+                    reason_lines.append(f"🔴 MA50 below MA200 — Death Cross (downtrend)")
+                elif ind_name == 'Volume':
+                    reason_lines.append(f"🔴 Volume {ind_val:.1f}× average confirms selling pressure")
+            else:
+                if ind_name == 'XGBoost Forecast':
+                    reason_lines.append(f"🟡 XGBoost predicts only {xgb_pct:+.2f}% — not enough directional conviction")
+
+        border_color = '#00d4a0' if verdict_short == 'BUY' else '#ff4757' if verdict_short == 'SELL' else '#ffd32a'
+        reasons_html = "".join(
+            f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#8a9bb0;">{r}</div>'
+            for r in reason_lines
+        )
+        st.markdown(f"""
+        <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid {border_color};
+             padding:1.1rem 1.5rem;margin:.8rem 0;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.18em;
+               text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
+            💡 Why This Signal? — <span style="color:{border_color};">{verdict}</span>
+          </div>
+          <div style="font-family:'IBM Plex Sans',sans-serif;line-height:1.7;">
+            {reasons_html if reasons_html else '<span style="color:#4a5a6a;font-size:.8rem;">All indicators neutral — no strong directional edge detected.</span>'}
+          </div>
+          <div style="margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border);
+               font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#4a5a6a;">
+            ⚠ This is model output only — no awareness of earnings, news, or macro events.
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         # ── Historical signal list ─────────────────────────────────────────────
         signal_list = []
         for i in range(len(preds)):
@@ -1808,7 +1964,7 @@ if run_btn:
         st.dataframe(future_df, use_container_width=True, hide_index=True)
 
         # ── Backtesting ────────────────────────────────────────────────────────────
-        if run_backtest:
+        if run_backtest and not fast_mode:
             st.subheader("Backtesting Engine")
             st.markdown(
                 f'<div class="model-badge">STRATEGY: XGBoost Signal ±{bt_signal_threshold}% '
@@ -2125,6 +2281,120 @@ if run_btn:
         with dl3:
             st.download_button("⬇ Forecast Data", data=csv_future,
                                file_name=f"{ticker}_forecast.csv", mime="text/csv")
+
+        # ── Multi-Stock Comparison ─────────────────────────────────────────────
+        if compare_tickers:
+            st.subheader(f"Multi-Stock Comparison vs {ticker}")
+            st.markdown(
+                f'<div class="model-badge">🔥 COMPARING: {ticker} + {", ".join(compare_tickers[:4])}'
+                f' — Live Composite Signal Ranking</div>',
+                unsafe_allow_html=True)
+
+            compare_results = []
+            for ct in [ticker] + compare_tickers[:4]:
+                try:
+                    with st.spinner(f"Fetching {ct}..."):
+                        cdf = fetch_data(ct, start_date, end_date)
+                    if cdf.empty or len(cdf) < 60:
+                        continue
+                    cdf = add_technical_features(cdf)
+                    cX, cy = build_xgb_dataset(cdf, seq_len)
+                    if len(cX) < 30:
+                        continue
+                    csplit = int(len(cX) * 0.8)
+                    cmodel = XGBRegressor(n_estimators=150, max_depth=4,
+                                          learning_rate=0.05, subsample=0.8,
+                                          colsample_bytree=0.8, random_state=42, verbosity=0)
+                    cmodel.fit(cX[:csplit], cy[:csplit], verbose=False)
+                    cpred_last = float(cmodel.predict(cX[-1].reshape(1, -1))[0])
+                    c_last_close = float(cdf['Close'].squeeze().iloc[-1])
+                    ccomp = compute_composite_signal(cdf, c_last_close, cpred_last, cmodel.predict(cX), cy)
+                    crmse = float(np.sqrt(np.mean((cmodel.predict(cX[csplit:]) - cy[csplit:])**2)))
+                    crsi  = float(cdf['RSI'].squeeze().iloc[-1])
+                    compare_results.append({
+                        'Ticker':        ct,
+                        'Last Price':    f"${c_last_close:.2f}",
+                        'Signal':        ccomp['verdict'],
+                        'Score':         ccomp['total_score'],
+                        'Forecast Δ%':   f"{ccomp['xgb_pct']:+.2f}%",
+                        'RSI':           f"{crsi:.1f}",
+                        'Stop Loss':     f"${ccomp['stop_loss']:.2f}",
+                        'Take Profit':   f"${ccomp['take_profit']:.2f}",
+                        'Risk:Reward':   f"{ccomp['risk_reward']:.2f}×",
+                        'RMSE ($)':      f"${crmse:.2f}",
+                    })
+                except Exception as e:
+                    st.warning(f"Could not process {ct}: {e}")
+                    continue
+
+            if compare_results:
+                comp_df = pd.DataFrame(compare_results).sort_values('Score', ascending=False)
+
+                # Colour-coded signal column
+                def signal_color_html(row):
+                    sc = {'STRONG BUY': '#00d4a0', 'BUY': '#00d4a0',
+                          'STRONG SELL': '#ff4757', 'SELL': '#ff4757'}.get(row['Signal'], '#ffd32a')
+                    return (f'<span style="color:{sc};font-weight:700;font-family:IBM Plex Mono,'
+                            f'monospace;font-size:.75rem;">{row["Signal"]}</span>')
+
+                rows_html = ""
+                for _, row in comp_df.iterrows():
+                    sc = '#00d4a0' if row['Score'] > 0 else '#ff4757' if row['Score'] < 0 else '#ffd32a'
+                    sig_html = {'STRONG BUY': '<span style="color:#00d4a0;font-weight:800;">⬆ STRONG BUY</span>',
+                                'BUY':        '<span style="color:#00d4a0;font-weight:700;">▲ BUY</span>',
+                                'STRONG SELL':'<span style="color:#ff4757;font-weight:800;">⬇ STRONG SELL</span>',
+                                'SELL':       '<span style="color:#ff4757;font-weight:700;">▼ SELL</span>',
+                                'HOLD':       '<span style="color:#ffd32a;font-weight:700;">◆ HOLD</span>'}.get(row['Signal'], row['Signal'])
+                    rows_html += f"""
+                    <tr style="border-bottom:1px solid #1e2a38;">
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;font-weight:700;
+                          color:#e8edf2;font-size:.85rem;">{row['Ticker']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#8a9bb0;">{row['Last Price']}</td>
+                      <td style="padding:.55rem .8rem;">{sig_html}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
+                          color:{sc};font-weight:700;">{row['Score']:+.0f}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
+                          color:{'#00d4a0' if '+' in row['Forecast Δ%'] else '#ff4757'};">{row['Forecast Δ%']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#8a9bb0;">{row['RSI']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#ff4757;">{row['Stop Loss']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#00d4a0;">{row['Take Profit']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#8a9bb0;">{row['Risk:Reward']}</td>
+                    </tr>"""
+
+                st.markdown(f"""
+                <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;background:#0f1318;
+                       border:1px solid #1e2a38;font-size:.8rem;">
+                  <thead>
+                    <tr style="border-bottom:2px solid #2a3a4e;">
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Ticker</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Price</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Signal</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Score</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Forecast Δ</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">RSI</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Stop Loss</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Take Profit</th>
+                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">R:R</th>
+                    </tr>
+                  </thead>
+                  <tbody>{rows_html}</tbody>
+                </table>
+                </div>
+                """, unsafe_allow_html=True)
+
+                csv_compare = comp_df.to_csv(index=False).encode("utf-8")
+                st.download_button("⬇ Download Comparison", data=csv_compare,
+                                   file_name=f"comparison_{ticker}.csv", mime="text/csv")
 
         st.markdown("---")
         st.markdown('<div class="stat-row">⚠ For educational purposes only. Not financial advice.</div>',
