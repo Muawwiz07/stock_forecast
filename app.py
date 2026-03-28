@@ -1148,8 +1148,10 @@ if st.session_state.user is None:
                 STOCK<span style="color:#00e5b0;text-shadow:0 0 24px rgba(0,229,176,0.5);">CAST</span>
             </div>
             <div style="font-size:.82rem;color:#3d5068;margin-top:.5rem;font-family:'Inter',sans-serif;letter-spacing:.03em;">
-                AI-powered stock intelligence platform 
-               <strong> Developed by Muawwiz Ghani </strong>
+                AI-powered stock intelligence platform
+                <strong> 
+                       Muawwiz Ghani
+                </strong>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2260,7 +2262,7 @@ if run_btn:
         confidence_score = max(0, min(100, confidence_score))
         last_close = float(df['Close'].squeeze().iloc[-1])  # available to both tabs
 
-        dash_tab, port_tab, deep_tab = st.tabs(["🖥  Forecasting Dashboard", "💼  Portfolio", "📈  Deep Analysis"])
+        dash_tab, port_tab, mkt_tab, deep_tab = st.tabs(["🖥  Forecasting Dashboard", "💼  Portfolio", "🌍  Markets", "📈  Deep Analysis"])
 
         with dash_tab:
             # ── Pull live price for dashboard ──────────────────────────────────────
@@ -2899,6 +2901,396 @@ if run_btn:
 </body>
 </html>
 """, height=1380, scrolling=True)
+
+        with mkt_tab:
+            import streamlit.components.v1 as _mkt_components
+            _mkt_components.html("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Inter',sans-serif; background:#f8f9fa; color:#191c1d; padding:1.5rem; }
+  .font-headline { font-family:'Manrope',sans-serif; }
+  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; vertical-align:middle; }
+  .card { background:#fff; border-radius:.75rem; }
+  .shadow-card { box-shadow: 0 4px 24px rgba(0,88,190,0.07); }
+  .index-card { background:#fff; border-radius:.75rem; padding:1.2rem 1.3rem; box-shadow:0 4px 24px rgba(0,88,190,0.06); transition:box-shadow .2s; }
+  .index-card:hover { box-shadow:0 8px 32px rgba(0,88,190,0.12); }
+  .badge-up   { background:#fff7ed; color:#924700; padding:.1rem .5rem; border-radius:9999px; font-size:.62rem; font-weight:700; }
+  .badge-down { background:#fde8e8; color:#ba1a1a; padding:.1rem .5rem; border-radius:9999px; font-size:.62rem; font-weight:700; }
+  .sector-tile { aspect-ratio:1/1; border-radius:.75rem; padding:1rem; display:flex; flex-direction:column; justify-content:space-between; }
+  table { width:100%; border-collapse:collapse; }
+  th { padding:.6rem 1rem; font-size:.6rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#727785; text-align:left; }
+  th:not(:first-child) { text-align:right; }
+  td { padding:.85rem 1rem; border-top:1px solid #f1f5f9; font-size:.82rem; }
+  td:not(:first-child) { text-align:right; }
+  tr:hover { background:#f8fafc; }
+  .tab-btn { padding:.6rem 1.2rem; font-size:.78rem; font-weight:600; border:none; background:transparent; cursor:pointer; color:#727785; border-bottom:2px solid transparent; transition:all .15s; }
+  .tab-btn.active { color:#0058be; border-bottom-color:#0058be; font-weight:700; }
+  .gauge-bar { width:100%; height:14px; border-radius:9999px; overflow:hidden; display:flex; }
+  .cal-date { width:3rem; height:3rem; border-radius:.6rem; background:#edeeef; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; }
+</style>
+</head>
+<body>
+  <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+    <!-- Header -->
+    <header>
+      <h1 class="font-headline" style="font-size:1.6rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.3rem;">Market Overview</h1>
+      <p style="font-size:.82rem;color:#727785;">Real-time global market performance and architectural insights.</p>
+    </header>
+
+    <!-- Major Indices Row -->
+    <section style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;">
+      <!-- S&P 500 -->
+      <div class="index-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;">
+          <span style="font-size:.62rem;font-weight:700;color:#727785;text-transform:uppercase;letter-spacing:.08em;">S&amp;P 500</span>
+          <span class="badge-up">+1.24%</span>
+        </div>
+        <div class="font-headline" style="font-size:1.5rem;font-weight:700;">5,137.08</div>
+        <div style="font-size:.7rem;color:#924700;display:flex;align-items:center;gap:.2rem;margin-top:.3rem;">
+          <span class="material-symbols-outlined" style="font-size:.85rem;">trending_up</span>+63.15 today
+        </div>
+      </div>
+      <!-- NASDAQ -->
+      <div class="index-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;">
+          <span style="font-size:.62rem;font-weight:700;color:#727785;text-transform:uppercase;letter-spacing:.08em;">NASDAQ</span>
+          <span class="badge-up">+1.58%</span>
+        </div>
+        <div class="font-headline" style="font-size:1.5rem;font-weight:700;">16,274.94</div>
+        <div style="font-size:.7rem;color:#924700;display:flex;align-items:center;gap:.2rem;margin-top:.3rem;">
+          <span class="material-symbols-outlined" style="font-size:.85rem;">trending_up</span>+253.20 today
+        </div>
+      </div>
+      <!-- DOW JONES -->
+      <div class="index-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;">
+          <span style="font-size:.62rem;font-weight:700;color:#727785;text-transform:uppercase;letter-spacing:.08em;">DOW JONES</span>
+          <span class="badge-down">-0.12%</span>
+        </div>
+        <div class="font-headline" style="font-size:1.5rem;font-weight:700;">38,989.83</div>
+        <div style="font-size:.7rem;color:#ba1a1a;display:flex;align-items:center;gap:.2rem;margin-top:.3rem;">
+          <span class="material-symbols-outlined" style="font-size:.85rem;">trending_down</span>-46.80 today
+        </div>
+      </div>
+      <!-- FTSE 100 -->
+      <div class="index-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;">
+          <span style="font-size:.62rem;font-weight:700;color:#727785;text-transform:uppercase;letter-spacing:.08em;">FTSE 100</span>
+          <span class="badge-up">+0.45%</span>
+        </div>
+        <div class="font-headline" style="font-size:1.5rem;font-weight:700;">7,682.50</div>
+        <div style="font-size:.7rem;color:#924700;display:flex;align-items:center;gap:.2rem;margin-top:.3rem;">
+          <span class="material-symbols-outlined" style="font-size:.85rem;">trending_up</span>+34.20 today
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Grid: 2/3 + 1/3 -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;align-items:start;">
+
+      <!-- Left Column -->
+      <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+        <!-- Sector Heatmap -->
+        <section>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;">
+            <h2 class="font-headline" style="font-size:1rem;font-weight:700;">Sector Performance</h2>
+            <button style="font-size:.72rem;font-weight:700;color:#0058be;border:none;background:transparent;cursor:pointer;">View Heatmap</button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem;">
+            <div class="sector-tile" style="background:rgba(33,112,228,0.1);border-bottom:2px solid #0058be;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#0058be;">Technology</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#0058be;">+2.4%</span>
+            </div>
+            <div class="sector-tile" style="background:rgba(183,91,0,0.08);border-bottom:2px solid #b75b00;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#191c1d;">Energy</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#b75b00;">+1.8%</span>
+            </div>
+            <div class="sector-tile" style="background:#e7e8e9;border-bottom:2px solid #727785;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#191c1d;">Finance</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#424754;">+0.2%</span>
+            </div>
+            <div class="sector-tile" style="background:rgba(186,26,26,0.08);border-bottom:2px solid #ba1a1a;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#ba1a1a;">Healthcare</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#ba1a1a;">-1.1%</span>
+            </div>
+            <div class="sector-tile" style="background:rgba(183,91,0,0.08);border-bottom:2px solid #b75b00;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#191c1d;">Consumer</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#b75b00;">+0.9%</span>
+            </div>
+            <div class="sector-tile" style="background:#e7e8e9;border-bottom:2px solid #727785;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#191c1d;">Telecom</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#424754;">0.0%</span>
+            </div>
+            <div class="sector-tile" style="background:rgba(33,112,228,0.07);border-bottom:2px solid #2170e4;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#191c1d;">Industrials</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#2170e4;">+1.2%</span>
+            </div>
+            <div class="sector-tile" style="background:rgba(186,26,26,0.05);border-bottom:2px solid #ffdad6;">
+              <span style="font-size:.6rem;font-weight:700;text-transform:uppercase;color:#191c1d;">Utilities</span>
+              <span class="font-headline" style="font-size:1.4rem;font-weight:900;color:#93000a;">-0.4%</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Market Movers Table -->
+        <section class="card shadow-card" style="overflow:hidden;">
+          <div style="display:flex;border-bottom:1px solid #f1f5f9;">
+            <button class="tab-btn active" onclick="showTab(this,'gainers')">Top Gainers</button>
+            <button class="tab-btn" onclick="showTab(this,'losers')">Top Losers</button>
+            <button class="tab-btn" onclick="showTab(this,'active')">Most Active</button>
+          </div>
+          <div style="padding:.5rem;">
+
+            <!-- Gainers -->
+            <div id="gainers">
+              <table>
+                <thead><tr><th>Symbol</th><th>Price</th><th>Change</th><th>Volume</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(0,88,190,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0058be;font-size:.72rem;">NV</div>
+                      <div><p style="font-weight:700;">NVDA</p><p style="font-size:.62rem;color:#727785;">Nvidia Corp</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$822.79</td>
+                    <td><span style="color:#924700;font-weight:700;">+4.12%</span></td>
+                    <td style="color:#727785;">48.2M</td>
+                  </tr>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(0,88,190,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0058be;font-size:.72rem;">SM</div>
+                      <div><p style="font-weight:700;">SMCI</p><p style="font-size:.62rem;color:#727785;">Super Micro</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$905.48</td>
+                    <td><span style="color:#924700;font-weight:700;">+3.85%</span></td>
+                    <td style="color:#727785;">12.5M</td>
+                  </tr>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(0,88,190,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0058be;font-size:.72rem;">AM</div>
+                      <div><p style="font-weight:700;">AMZN</p><p style="font-size:.62rem;color:#727785;">Amazon Inc</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$178.22</td>
+                    <td><span style="color:#924700;font-weight:700;">+2.15%</span></td>
+                    <td style="color:#727785;">35.9M</td>
+                  </tr>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(0,88,190,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0058be;font-size:.72rem;">TS</div>
+                      <div><p style="font-weight:700;">TSLA</p><p style="font-size:.62rem;color:#727785;">Tesla, Inc.</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$202.64</td>
+                    <td><span style="color:#924700;font-weight:700;">+1.98%</span></td>
+                    <td style="color:#727785;">88.4M</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Losers (hidden) -->
+            <div id="losers" style="display:none;">
+              <table>
+                <thead><tr><th>Symbol</th><th>Price</th><th>Change</th><th>Volume</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(186,26,26,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#ba1a1a;font-size:.72rem;">PF</div>
+                      <div><p style="font-weight:700;">PFE</p><p style="font-size:.62rem;color:#727785;">Pfizer Inc.</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$27.14</td>
+                    <td><span style="color:#ba1a1a;font-weight:700;">-2.88%</span></td>
+                    <td style="color:#727785;">41.3M</td>
+                  </tr>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(186,26,26,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#ba1a1a;font-size:.72rem;">IN</div>
+                      <div><p style="font-weight:700;">INTC</p><p style="font-size:.62rem;color:#727785;">Intel Corp</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$43.62</td>
+                    <td><span style="color:#ba1a1a;font-weight:700;">-1.94%</span></td>
+                    <td style="color:#727785;">55.7M</td>
+                  </tr>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(186,26,26,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#ba1a1a;font-size:.72rem;">BA</div>
+                      <div><p style="font-weight:700;">BA</p><p style="font-size:.62rem;color:#727785;">Boeing Co.</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$196.30</td>
+                    <td><span style="color:#ba1a1a;font-weight:700;">-1.45%</span></td>
+                    <td style="color:#727785;">18.9M</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Most Active (hidden) -->
+            <div id="active" style="display:none;">
+              <table>
+                <thead><tr><th>Symbol</th><th>Price</th><th>Change</th><th>Volume</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(0,88,190,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0058be;font-size:.72rem;">AP</div>
+                      <div><p style="font-weight:700;">AAPL</p><p style="font-size:.62rem;color:#727785;">Apple Inc.</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$189.43</td>
+                    <td><span style="color:#924700;font-weight:700;">+0.65%</span></td>
+                    <td style="color:#727785;">102.1M</td>
+                  </tr>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(0,88,190,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0058be;font-size:.72rem;">TS</div>
+                      <div><p style="font-weight:700;">TSLA</p><p style="font-size:.62rem;color:#727785;">Tesla, Inc.</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$202.64</td>
+                    <td><span style="color:#924700;font-weight:700;">+1.98%</span></td>
+                    <td style="color:#727785;">88.4M</td>
+                  </tr>
+                  <tr>
+                    <td><div style="display:flex;align-items:center;gap:.7rem;">
+                      <div style="width:2rem;height:2rem;border-radius:.35rem;background:rgba(0,88,190,0.1);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0058be;font-size:.72rem;">SP</div>
+                      <div><p style="font-weight:700;">SPY</p><p style="font-size:.62rem;color:#727785;">S&P 500 ETF</p></div>
+                    </div></td>
+                    <td style="font-family:monospace;font-weight:600;">$521.67</td>
+                    <td><span style="color:#924700;font-weight:700;">+0.60%</span></td>
+                    <td style="color:#727785;">75.2M</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column -->
+      <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+        <!-- Market Sentiment Gauge -->
+        <section class="card shadow-card" style="padding:1.4rem 1.5rem;">
+          <h3 class="font-headline" style="font-size:1rem;font-weight:700;margin-bottom:1.2rem;display:flex;align-items:center;gap:.4rem;">
+            <span class="material-symbols-outlined" style="color:#0058be;font-size:1.1rem;">psychology</span>
+            Market Sentiment
+          </h3>
+          <div style="position:relative;padding-top:2rem;padding-bottom:.5rem;">
+            <div class="gauge-bar">
+              <div style="flex:1;background:#ba1a1a;"></div>
+              <div style="flex:1;background:#fb923c;"></div>
+              <div style="flex:1;background:#facc15;"></div>
+              <div style="flex:1;background:#b75b00;"></div>
+            </div>
+            <!-- Needle at 72% -->
+            <div style="position:absolute;top:.2rem;left:72%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;">
+              <div style="width:2px;height:1.8rem;background:#191c1d;border-radius:2px;"></div>
+              <span class="font-headline" style="font-size:1.3rem;font-weight:900;margin-top:.3rem;">72</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.6rem;font-weight:700;color:#727785;text-transform:uppercase;letter-spacing:.05em;">
+              <span>Extreme Fear</span><span>Neutral</span><span>Extreme Greed</span>
+            </div>
+          </div>
+          <div style="margin-top:1rem;padding:.85rem;background:rgba(0,88,190,0.05);border-radius:.6rem;">
+            <p style="font-size:.7rem;font-weight:600;color:#0058be;font-style:italic;margin-bottom:.3rem;">Architect's Note:</p>
+            <p style="font-size:.72rem;color:#191c1d;line-height:1.55;">The market is currently in <strong>Greed</strong> territory, driven by tech earnings. Watch for potential pullbacks in over-leveraged sectors.</p>
+          </div>
+        </section>
+
+        <!-- Economic Calendar -->
+        <section class="card shadow-card" style="padding:1.4rem 1.5rem;">
+          <h3 class="font-headline" style="font-size:1rem;font-weight:700;margin-bottom:1.2rem;display:flex;align-items:center;gap:.4rem;">
+            <span class="material-symbols-outlined" style="color:#0058be;font-size:1.1rem;">calendar_month</span>
+            Economic Calendar
+          </h3>
+          <div style="display:flex;flex-direction:column;gap:1.1rem;">
+            <div style="display:flex;gap:.9rem;align-items:center;">
+              <div class="cal-date">
+                <span style="font-size:.58rem;font-weight:700;color:#727785;text-transform:uppercase;">Apr</span>
+                <span style="font-size:1.1rem;font-weight:800;">02</span>
+              </div>
+              <div>
+                <p style="font-size:.82rem;font-weight:700;">JOLTS Job Openings</p>
+                <p style="font-size:.68rem;color:#727785;">10:00 AM ET &nbsp;·&nbsp; <span style="color:#924700;font-weight:600;">High Impact</span></p>
+              </div>
+            </div>
+            <div style="display:flex;gap:.9rem;align-items:center;">
+              <div class="cal-date">
+                <span style="font-size:.58rem;font-weight:700;color:#727785;text-transform:uppercase;">Apr</span>
+                <span style="font-size:1.1rem;font-weight:800;">10</span>
+              </div>
+              <div>
+                <p style="font-size:.82rem;font-weight:700;">CPI Data (Inflation)</p>
+                <p style="font-size:.68rem;color:#727785;">08:30 AM ET &nbsp;·&nbsp; <span style="color:#ba1a1a;font-weight:600;">Critical Impact</span></p>
+              </div>
+            </div>
+            <div style="display:flex;gap:.9rem;align-items:center;">
+              <div class="cal-date">
+                <span style="font-size:.58rem;font-weight:700;color:#727785;text-transform:uppercase;">Apr</span>
+                <span style="font-size:1.1rem;font-weight:800;">16</span>
+              </div>
+              <div>
+                <p style="font-size:.82rem;font-weight:700;">Fed Interest Rate Decision</p>
+                <p style="font-size:.68rem;color:#727785;">02:00 PM ET &nbsp;·&nbsp; <span style="color:#ba1a1a;font-weight:600;">Critical Impact</span></p>
+              </div>
+            </div>
+            <div style="display:flex;gap:.9rem;align-items:center;">
+              <div class="cal-date">
+                <span style="font-size:.58rem;font-weight:700;color:#727785;text-transform:uppercase;">Apr</span>
+                <span style="font-size:1.1rem;font-weight:800;">24</span>
+              </div>
+              <div>
+                <p style="font-size:.82rem;font-weight:700;">GDP Growth Rate Q1</p>
+                <p style="font-size:.68rem;color:#727785;">08:30 AM ET &nbsp;·&nbsp; <span style="color:#924700;font-weight:600;">High Impact</span></p>
+              </div>
+            </div>
+          </div>
+          <button style="width:100%;margin-top:1.1rem;padding:.6rem;font-size:.75rem;font-weight:700;
+              color:#0058be;background:rgba(0,88,190,0.05);border:none;border-radius:.6rem;cursor:pointer;">
+            View Full Calendar
+          </button>
+        </section>
+
+        <!-- Market Insights Banner -->
+        <div style="border-radius:.75rem;overflow:hidden;background:linear-gradient(160deg,#0058be,#2170e4);
+             padding:1.5rem;color:#fff;position:relative;">
+          <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;
+               border-radius:50%;background:rgba(255,255,255,0.06);"></div>
+          <span style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+              background:rgba(255,255,255,0.15);padding:.2rem .6rem;border-radius:9999px;">Premium Report</span>
+          <h4 class="font-headline" style="font-size:1rem;font-weight:800;margin:.6rem 0 .4rem 0;">
+            The 2025 AI Super-cycle: Forecasted Alpha
+          </h4>
+          <p style="font-size:.75rem;opacity:.85;line-height:1.5;">Structural shifts in semiconductor demand through Q4.</p>
+          <button style="margin-top:.9rem;display:flex;align-items:center;gap:.3rem;font-size:.7rem;
+              font-weight:700;text-transform:uppercase;letter-spacing:.06em;border:none;
+              background:transparent;color:#fff;cursor:pointer;">
+            Read More
+            <span class="material-symbols-outlined" style="font-size:.9rem;">arrow_forward</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showTab(btn, id) {
+      ['gainers','losers','active'].forEach(function(t) {
+        document.getElementById(t).style.display = t === id ? 'block' : 'none';
+      });
+      document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+    }
+  </script>
+</body>
+</html>
+""", height=1480, scrolling=True)
 
         with deep_tab:
 
