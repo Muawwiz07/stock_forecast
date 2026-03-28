@@ -1080,7 +1080,7 @@ if st.session_state.user is None:
     <span class="material-symbols-outlined" style="color:#3fff8b;font-size:2rem;">insights</span>
     <div>
       <div style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;line-height:1.1;">Stockcast</div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:0.52rem;letter-spacing:0.16em;color:rgba(63,255,139,0.55);text-transform:uppercase;">Terminal v3.0</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:0.52rem;letter-spacing:0.16em;color:rgba(63,255,139,0.55);text-transform:uppercase;">Developed by Muawwiz Ghani</div>
     </div>
   </nav>
 
@@ -1252,7 +1252,7 @@ if st.session_state.user is None:
   <div style="position:relative;z-index:1;max-width:560px;">
     <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:3rem;">
       <span style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;">Stockcast</span>
-      <span style="font-size:0.58rem;padding:0.2rem 0.55rem;background:#252627;color:#3fff8b;font-family:'Space Grotesk',sans-serif;letter-spacing:0.1em;font-weight:700;text-transform:uppercase;border-radius:2px;">Terminal v3.0</span>
+      <span style="font-size:0.58rem;padding:0.2rem 0.55rem;background:#252627;color:#3fff8b;font-family:'Space Grotesk',sans-serif;letter-spacing:0.1em;font-weight:700;text-transform:uppercase;border-radius:2px;">Developed by Muawwiz Ghani</span>
     </div>
 
     <h1 style="font-family:'Space Grotesk',sans-serif;font-size:3.5rem;font-weight:500;line-height:1.1;letter-spacing:-0.02em;color:#fff;margin-bottom:1.2rem;">
