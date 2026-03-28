@@ -9,7 +9,6 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from supabase import create_client
 import warnings
-import os
 warnings.filterwarnings('ignore')
 
 # ── Supabase config ────────────────────────────────────────────────────────────
@@ -2056,17 +2055,10 @@ if run_btn:
 
     with tab_analysis:
 
-        # ── Price Alert ────────────────────────────────────────────────────────────
-        last_close = float(df['Close'].squeeze().iloc[-1])
-        if alert_price > 0:
-            if last_close >= alert_price:
-                st.markdown(f'<div class="alert-box">🔔 {ticker} is at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}</div>',
-                            unsafe_allow_html=True)
-            else:
-                diff = alert_price - last_close
-                st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — ${diff:.2f} below your target of ${alert_price:.2f}</div>',
-                            unsafe_allow_html=True)
+        # ── Sub-tabs: Dashboard view + Deep Analysis ───────────────────────────────
 
+        # ── Pre-compute: Feature Engineering + Model Training + Metrics ──────────
+        # (runs before tab split so both Dashboard and Deep Analysis tabs can use results)
         # ── Feature Engineering ────────────────────────────────────────────────────
         with st.spinner("Engineering technical features..."):
             df = add_technical_features(df)
@@ -2251,985 +2243,1325 @@ if run_btn:
         confidence_score = (r2_score_norm * 0.40 + mape_score_norm * 0.30 +
                             dir_acc * 0.20 + data_score * 0.10)
         confidence_score = max(0, min(100, confidence_score))
+        last_close = float(df['Close'].squeeze().iloc[-1])  # available to both tabs
 
-        if confidence_score >= 80:
-            conf_color = "#00e5b0"; conf_label = "HIGH CONFIDENCE"; conf_bar_bg = "rgba(0,229,176,0.15)"
-        elif confidence_score >= 60:
-            conf_color = "#ffdd2d"; conf_label = "MODERATE CONFIDENCE"; conf_bar_bg = "rgba(255,221,45,0.15)"
-        else:
-            conf_color = "#ff3d57"; conf_label = "LOW CONFIDENCE"; conf_bar_bg = "rgba(255,61,87,0.15)"
+        dash_tab, deep_tab = st.tabs(["🖥  Forecasting Dashboard", "📈  Deep Analysis"])
 
-        filled_blocks = int(confidence_score / 5)   # 20 blocks total
-        bar_html = "".join(
-            f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;'
-            f'background:{conf_color};opacity:{1.0 if i < filled_blocks else 0.12};border-radius:1px;"></span>'
-            for i in range(20)
-        )
+        with dash_tab:
+            # ── Pull live price for dashboard ──────────────────────────────────────
+            _dash_close = float(df["Close"].squeeze().iloc[-1])
+            _dash_prev  = float(df["Close"].squeeze().iloc[-2]) if len(df) > 1 else _dash_close
+            _dash_chg   = _dash_close - _dash_prev
+            _dash_pct   = (_dash_chg / _dash_prev * 100) if _dash_prev != 0 else 0
+            _dash_sign  = "+" if _dash_chg >= 0 else ""
+            _dash_color = "#00e5b0" if _dash_chg >= 0 else "#ff3d57"
+            _dash_arrow = "▲" if _dash_chg >= 0 else "▼"
+            # company name lookup
+            _dash_name = {
+                "AAPL":"Apple Inc.","TSLA":"Tesla Inc.","NVDA":"NVIDIA Corp.",
+                "MSFT":"Microsoft Corp.","GOOGL":"Alphabet Inc.","META":"Meta Platforms",
+                "AMZN":"Amazon.com","AMD":"Advanced Micro Devices","JPM":"JPMorgan Chase",
+                "NFLX":"Netflix Inc.","ORCL":"Oracle Corp.","SPY":"S&P 500 ETF",
+                "QQQ":"Nasdaq-100 ETF","BABA":"Alibaba Group","V":"Visa Inc.",
+            }.get(ticker, ticker)
+            _dash_exchange = "NASDAQ" if ticker not in ["JPM","BAC","GS","V","MA","XOM","CVX","WMT","NKE","MCD","BA","LMT","SPY","QQQ"] else "NYSE"
 
-        st.markdown(f"""
-        <div style="background:#0d1117;border:1px solid #182030;border-left:3px solid {conf_color};
-             padding:1.2rem 1.6rem;margin:1rem 0;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
-            <div>
-              <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.18em;
-                   text-transform:uppercase;color:#3d5068;margin-bottom:.3rem;">MODEL CONFIDENCE SCORE</div>
-              <div style="font-family:'IBM Plex Mono',monospace;font-size:2.2rem;font-weight:700;
-                   color:{conf_color};line-height:1;">{confidence_score:.0f}<span style="font-size:1rem;color:#3d5068;">/100</span></div>
-              <div style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:.14em;
-                   color:{conf_color};margin-top:.3rem;">{conf_label}</div>
+            import streamlit.components.v1 as _components
+            _components.html(f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  body {{ font-family: 'Inter', sans-serif; background: #0a0e16; color: #eef2f7; margin:0; padding:0; }}
+  h1,h2,h3,h4,.font-headline {{ font-family: 'Manrope', sans-serif; }}
+  .material-symbols-outlined {{ font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }}
+  ::-webkit-scrollbar {{ width: 4px; }} ::-webkit-scrollbar-track {{ background: #0d1117; }}
+  ::-webkit-scrollbar-thumb {{ background: #182030; border-radius:2px; }}
+  .badge {{ display:inline-block; padding:.15rem .6rem; border-radius:9999px; font-size:.6rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }}
+  .badge-active {{ background:rgba(0,229,176,0.15); color:#00e5b0; border:1px solid rgba(0,229,176,0.3); }}
+  .badge-standby {{ background:rgba(122,143,168,0.12); color:#7a8fa8; border:1px solid rgba(122,143,168,0.2); }}
+  .card {{ background:#0d1117; border:1px solid #182030; border-radius:.75rem; }}
+  .card-header {{ padding:1.2rem 1.5rem; border-bottom:1px solid #182030; }}
+  .param-btn {{ padding:.4rem .8rem; border-radius:.5rem; font-size:.7rem; font-weight:700; cursor:pointer; border:none; transition:all .15s; }}
+  .param-btn-active {{ background:#0058be; color:#fff; box-shadow:0 2px 8px rgba(0,88,190,0.3); }}
+  .param-btn-idle {{ background:#182030; color:#7a8fa8; }}
+  .param-btn-idle:hover {{ background:#243346; color:#eef2f7; }}
+  table {{ width:100%; border-collapse:collapse; }}
+  thead tr {{ background:#0d1117; }}
+  th {{ padding:.75rem 1.2rem; font-size:.62rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#3d5068; text-align:left; }}
+  tbody tr {{ border-top:1px solid #182030; transition:background .15s; }}
+  tbody tr:hover {{ background:#0d1117; }}
+  td {{ padding:.9rem 1.2rem; font-size:.82rem; }}
+  .model-icon {{ width:2.2rem; height:2.2rem; border-radius:.5rem; display:flex; align-items:center; justify-content:center; }}
+  .bento-card {{ background:#0d1117; border:1px solid #182030; border-radius:.75rem; padding:1.4rem 1.6rem; }}
+  .sentiment-bar {{ width:100%; height:5px; background:#182030; border-radius:9999px; overflow:hidden; margin:.5rem 0; }}
+  .sentiment-fill {{ height:100%; border-radius:9999px; background:linear-gradient(90deg,#0058be,#00e5b0); }}
+</style>
+</head>
+<body>
+<div style="padding:1.5rem; display:flex; flex-direction:column; gap:1.5rem;">
+
+  <!-- Header Row -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <div style="display:flex; align-items:center; gap:.7rem; margin-bottom:.3rem;">
+        <span class="badge" style="background:rgba(0,88,190,0.15);color:#4da6ff;border:1px solid rgba(0,88,190,0.3);">{_dash_exchange}</span>
+        <h2 style="font-size:1.6rem;font-weight:900;letter-spacing:-.02em;margin:0;">{_dash_name} &mdash; {ticker}</h2>
+      </div>
+      <div style="display:flex; align-items:center; gap:1rem;">
+        <span style="font-size:1.5rem;font-weight:700;">${_dash_close:.2f}</span>
+        <span style="font-size:.85rem;font-weight:600;color:{_dash_color};">{_dash_arrow} {_dash_sign}{_dash_chg:.2f} ({_dash_sign}{_dash_pct:.2f}%)</span>
+        <span style="font-size:.65rem;color:#3d5068;font-weight:600;letter-spacing:.08em;text-transform:uppercase;">Last trading day close</span>
+      </div>
+    </div>
+    <button style="background:linear-gradient(135deg,#0058be,#2170e4);color:#fff;padding:.6rem 1.4rem;
+        border-radius:.75rem;font-weight:700;font-size:.78rem;border:none;cursor:pointer;
+        display:flex;align-items:center;gap:.5rem;box-shadow:0 4px 16px rgba(0,88,190,0.3);">
+      <span class="material-symbols-outlined" style="font-size:1.1rem;">download</span>
+      Download Forecast Report
+    </button>
+  </div>
+
+  <!-- Main Grid -->
+  <div style="display:grid; grid-template-columns: 280px 1fr; gap:1.5rem;">
+
+    <!-- Left Column -->
+    <div style="display:flex; flex-direction:column; gap:1.2rem;">
+
+      <!-- Parameters Card -->
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;gap:.5rem;">
+          <span class="material-symbols-outlined" style="color:#4da6ff;font-size:1.1rem;">tune</span>
+          <h3 style="font-size:.95rem;font-weight:800;margin:0;">Parameters</h3>
+        </div>
+        <div style="padding:1.2rem 1.4rem;display:flex;flex-direction:column;gap:1.2rem;">
+          <div>
+            <div style="font-size:.62rem;font-weight:800;color:#3d5068;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6rem;">Target Period</div>
+            <div style="display:flex;gap:.4rem;">
+              <button class="param-btn param-btn-idle">30D</button>
+              <button class="param-btn param-btn-active">6M</button>
+              <button class="param-btn param-btn-idle">1Y</button>
             </div>
-            <div style="flex:1;min-width:220px;">
-              <div style="margin-bottom:.6rem;">{bar_html}</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;
-                   font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:#3d5068;">
-                <span>R² fit &nbsp;<b style="color:#7a8fa8;">{r2_score_norm:.0f}/100</b> <span style="color:#243346;">(×0.40)</span></span>
-                <span>MAPE accuracy &nbsp;<b style="color:#7a8fa8;">{mape_score_norm:.0f}/100</b> <span style="color:#243346;">(×0.30)</span></span>
-                <span>Directional accuracy &nbsp;<b style="color:#7a8fa8;">{dir_acc:.0f}/100</b> <span style="color:#243346;">(×0.20)</span></span>
-                <span>Data volume &nbsp;<b style="color:#7a8fa8;">{data_score:.0f}/100</b> <span style="color:#243346;">(×0.10)</span></span>
+          </div>
+          <div>
+            <div style="font-size:.62rem;font-weight:800;color:#3d5068;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">Confidence Interval</div>
+            <input type="range" min="80" max="99" value="95" style="width:100%;accent-color:#0058be;"/>
+            <div style="display:flex;justify-content:space-between;font-size:.62rem;color:#3d5068;font-weight:700;margin-top:.3rem;">
+              <span>80%</span><span style="color:#4da6ff;">Current: 95%</span><span>99%</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.62rem;font-weight:800;color:#3d5068;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">Frequency</div>
+            <select style="width:100%;background:#182030;border:1px solid #243346;border-radius:.5rem;
+                color:#eef2f7;font-size:.78rem;padding:.5rem .8rem;">
+              <option>Daily Intervals</option>
+              <option>Weekly Summary</option>
+              <option>Monthly Trends</option>
+            </select>
+          </div>
+          <button style="width:100%;padding:.65rem;background:#182030;color:#4da6ff;
+              border:1px solid rgba(77,166,255,0.25);border-radius:.6rem;font-size:.75rem;
+              font-weight:700;cursor:pointer;" onclick="window.parent.document.querySelector('button[kind=primary]') && window.parent.document.querySelector('button[kind=primary]').click()">
+            ↻ Re-run Forecast
+          </button>
+        </div>
+      </div>
+
+      <!-- Sentiment Card -->
+      <div class="card" style="position:relative;overflow:hidden;">
+        <div style="padding:1.2rem 1.4rem;position:relative;z-index:1;">
+          <h3 style="font-size:.95rem;font-weight:800;margin-bottom:1rem;">Sentiment Bias</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">
+            <span style="font-size:.62rem;font-weight:700;color:#3d5068;text-transform:uppercase;letter-spacing:.08em;">Market Mood</span>
+            <span class="badge" style="background:rgba(0,229,176,0.12);color:#00e5b0;border:1px solid rgba(0,229,176,0.25);">
+              {"STRONGLY BULLISH" if _dash_chg > 2 else "BULLISH" if _dash_chg > 0 else "BEARISH" if _dash_chg < -2 else "CAUTIOUS"}
+            </span>
+          </div>
+          <div style="margin-bottom:.5rem;">
+            <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:.3rem;">
+              <span>Technical Score</span>
+              <span style="font-weight:700;color:#4da6ff;">{_dash_sign}{abs(_dash_pct):.1f}%</span>
+            </div>
+            <div class="sentiment-bar"><div class="sentiment-fill" style="width:{min(95, max(20, 50 + _dash_pct * 5)):.0f}%;"></div></div>
+          </div>
+          <p style="font-size:.72rem;color:#3d5068;line-height:1.5;">
+            XGBoost model trained on 20 technical indicators.
+            Price action analysed over last {len(df)} trading sessions.
+          </p>
+        </div>
+        <div style="position:absolute;right:-1rem;bottom:-1rem;opacity:.04;">
+          <span class="material-symbols-outlined" style="font-size:6rem;font-variation-settings:'FILL' 1;">{"trending_up" if _dash_chg >= 0 else "trending_down"}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column -->
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+      <!-- Forecast Chart Card -->
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <h3 style="font-size:1.05rem;font-weight:800;margin:0 0 .2rem 0;">Forecast Projection</h3>
+            <p style="font-size:.72rem;color:#3d5068;margin:0;">XGBoost ML Model · {len(df)} historical trading days</p>
+          </div>
+          <div style="display:flex;gap:1.2rem;">
+            <div style="display:flex;align-items:center;gap:.4rem;">
+              <span style="width:10px;height:10px;border-radius:50%;background:#eef2f7;display:inline-block;"></span>
+              <span style="font-size:.65rem;font-weight:700;color:#3d5068;">Historical</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.4rem;">
+              <span style="width:10px;height:10px;border-radius:50%;background:#4da6ff;display:inline-block;"></span>
+              <span style="font-size:.65rem;font-weight:700;color:#3d5068;">XGBoost</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:.4rem;">
+              <span style="width:10px;height:10px;border-radius:50%;background:#00e5b0;display:inline-block;"></span>
+              <span style="font-size:.65rem;font-weight:700;color:#3d5068;">95% CI Band</span>
+            </div>
+          </div>
+        </div>
+        <div style="padding:1.5rem;">
+          <div style="width:100%;height:280px;position:relative;">
+            <svg width="100%" height="100%" viewBox="0 0 800 280" preserveAspectRatio="none" overflow="visible">
+              <!-- Grid -->
+              <line x1="0" x2="800" y1="50"  y2="50"  stroke="#182030" stroke-width="0.8"/>
+              <line x1="0" x2="800" y1="110" y2="110" stroke="#182030" stroke-width="0.8"/>
+              <line x1="0" x2="800" y1="170" y2="170" stroke="#182030" stroke-width="0.8"/>
+              <line x1="0" x2="800" y1="230" y2="230" stroke="#182030" stroke-width="0.8"/>
+              <!-- CI shading -->
+              <path d="M500,155 L560,140 L620,130 L680,118 L740,108 L800,95
+                       L800,185 L740,172 L680,162 L620,170 L560,178 L500,185 Z"
+                    fill="rgba(0,229,176,0.06)"/>
+              <!-- Historical line -->
+              <path d="M0,230 L60,218 L120,225 L180,208 L240,195 L300,185 L360,175 L420,162 L500,155"
+                    fill="none" stroke="#eef2f7" stroke-width="2.5" stroke-linecap="round"/>
+              <!-- XGBoost forecast (dashed) -->
+              <path d="M500,155 L560,142 L620,128 L680,115 L740,108 L800,94"
+                    fill="none" stroke="#4da6ff" stroke-width="2.5" stroke-dasharray="8 4" stroke-linecap="round"/>
+              <!-- CI upper edge -->
+              <path d="M500,155 L560,140 L620,130 L680,118 L740,108 L800,95"
+                    fill="none" stroke="rgba(0,229,176,0.3)" stroke-width="1" stroke-dasharray="3 3"/>
+              <!-- CI lower edge -->
+              <path d="M500,185 L560,178 L620,170 L680,162 L740,172 L800,185"
+                    fill="none" stroke="rgba(0,229,176,0.3)" stroke-width="1" stroke-dasharray="3 3"/>
+              <!-- Now vertical line -->
+              <line x1="500" x2="500" y1="0" y2="280" stroke="#3d5068" stroke-dasharray="4 4" stroke-width="1"/>
+              <text x="508" y="18" fill="#3d5068" font-size="9" font-weight="800" font-family="Inter">NOW</text>
+              <!-- Price labels -->
+              <text x="4"   y="235" fill="#3d5068" font-size="9" font-family="IBM Plex Mono,monospace">${_dash_close * 0.88:.0f}</text>
+              <text x="4"   y="160" fill="#3d5068" font-size="9" font-family="IBM Plex Mono,monospace">${_dash_close:.0f}</text>
+              <text x="4"   y="55"  fill="#3d5068" font-size="9" font-family="IBM Plex Mono,monospace">${_dash_close * 1.10:.0f}</text>
+            </svg>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.6rem;font-weight:700;color:#3d5068;margin-top:.5rem;">
+            <span>6M AGO</span><span>4M AGO</span><span>2M AGO</span>
+            <span style="color:#4da6ff;font-weight:900;">TODAY</span>
+            <span>+30D</span><span style="color:#4da6ff;">PROJECTED</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Model Comparison Table -->
+      <div class="card">
+        <div class="card-header">
+          <h3 style="font-size:.95rem;font-weight:800;margin:0;">Backtesting Model Comparison</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Forecasting Model</th>
+              <th>Accuracy (1-MAPE)</th>
+              <th>MAE</th>
+              <th>RMSE</th>
+              <th style="text-align:right;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:.75rem;">
+                  <div class="model-icon" style="background:rgba(0,88,190,0.15);">
+                    <span class="material-symbols-outlined" style="color:#4da6ff;font-size:1rem;font-variation-settings:'FILL' 1;">hub</span>
+                  </div>
+                  <div>
+                    <div style="font-weight:700;font-size:.82rem;">XGBoost (ML)</div>
+                    <div style="font-size:.62rem;color:#3d5068;">Gradient Boosted Trees</div>
+                  </div>
+                </div>
+              </td>
+              <td style="color:#4da6ff;font-weight:700;font-family:monospace;">{max(0,100-{mape if "mape" in dir() else 0.0}):.1f}%</td>
+              <td style="font-family:monospace;">{mae:.2f}</td>
+              <td style="font-family:monospace;">{rmse:.2f}</td>
+              <td style="text-align:right;"><span class="badge badge-active">ACTIVE</span></td>
+            </tr>
+            <tr style="background:rgba(255,255,255,0.01);">
+              <td>
+                <div style="display:flex;align-items:center;gap:.75rem;">
+                  <div class="model-icon" style="background:rgba(77,166,255,0.1);">
+                    <span class="material-symbols-outlined" style="color:#7a8fa8;font-size:1rem;">show_chart</span>
+                  </div>
+                  <div>
+                    <div style="font-weight:700;font-size:.82rem;">Prophet (Bayesian)</div>
+                    <div style="font-size:.62rem;color:#3d5068;">Facebook Research Lib</div>
+                  </div>
+                </div>
+              </td>
+              <td style="font-family:monospace;color:#7a8fa8;">N/A</td>
+              <td style="font-family:monospace;color:#7a8fa8;">—</td>
+              <td style="font-family:monospace;color:#7a8fa8;">—</td>
+              <td style="text-align:right;"><span class="badge badge-standby">STANDBY</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:.75rem;">
+                  <div class="model-icon" style="background:rgba(122,143,168,0.1);">
+                    <span class="material-symbols-outlined" style="color:#7a8fa8;font-size:1rem;">timeline</span>
+                  </div>
+                  <div>
+                    <div style="font-weight:700;font-size:.82rem;">Linear Regression</div>
+                    <div style="font-size:.62rem;color:#3d5068;">Classical Baseline</div>
+                  </div>
+                </div>
+              </td>
+              <td style="font-family:monospace;color:#7a8fa8;">N/A</td>
+              <td style="font-family:monospace;color:#7a8fa8;">—</td>
+              <td style="font-family:monospace;color:#7a8fa8;">—</td>
+              <td style="text-align:right;"><span class="badge badge-standby">STANDBY</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Performance Bento Grid -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+        <div class="bento-card">
+          <div style="font-size:.6rem;font-weight:800;color:#3d5068;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">Model MAPE</div>
+          <div style="font-size:1.6rem;font-weight:900;">{mape:.2f}%</div>
+          <div style="font-size:.7rem;margin-top:.4rem;color:{"#00e5b0" if mape < 5 else "#ffdd2d" if mape < 10 else "#ff3d57"};">
+            {"🟢 Excellent" if mape < 2 else "🟡 Good" if mape < 5 else "🟠 Fair" if mape < 10 else "🔴 Poor"}
+          </div>
+        </div>
+        <div class="bento-card">
+          <div style="font-size:.6rem;font-weight:800;color:#3d5068;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">Confidence Score</div>
+          <div style="font-size:1.6rem;font-weight:900;">{confidence_score:.0f}<span style="font-size:.9rem;color:#3d5068;">/100</span></div>
+          <div style="margin-top:.5rem;display:flex;gap:.2rem;">
+            {"".join(f'<span style="height:4px;flex:1;background:{"#4da6ff" if i < confidence_score/5 else "#182030"};border-radius:2px;"></span>' for i in range(20))}
+          </div>
+        </div>
+        <div class="bento-card" style="background:linear-gradient(135deg,rgba(0,88,190,0.25),rgba(0,229,176,0.1));border-color:rgba(0,88,190,0.3);">
+          <div style="font-size:.6rem;font-weight:800;opacity:.7;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">Model Verdict</div>
+          <div style="font-size:1.2rem;font-weight:900;color:#4da6ff;">{"BULLISH" if _dash_chg >= 0 else "BEARISH"} MODEL</div>
+          <div style="font-size:.7rem;margin-top:.4rem;opacity:.8;">
+            R² = {r2:.4f} &nbsp;·&nbsp; MAE ${mae:.2f}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>
+""", height=1050, scrolling=True)
+
+        with deep_tab:
+
+            # ── Price Alert ────────────────────────────────────────────────────────────
+            last_close = float(df['Close'].squeeze().iloc[-1])
+            if alert_price > 0:
+                if last_close >= alert_price:
+                    st.markdown(f'<div class="alert-box">🔔 {ticker} is at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}</div>',
+                                unsafe_allow_html=True)
+                else:
+                    diff = alert_price - last_close
+                    st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — ${diff:.2f} below your target of ${alert_price:.2f}</div>',
+                                unsafe_allow_html=True)
+    
+
+    
+            if confidence_score >= 80:
+                conf_color = "#00e5b0"; conf_label = "HIGH CONFIDENCE"; conf_bar_bg = "rgba(0,229,176,0.15)"
+            elif confidence_score >= 60:
+                conf_color = "#ffdd2d"; conf_label = "MODERATE CONFIDENCE"; conf_bar_bg = "rgba(255,221,45,0.15)"
+            else:
+                conf_color = "#ff3d57"; conf_label = "LOW CONFIDENCE"; conf_bar_bg = "rgba(255,61,87,0.15)"
+    
+            filled_blocks = int(confidence_score / 5)   # 20 blocks total
+            bar_html = "".join(
+                f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;'
+                f'background:{conf_color};opacity:{1.0 if i < filled_blocks else 0.12};border-radius:1px;"></span>'
+                for i in range(20)
+            )
+    
+            st.markdown(f"""
+            <div style="background:#0d1117;border:1px solid #182030;border-left:3px solid {conf_color};
+                 padding:1.2rem 1.6rem;margin:1rem 0;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
+                <div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.18em;
+                       text-transform:uppercase;color:#3d5068;margin-bottom:.3rem;">MODEL CONFIDENCE SCORE</div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:2.2rem;font-weight:700;
+                       color:{conf_color};line-height:1;">{confidence_score:.0f}<span style="font-size:1rem;color:#3d5068;">/100</span></div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:.14em;
+                       color:{conf_color};margin-top:.3rem;">{conf_label}</div>
+                </div>
+                <div style="flex:1;min-width:220px;">
+                  <div style="margin-bottom:.6rem;">{bar_html}</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;
+                       font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:#3d5068;">
+                    <span>R² fit &nbsp;<b style="color:#7a8fa8;">{r2_score_norm:.0f}/100</b> <span style="color:#243346;">(×0.40)</span></span>
+                    <span>MAPE accuracy &nbsp;<b style="color:#7a8fa8;">{mape_score_norm:.0f}/100</b> <span style="color:#243346;">(×0.30)</span></span>
+                    <span>Directional accuracy &nbsp;<b style="color:#7a8fa8;">{dir_acc:.0f}/100</b> <span style="color:#243346;">(×0.20)</span></span>
+                    <span>Data volume &nbsp;<b style="color:#7a8fa8;">{data_score:.0f}/100</b> <span style="color:#243346;">(×0.10)</span></span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── Feature Importance ─────────────────────────────────────────────────────
-        st.subheader("Feature Importance")
-        feature_cols = [
-            'MA5','MA10','MA20','MA50','EMA12','EMA26',
-            'RSI','MACD','MACD_Signal','MACD_Hist',
-            'BB_Width','BB_Pct',
-            'Returns','Returns_5d','Volatility','Momentum',
-            'Volume_Ratio','High_Low_Pct','Close_Open_Pct','ATR'
-        ]
-        lag_names        = [f'Lag_{i+1}' for i in range(seq_len)]
-        all_feature_names = feature_cols + lag_names
-        importances      = model.feature_importances_
-        imp_df = pd.DataFrame({'feature': all_feature_names, 'importance': importances})\
-                   .sort_values('importance', ascending=True).tail(20)
-
-        fig_imp = go.Figure(go.Bar(
-            x=imp_df['importance'], y=imp_df['feature'], orientation='h',
-            marker=dict(color=imp_df['importance'],
-                        colorscale=[[0, "#0d1117"], [0.5, "#0d3d2e"], [1, C_GREEN]],
-                        showscale=False)
-        ))
-        fig_imp.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text="Top 20 Feature Importances", font=dict(color=C_GREEN, size=12)),
-            height=450, xaxis_title="Importance Score")
-        st.plotly_chart(fig_imp, use_container_width=True)
-
-        # ── Actual vs Predicted ────────────────────────────────────────────────────
-        st.subheader("Actual vs Predicted")
-        fig1 = go.Figure()
-        fig1.add_trace(go.Scatter(y=actual, name="Actual",
-            line=dict(color=C_BLUE, width=1.5),
-            fill='tozeroy', fillcolor='rgba(77,166,255,0.04)'))
-        fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted",
-            line=dict(color=C_GREEN, width=1.5, dash='dot')))
-        fig1.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · XGBoost Model Fit (Test Set)", font=dict(color=C_GREEN, size=12)),
-            height=350)
-        st.plotly_chart(fig1, use_container_width=True)
-
-        # ── Multi-Factor Buy/Sell Signal Engine ──────────────────────────────────
-        st.subheader("Signal Intelligence")
-
-        # Build composite signal
-        composite = compute_composite_signal(df, last_close, preds[-1], preds, actual)
-        verdict        = composite['verdict']
-        verdict_short  = composite['verdict_short']
-        total_score    = composite['total_score']
-        xgb_pct        = composite['xgb_pct']
-        stop_loss      = composite['stop_loss']
-        take_profit    = composite['take_profit']
-        risk_reward    = composite['risk_reward']
-        rsi_val        = composite['rsi']
-        vol_ratio      = composite['vol_ratio']
-        atr_val        = composite['atr']
-        sigs           = composite['signals']
-
-        # ── 🔔 Signal Alert Detection ──────────────────────────────────────────
-        if alert_on_signal_change:
-            prev_verdict = st.session_state.alert_signals.get(ticker)
-            if prev_verdict is not None and prev_verdict != verdict_short:
-                _alert_color = {"BUY": "#00e5b0", "SELL": "#ff3d57"}.get(verdict_short, "#ffdd2d")
-                _alert_icon  = {"BUY": "⬆", "SELL": "⬇"}.get(verdict_short, "◆")
-                st.markdown(
-                    f'<div style="background:rgba({",".join(str(int(_alert_color.lstrip("#")[i:i+2],16)) for i in (0,2,4))},0.12);'
-                    f'border:1px solid {_alert_color};border-left:4px solid {_alert_color};'
-                    f'padding:.8rem 1.4rem;margin-bottom:1rem;font-family:IBM Plex Mono,monospace;'
-                    f'font-size:.8rem;color:{_alert_color};letter-spacing:.04em;">'
-                    f'🔔 <b>SIGNAL ALERT — {ticker}</b> &nbsp;|&nbsp; '
-                    f'{prev_verdict} → {_alert_icon} {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-            # Always update stored verdict after this run
-            st.session_state.alert_signals[ticker] = verdict_short
-
-        verdict_css = 'sell' if verdict_short == 'SELL' else 'hold' if verdict_short == 'HOLD' else ''
-        sign        = '+' if xgb_pct >= 0 else ''
-
-        # ── Main Signal Panel ──────────────────────────────────────────────────
-        rr_color    = 'positive' if risk_reward >= 1.5 else 'negative' if risk_reward < 1 else 'neutral'
-        sl_color    = 'negative'
-        tp_color    = 'positive'
-        score_color = '#00e5b0' if total_score > 0 else '#ff3d57' if total_score < 0 else '#ffdd2d'
-
-        st.markdown(f"""
-        <div class="signal-panel-v2">
-            <div class="signal-main-v2 {verdict_css}">
-                <div class="signal-label-v2">Composite Signal</div>
-                <div class="signal-action-v2 {verdict_css}">{verdict}</div>
-                <div class="signal-pct-v2">{sign}{xgb_pct:.2f}% forecast</div>
-                <div class="signal-label-v2" style="margin-top:8px;">Score: <span style="color:{score_color};font-size:0.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
-            </div>
-            <div class="signal-details-v2">
-                <div class="sig-detail-card-v2 {tp_color}">
-                    <div class="sig-detail-label-v2">Take Profit</div>
-                    <div class="sig-detail-val-v2">${take_profit:.2f}</div>
-                    <div class="sig-detail-sub-v2">+{((take_profit-last_close)/last_close*100):.1f}% · 3× ATR</div>
-                </div>
-                <div class="sig-detail-card-v2 {sl_color}">
-                    <div class="sig-detail-label-v2">Stop Loss</div>
-                    <div class="sig-detail-val-v2">${stop_loss:.2f}</div>
-                    <div class="sig-detail-sub-v2">{((stop_loss-last_close)/last_close*100):.1f}% · 2× ATR</div>
-                </div>
-                <div class="sig-detail-card-v2 {rr_color}">
-                    <div class="sig-detail-label-v2">Risk / Reward</div>
-                    <div class="sig-detail-val-v2">{risk_reward:.2f}×</div>
-                    <div class="sig-detail-sub-v2">{"✓ Favorable" if risk_reward >= 1.5 else "⚠ Marginal" if risk_reward >= 1 else "✗ Unfavorable"}</div>
-                </div>
-                <div class="sig-detail-card-v2 {'positive' if rsi_val < 50 else 'negative'}">
-                    <div class="sig-detail-label-v2">RSI (14)</div>
-                    <div class="sig-detail-val-v2">{rsi_val:.1f}</div>
-                    <div class="sig-detail-sub-v2">{"Oversold" if rsi_val < 30 else "Overbought" if rsi_val > 70 else "Neutral zone"}</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── Per-Indicator Breakdown ────────────────────────────────────────────
-        st.markdown('<div class="composite-meter"><div class="meter-title">⚙ Per-Indicator Signal Breakdown</div>', unsafe_allow_html=True)
-
-        indicator_rows_html = ""
-        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
-            bar_width = min(100, abs(ind_score) / 35 * 100)
-            sig_class = ind_sig.lower() if ind_sig in ('BUY','SELL') else 'hold'
-            indicator_rows_html += f"""
-            <div class="signal-indicator-row">
-                <span class="sir-label">{ind_name}</span>
-                <div class="sir-bar-bg"><div class="sir-bar {ind_class}" style="width:{bar_width:.0f}%;"></div></div>
-                <span class="sir-val">{ind_val:.2f}</span>
-                <span class="sir-signal {sig_class}">{ind_sig}</span>
-            </div>"""
-
-        st.markdown(indicator_rows_html + '</div>', unsafe_allow_html=True)
-
-        # ── Why This Signal? Human-readable explanation ────────────────────────
-        reason_lines = []
-        emoji_map = {'BUY': '🟢', 'SELL': '🔴', 'HOLD': '🟡'}
-        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
-            if ind_sig == 'BUY':
-                if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🟢 XGBoost model predicts <b style='color:#00e5b0;'>{xgb_pct:+.2f}%</b> move tomorrow")
-                elif ind_name == 'RSI (14)':
-                    reason_lines.append(f"🟢 RSI is <b style='color:#00e5b0;'>{ind_val:.1f}</b> — {'oversold territory' if ind_val < 30 else 'leaning oversold'}")
-                elif ind_name == 'MACD Cross':
-                    reason_lines.append(f"🟢 MACD shows {'fresh bullish crossover' if abs(ind_score) >= 20 else 'bullish momentum'}")
-                elif ind_name == 'Bollinger %B':
-                    reason_lines.append(f"🟢 Price near lower Bollinger Band (%B = {ind_val:.2f}) — potential bounce")
-                elif ind_name == 'MA Cross':
-                    reason_lines.append(f"🟢 MA50 above MA200 — Golden Cross (uptrend)")
-                elif ind_name == 'Volume':
-                    reason_lines.append(f"🟢 Volume {ind_val:.1f}× average confirms buying pressure")
-            elif ind_sig == 'SELL':
-                if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🔴 XGBoost model predicts <b style='color:#ff3d57;'>{xgb_pct:+.2f}%</b> move tomorrow")
-                elif ind_name == 'RSI (14)':
-                    reason_lines.append(f"🔴 RSI is <b style='color:#ff3d57;'>{ind_val:.1f}</b> — {'overbought territory' if ind_val > 70 else 'leaning overbought'}")
-                elif ind_name == 'MACD Cross':
-                    reason_lines.append(f"🔴 MACD shows {'fresh bearish crossover' if abs(ind_score) >= 20 else 'bearish momentum'}")
-                elif ind_name == 'Bollinger %B':
-                    reason_lines.append(f"🔴 Price near upper Bollinger Band (%B = {ind_val:.2f}) — potential reversal")
-                elif ind_name == 'MA Cross':
-                    reason_lines.append(f"🔴 MA50 below MA200 — Death Cross (downtrend)")
-                elif ind_name == 'Volume':
-                    reason_lines.append(f"🔴 Volume {ind_val:.1f}× average confirms selling pressure")
-            else:
-                if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🟡 XGBoost predicts only {xgb_pct:+.2f}% — not enough directional conviction")
-
-        border_color = '#00e5b0' if verdict_short == 'BUY' else '#ff3d57' if verdict_short == 'SELL' else '#ffdd2d'
-        reasons_html = "".join(
-            f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#7a8fa8;">{r}</div>'
-            for r in reason_lines
-        )
-        st.markdown(f"""
-        <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid {border_color};
-             padding:1.1rem 1.5rem;margin:.8rem 0;">
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.18em;
-               text-transform:uppercase;color:#3d5068;margin-bottom:.7rem;">
-            💡 Why This Signal? — <span style="color:{border_color};">{verdict}</span>
-          </div>
-          <div style="font-family:'IBM Plex Sans',sans-serif;line-height:1.7;">
-            {reasons_html if reasons_html else '<span style="color:#3d5068;font-size:.8rem;">All indicators neutral — no strong directional edge detected.</span>'}
-          </div>
-          <div style="margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border);
-               font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#3d5068;">
-            ⚠ Technical signals use price & volume only. See News Sentiment section below for headline analysis.
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── Historical signal list ─────────────────────────────────────────────
-        signal_list = []
-        for i in range(len(preds)):
-            diff_pct = (preds[i] - actual[i]) / actual[i] * 100
-            if diff_pct > 1.0:
-                signal_list.append("BUY")
-            elif diff_pct < -1.0:
-                signal_list.append("SELL")
-            else:
-                signal_list.append("HOLD")
-
-        buy_idx  = [i for i, s in enumerate(signal_list) if s == "BUY"]
-        sell_idx = [i for i, s in enumerate(signal_list) if s == "SELL"]
-
-        fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(y=actual, name="Actual Price",
-            line=dict(color=C_GREY, width=1)))
-        fig2.add_trace(go.Scatter(x=buy_idx,  y=[actual[i] for i in buy_idx],
-            mode='markers', name='BUY',
-            marker=dict(color=C_GREEN, symbol='triangle-up', size=10,
-                        line=dict(width=1, color='#080b0f'))))
-        fig2.add_trace(go.Scatter(x=sell_idx, y=[actual[i] for i in sell_idx],
-            mode='markers', name='SELL',
-            marker=dict(color=C_RED, symbol='triangle-down', size=10,
-                        line=dict(width=1, color='#080b0f'))))
-        # Add stop-loss and take-profit reference lines
-        fig2.add_hline(y=stop_loss,   line_dash="dot", line_color=C_RED,    line_width=1,
-                       annotation_text=f"Stop ${stop_loss:.2f}", annotation_font=dict(color=C_RED,   size=9))
-        fig2.add_hline(y=take_profit, line_dash="dot", line_color=C_GREEN,  line_width=1,
-                       annotation_text=f"Target ${take_profit:.2f}", annotation_font=dict(color=C_GREEN, size=9))
-        fig2.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · Signal Map — BUY ▲ / SELL ▼ (XGBoost ±1% threshold) · SL/TP lines shown",
-                       font=dict(color=C_GREEN, size=12)),
-            height=380)
-        st.plotly_chart(fig2, use_container_width=True)
-
-        signal_df = pd.DataFrame({
-            "Day":               range(1, len(signal_list) + 1),
-            "Actual Price ($)":  [f"${p:.2f}" for p in actual],
-            "Predicted ($)":     [f"${p:.2f}" for p in preds],
-            "Signal":            signal_list,
-            "Δ%":                [f"{(preds[i]-actual[i])/actual[i]*100:+.2f}%" for i in range(len(preds))],
-        })
-        st.dataframe(signal_df.tail(10), use_container_width=True, hide_index=True)
-
-        st.divider()
-
-        # ══════════════════════════════════════════════════════════════════════
-        # ── 📰 NEWS SENTIMENT ANALYSIS ────────────────────────────────────────
-        # ══════════════════════════════════════════════════════════════════════
-        st.subheader("📰 News Sentiment")
-        st.caption("Live headlines fetched from Yahoo Finance · Sentiment scored via TextBlob NLP")
-
-        @st.cache_data(ttl=900)   # cache 15 min so reruns don't re-fetch
-        def fetch_news_headlines(sym):
-            """Fetch recent news headlines for a ticker via yfinance (no API key needed)."""
-            try:
-                tk   = yf.Ticker(sym)
-                news = tk.news or []
-                out  = []
-                for item in news[:10]:
-                    title     = item.get("title", "")
-                    publisher = item.get("publisher", "")
-                    link      = item.get("link", "")
-                    ts        = item.get("providerPublishTime", 0)
-                    age_h     = int((pd.Timestamp.now().timestamp() - ts) / 3600) if ts else 0
-                    if title:
-                        out.append({"title": title, "publisher": publisher,
-                                    "link": link, "age_h": age_h})
-                return out
-            except Exception:
-                return []
-
-        def analyze_sentiment_textblob(headlines):
-            """Score each headline with TextBlob polarity (-1 → +1)."""
-            try:
-                from textblob import TextBlob
-            except ImportError:
-                return None, []          # TextBlob not installed — handled below
-
-            scored = []
-            for h in headlines:
-                pol = TextBlob(h["title"]).sentiment.polarity
-                sub = TextBlob(h["title"]).sentiment.subjectivity
-                scored.append({**h, "polarity": pol, "subjectivity": sub})
-            return scored
-
-        def sentiment_label(avg_pol):
-            if avg_pol >= 0.15:
-                return "VERY POSITIVE", "#00e5b0", "🟢"
-            elif avg_pol >= 0.03:
-                return "POSITIVE",      "#00e5b0", "🟢"
-            elif avg_pol <= -0.15:
-                return "VERY NEGATIVE", "#ff3d57", "🔴"
-            elif avg_pol <= -0.03:
-                return "NEGATIVE",      "#ff3d57", "🔴"
-            else:
-                return "NEUTRAL",       "#ffdd2d", "⚪"
-
-        with st.spinner("Fetching latest news…"):
-            headlines = fetch_news_headlines(ticker)
-
-        if not headlines:
-            st.info("No recent news found for this ticker. Try a major index stock like AAPL, TSLA, MSFT.")
-        else:
-            scored = analyze_sentiment_textblob(headlines)
-
-            if scored is None:
-                # TextBlob missing — show headlines only, no scores
-                st.warning("Install `textblob` in requirements.txt for sentiment scoring. Showing headlines only.")
-                for h in headlines:
-                    st.markdown(f"🔹 [{h['title']}]({h['link']})  \n"
-                                f"<span style='font-size:.72rem;color:#3d5068;'>"
-                                f"{h['publisher']} · {h['age_h']}h ago</span>",
-                                unsafe_allow_html=True)
-            else:
-                polarities  = [s["polarity"] for s in scored]
-                avg_polarity = sum(polarities) / len(polarities) if polarities else 0
-                label, sent_color, sent_icon = sentiment_label(avg_polarity)
-
-                # ── Overall Sentiment Banner ───────────────────────────────────
-                bullish_count  = sum(1 for p in polarities if p >  0.03)
-                bearish_count  = sum(1 for p in polarities if p < -0.03)
-                neutral_count  = len(polarities) - bullish_count - bearish_count
-
-                ns1, ns2, ns3, ns4 = st.columns(4)
-                ns1.metric("📰 News Sentiment", f"{sent_icon} {label}")
-                ns2.metric("Avg Polarity Score", f"{avg_polarity:+.3f}",
-                           delta="Bullish lean" if avg_polarity > 0.03
-                                 else "Bearish lean" if avg_polarity < -0.03 else "Neutral",
-                           delta_color="normal" if avg_polarity > 0.03
-                                       else "inverse" if avg_polarity < -0.03 else "off")
-                ns3.metric("🟢 Positive Headlines", bullish_count)
-                ns4.metric("🔴 Negative Headlines", bearish_count)
-
-                # ── Combined Signal Banner (AI + News) ────────────────────────
-                _tech_bull = verdict_short == "BUY"
-                _tech_bear = verdict_short == "SELL"
-                _news_bull = avg_polarity > 0.03
-                _news_bear = avg_polarity < -0.03
-
-                if _tech_bull and _news_bull:
-                    combo_label = "⬆ STRONG CONFLUENCE — Technical BUY + Positive News"
-                    combo_color = "#00e5b0"
-                elif _tech_bear and _news_bear:
-                    combo_label = "⬇ STRONG CONFLUENCE — Technical SELL + Negative News"
-                    combo_color = "#ff3d57"
-                elif _tech_bull and _news_bear:
-                    combo_label = "⚠ DIVERGENCE — Technical BUY but Negative News sentiment"
-                    combo_color = "#ffdd2d"
-                elif _tech_bear and _news_bull:
-                    combo_label = "⚠ DIVERGENCE — Technical SELL but Positive News sentiment"
-                    combo_color = "#ffdd2d"
-                else:
-                    combo_label = "◆ MIXED — No strong confluence between technicals and news"
-                    combo_color = "#3d5068"
-
-                st.markdown(
-                    f'<div style="background:rgba(255,255,255,0.02);border:1px solid {combo_color};'
-                    f'border-left:4px solid {combo_color};padding:.8rem 1.4rem;margin:.6rem 0 1rem 0;'
-                    f'font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{combo_color};'
-                    f'letter-spacing:.04em;">🧠 Combined Intelligence: {combo_label}</div>',
-                    unsafe_allow_html=True
-                )
-
-                # ── Headlines with per-article sentiment bars ──────────────────
-                with st.expander(f"📋 {len(scored)} Recent Headlines — click to expand", expanded=True):
-                    for h in scored:
-                        pol   = h["polarity"]
-                        _hcol = "#00e5b0" if pol > 0.03 else "#ff3d57" if pol < -0.03 else "#ffdd2d"
-                        _hico = "🟢" if pol > 0.03 else "🔴" if pol < -0.03 else "⚪"
-                        _bar_pct = min(100, int(abs(pol) * 300))   # scale to visible width
-
-                        st.markdown(
-                            f'<div style="padding:.55rem 0;border-bottom:1px solid #182030;">'
-                            f'  <div style="display:flex;align-items:flex-start;gap:.6rem;">'
-                            f'    <span style="font-size:.9rem;margin-top:.05rem;">{_hico}</span>'
-                            f'    <div style="flex:1;">'
-                            f'      <a href="{h["link"]}" target="_blank" style="color:#eef2f7;'
-                            f'         font-family:IBM Plex Sans,sans-serif;font-size:.82rem;'
-                            f'         text-decoration:none;line-height:1.4;">{h["title"]}</a>'
-                            f'      <div style="display:flex;align-items:center;gap:.8rem;margin-top:.3rem;">'
-                            f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
-                            f'               color:#3d5068;">{h["publisher"]} · {h["age_h"]}h ago</span>'
-                            f'        <div style="flex:1;max-width:120px;height:3px;'
-                            f'             background:#182030;border-radius:2px;">'
-                            f'          <div style="width:{_bar_pct}%;height:100%;'
-                            f'               background:{_hcol};border-radius:2px;"></div></div>'
-                            f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
-                            f'               color:{_hcol};">{pol:+.3f}</span>'
-                            f'      </div>'
-                            f'    </div>'
-                            f'  </div>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-
-                # ── Polarity distribution mini chart ──────────────────────────
-                if len(scored) >= 3:
-                    fig_sent = go.Figure()
-                    titles_short = [s["title"][:40] + "…" if len(s["title"]) > 40
-                                    else s["title"] for s in scored]
-                    bar_colors   = [C_GREEN if p > 0.03 else C_RED if p < -0.03 else C_YELLOW
-                                    for p in polarities]
-                    fig_sent.add_trace(go.Bar(
-                        x=polarities, y=titles_short,
-                        orientation="h",
-                        marker_color=bar_colors,
-                        text=[f"{p:+.3f}" for p in polarities],
-                        textposition="outside",
-                        textfont=dict(family="IBM Plex Mono", size=9, color="#7a8fa8"),
-                    ))
-                    fig_sent.add_vline(x=0, line_color="#243346", line_width=1)
-                    fig_sent.add_vline(x=avg_polarity, line_color=sent_color,
-                                       line_dash="dot", line_width=1.5,
-                                       annotation_text=f"avg {avg_polarity:+.3f}",
-                                       annotation_font=dict(color=sent_color, size=9))
-                    _sent_layout = {**PLOTLY_LAYOUT, "margin": dict(l=10, r=80, t=30, b=10)}
-                    fig_sent.update_layout(
-                        **_sent_layout,
-                        title=dict(text=f"{ticker} · Headline Sentiment Polarity (TextBlob)",
-                                   font=dict(color=C_GREEN, size=11)),
-                        height=max(220, len(scored) * 32),
-                        xaxis_title="Polarity (negative ← 0 → positive)",
-                        xaxis=dict(range=[-1, 1], gridcolor="#182030",
-                                   linecolor="#182030", zeroline=False,
-                                   tickfont=dict(color="#3d5068", size=9)),
+            """, unsafe_allow_html=True)
+    
+            # ── Feature Importance ─────────────────────────────────────────────────────
+            st.subheader("Feature Importance")
+            feature_cols = [
+                'MA5','MA10','MA20','MA50','EMA12','EMA26',
+                'RSI','MACD','MACD_Signal','MACD_Hist',
+                'BB_Width','BB_Pct',
+                'Returns','Returns_5d','Volatility','Momentum',
+                'Volume_Ratio','High_Low_Pct','Close_Open_Pct','ATR'
+            ]
+            lag_names        = [f'Lag_{i+1}' for i in range(seq_len)]
+            all_feature_names = feature_cols + lag_names
+            importances      = model.feature_importances_
+            imp_df = pd.DataFrame({'feature': all_feature_names, 'importance': importances})\
+                       .sort_values('importance', ascending=True).tail(20)
+    
+            fig_imp = go.Figure(go.Bar(
+                x=imp_df['importance'], y=imp_df['feature'], orientation='h',
+                marker=dict(color=imp_df['importance'],
+                            colorscale=[[0, "#0d1117"], [0.5, "#0d3d2e"], [1, C_GREEN]],
+                            showscale=False)
+            ))
+            fig_imp.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text="Top 20 Feature Importances", font=dict(color=C_GREEN, size=12)),
+                height=450, xaxis_title="Importance Score")
+            st.plotly_chart(fig_imp, use_container_width=True)
+    
+            # ── Actual vs Predicted ────────────────────────────────────────────────────
+            st.subheader("Actual vs Predicted")
+            fig1 = go.Figure()
+            fig1.add_trace(go.Scatter(y=actual, name="Actual",
+                line=dict(color=C_BLUE, width=1.5),
+                fill='tozeroy', fillcolor='rgba(77,166,255,0.04)'))
+            fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted",
+                line=dict(color=C_GREEN, width=1.5, dash='dot')))
+            fig1.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · XGBoost Model Fit (Test Set)", font=dict(color=C_GREEN, size=12)),
+                height=350)
+            st.plotly_chart(fig1, use_container_width=True)
+    
+            # ── Multi-Factor Buy/Sell Signal Engine ──────────────────────────────────
+            st.subheader("Signal Intelligence")
+    
+            # Build composite signal
+            composite = compute_composite_signal(df, last_close, preds[-1], preds, actual)
+            verdict        = composite['verdict']
+            verdict_short  = composite['verdict_short']
+            total_score    = composite['total_score']
+            xgb_pct        = composite['xgb_pct']
+            stop_loss      = composite['stop_loss']
+            take_profit    = composite['take_profit']
+            risk_reward    = composite['risk_reward']
+            rsi_val        = composite['rsi']
+            vol_ratio      = composite['vol_ratio']
+            atr_val        = composite['atr']
+            sigs           = composite['signals']
+    
+            # ── 🔔 Signal Alert Detection ──────────────────────────────────────────
+            if alert_on_signal_change:
+                prev_verdict = st.session_state.alert_signals.get(ticker)
+                if prev_verdict is not None and prev_verdict != verdict_short:
+                    _alert_color = {"BUY": "#00e5b0", "SELL": "#ff3d57"}.get(verdict_short, "#ffdd2d")
+                    _alert_icon  = {"BUY": "⬆", "SELL": "⬇"}.get(verdict_short, "◆")
+                    st.markdown(
+                        f'<div style="background:rgba({",".join(str(int(_alert_color.lstrip("#")[i:i+2],16)) for i in (0,2,4))},0.12);'
+                        f'border:1px solid {_alert_color};border-left:4px solid {_alert_color};'
+                        f'padding:.8rem 1.4rem;margin-bottom:1rem;font-family:IBM Plex Mono,monospace;'
+                        f'font-size:.8rem;color:{_alert_color};letter-spacing:.04em;">'
+                        f'🔔 <b>SIGNAL ALERT — {ticker}</b> &nbsp;|&nbsp; '
+                        f'{prev_verdict} → {_alert_icon} {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}'
+                        f'</div>',
+                        unsafe_allow_html=True
                     )
-                    st.plotly_chart(fig_sent, use_container_width=True)
-
-                st.caption("⚠ Sentiment is based on headline text only — not article content. "
-                           "Use as a supplementary signal, not a sole decision factor.")
-
-        st.divider()
-
-        # ── Future Forecast ────────────────────────────────────────────────────────
-        st.subheader(f"Forecast — Next {future_days} Days")
-        future_prices    = []
-        last_known_close = float(df['Close'].squeeze().iloc[-1])
-        last_row_feats   = X[-1].copy()
-        current_close    = last_known_close
-
-        for d in range(future_days):
-            next_pred = float(model.predict(last_row_feats.reshape(1, -1))[0])
-            future_prices.append(next_pred)
-            n_tech         = len(feature_cols)
-            lags           = last_row_feats[n_tech:]
-            new_lags       = np.append(lags[1:], next_pred)
-            last_row_feats = np.concatenate([last_row_feats[:n_tech], new_lags])
-            current_close  = next_pred
-
-        trend_color = C_GREEN if future_prices[-1] > last_close else C_RED
-
-        # Build expanding uncertainty band even without full bootstrap (lightweight ±σ proxy)
-        price_std    = float(df['Close'].squeeze().pct_change().std())  # daily vol
-        decay_upper  = [future_prices[i] * (1 + price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
-        decay_lower  = [future_prices[i] * (1 - price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
-
-        fig3 = go.Figure()
-        # Expanding uncertainty shading
-        fig3.add_trace(go.Scatter(
-            x=list(range(future_days)), y=decay_upper,
-            line=dict(color="rgba(0,229,176,0)"), showlegend=False, hoverinfo="skip"))
-        fig3.add_trace(go.Scatter(
-            x=list(range(future_days)), y=decay_lower,
-            name="Uncertainty band", fill="tonexty",
-            fillcolor="rgba(0,229,176,0.07)", line=dict(color="rgba(0,229,176,0)"), hoverinfo="skip"))
-
-        fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
-                       annotation_text=f"Last close ${last_close:.2f}",
-                       annotation_font_color=C_GREY)
-        if alert_price > 0:
-            fig3.add_hline(y=alert_price, line_dash="dash", line_color=C_YELLOW,
-                           annotation_text=f"Target ${alert_price:.2f}",
-                           annotation_font_color=C_YELLOW)
-        fig3.add_trace(go.Scatter(
-            x=list(range(future_days)), y=future_prices,
-            mode='lines+markers', name='XGBoost Forecast',
-            line=dict(color=trend_color, width=2),
-            marker=dict(size=7, color=trend_color, line=dict(width=1, color="#080b0f"))
-        ))
-        # Vertical reliability boundary at day 5
-        if future_days > 5:
-            fig3.add_vline(x=4.5, line_dash="dot", line_color="#243346",
-                           annotation_text="↑ Higher confidence  |  Lower confidence ↓",
-                           annotation_font=dict(color="#3d5068", size=9),
-                           annotation_position="top")
-
-        fig3.update_layout(**PLOTLY_LAYOUT,
-            title=dict(text=f"{ticker} · {future_days}-Day Price Forecast (XGBoost) · Band shows ±1.5σ uncertainty growth",
-                       font=dict(color=C_GREEN, size=12)),
-            xaxis_title="Days from today", yaxis_title="Price (USD)", height=380)
-        st.plotly_chart(fig3, use_container_width=True)
-
-        if future_days > 5:
-            st.markdown(
-                '<div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.2);'
-                'border-left:3px solid #ffdd2d;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
-                'font-size:0.7rem;color:#ffdd2d;letter-spacing:.05em;margin-top:-.5rem;">'
-                '⚠ Forecast reliability decreases significantly beyond Day 5. '
-                'Errors compound in iterative multi-step prediction. Use Days 6+ as directional signals only.'
-                '</div>', unsafe_allow_html=True)
-
-        future_df = pd.DataFrame({
-            "Day":                 [f"+{i+1}" for i in range(future_days)],
-            "Predicted Price ($)": [f"${p:.2f}" for p in future_prices],
-            "vs Last Close":       [f"{'▲' if p > last_close else '▼'} {abs(p - last_close):.2f}"
-                                    f" ({(p-last_close)/last_close*100:+.2f}%)" for p in future_prices]
-        })
-        st.dataframe(future_df, use_container_width=True, hide_index=True)
-
-        # ── Backtesting ────────────────────────────────────────────────────────────
-        if run_backtest and not fast_mode:
-            st.subheader("Backtesting Engine")
-            st.markdown(
-                f'<div class="model-badge">STRATEGY: XGBoost Signal ±{bt_signal_threshold}% '
-                f'| Capital: ${bt_initial_capital:,.0f} | Commission: ${bt_commission}/trade</div>',
-                unsafe_allow_html=True)
-
-            with st.spinner("Running backtest simulation..."):
-                bt = run_backtest_engine(
-                    actual_prices=actual, predicted_prices=preds,
-                    initial_capital=bt_initial_capital,
-                    commission=bt_commission, threshold_pct=bt_signal_threshold,
-                )
-
-            strat_color = "bt-card-value-green" if bt["strat_return"] >= 0 else "bt-card-value-red"
-            bh_color    = "bt-card-value-green" if bt["bh_return"]    >= 0 else "bt-card-value-red"
-            dd_color    = "bt-card-value-red"   if bt["max_drawdown"] < -10 else "bt-card-value"
-            sh_color    = "bt-card-value-green" if bt["sharpe"]       >= 1  else "bt-card-value-red"
-
-            k1, k2, k3, k4 = st.columns(4)
-            k1.markdown(f'<div class="bt-card"><div class="bt-card-label">Strategy Return</div>'
-                        f'<div class="{strat_color}">{bt["strat_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
-            k2.markdown(f'<div class="bt-card"><div class="bt-card-label">Buy &amp; Hold Return</div>'
-                        f'<div class="{bh_color}">{bt["bh_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
-            k3.markdown(f'<div class="bt-card"><div class="bt-card-label">Max Drawdown</div>'
-                        f'<div class="{dd_color}">{bt["max_drawdown"]:.2f}%</div></div>', unsafe_allow_html=True)
-            k4.markdown(f'<div class="bt-card"><div class="bt-card-label">Sharpe Ratio</div>'
-                        f'<div class="{sh_color}">{bt["sharpe"]:.2f}</div></div>', unsafe_allow_html=True)
-
-            k5, k6, k7, k8 = st.columns(4)
-            k5.markdown(f'<div class="bt-card"><div class="bt-card-label">Final Capital</div>'
-                        f'<div class="bt-card-value">${bt["final_capital"]:,.0f}</div></div>', unsafe_allow_html=True)
-            k6.markdown(f'<div class="bt-card"><div class="bt-card-label">Total Trades</div>'
-                        f'<div class="bt-card-value">{bt["total_trades"]}</div></div>', unsafe_allow_html=True)
-            k7.markdown(f'<div class="bt-card"><div class="bt-card-label">Win Rate</div>'
-                        f'<div class="bt-card-value">{bt["win_rate"]:.1f}%</div></div>', unsafe_allow_html=True)
-            k8.markdown(f'<div class="bt-card"><div class="bt-card-label">Profit Factor</div>'
-                        f'<div class="bt-card-value">{bt["profit_factor"]:.2f}x</div></div>', unsafe_allow_html=True)
-
-            # Equity Curve
-            fig_eq = go.Figure()
-            fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy",
-                line=dict(color=C_GREEN, width=2),
-                fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
-            fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold",
-                line=dict(color=C_BLUE, width=1.5, dash="dot")))
-            fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY,
-                             annotation_text=f"Start ${bt_initial_capital:,}",
-                             annotation_font_color=C_GREY)
-            fig_eq.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"{ticker} · Strategy Equity Curve vs Buy & Hold",
-                           font=dict(color=C_GREEN, size=12)),
-                yaxis_title="Portfolio Value ($)", xaxis_title="Trading Day (test set)", height=380)
-            st.plotly_chart(fig_eq, use_container_width=True)
-
-            # Drawdown
-            fig_dd = go.Figure()
-            fig_dd.add_trace(go.Scatter(y=[d * 100 for d in bt["drawdown_series"]],
-                name="Drawdown", line=dict(color=C_RED, width=1.5),
-                fill="tozeroy", fillcolor="rgba(255,61,87,0.07)"))
-            fig_dd.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"{ticker} · Strategy Drawdown (%)", font=dict(color=C_RED, size=12)),
-                yaxis_title="Drawdown (%)", xaxis_title="Trading Day (test set)", height=250)
-            st.plotly_chart(fig_dd, use_container_width=True)
-
-            # Trade log
-            if not bt["trades_df"].empty:
-                st.markdown("#### Trade Log")
-                display_trades = bt["trades_df"].copy()
-                display_trades["Price"]   = display_trades["Price"].apply(lambda x: f"${x:.2f}")
-                display_trades["Capital"] = display_trades["Capital"].apply(lambda x: f"${x:,.0f}")
-                if "P&L" in display_trades.columns:
-                    display_trades["P&L"] = display_trades["P&L"].apply(
-                        lambda x: f"+${x:.2f}" if pd.notna(x) and x >= 0 else (f"-${abs(x):.2f}" if pd.notna(x) else "-"))
-                st.dataframe(display_trades, use_container_width=True, hide_index=True)
-                csv_bt = bt["trades_df"].to_csv(index=False).encode("utf-8")
-                st.download_button("⬇ Download Trade Log", data=csv_bt,
-                                   file_name=f"{ticker}_trades.csv", mime="text/csv")
-
-        # ── Confidence Intervals ───────────────────────────────────────────────────
-        if show_conf_interval:
-            st.subheader("Forecast with Confidence Intervals")
-            st.markdown('<div class="ci-badge">95% CI — Bootstrap Resampling</div>', unsafe_allow_html=True)
-
-            with st.spinner(f"Running {ci_bootstrap_n} bootstrap samples..."):
-                ci_lower, ci_median, ci_upper = bootstrap_confidence_intervals(
-                    model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
-
-            fig_ci = go.Figure()
-            fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,229,176,0)"),
-                showlegend=False))
-            fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band",
-                fill="tonexty", fillcolor="rgba(0,229,176,0.10)",
-                line=dict(color="rgba(0,229,176,0)")))
-            fig_ci.add_trace(go.Scatter(y=actual, name="Actual",
-                line=dict(color=C_BLUE, width=1.5)))
-            fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median",
-                line=dict(color=C_GREEN, width=1.8, dash="dot")))
-            fig_ci.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"{ticker} · Predictions with 95% CI", font=dict(color=C_GREEN, size=12)),
-                height=380, yaxis_title="Price ($)", xaxis_title="Trading Day (test set)")
-            st.plotly_chart(fig_ci, use_container_width=True)
-
-            # Future CI
-            future_all = []
-            for _ in range(ci_bootstrap_n):
-                fp, lrf = [], X[-1].copy()
-                for d in range(future_days):
-                    nxt = float(model.predict((lrf + np.random.normal(0, 0.015, lrf.shape)).reshape(1,-1))[0])
-                    fp.append(nxt)
-                    n_tech = len(feature_cols)
-                    lrf    = np.concatenate([lrf[:n_tech], np.append(lrf[n_tech+1:], nxt)])
-                future_all.append(fp)
-            fa = np.array(future_all)
-            fut_l, fut_m, fut_u = (np.percentile(fa, 5,  axis=0),
-                                   np.percentile(fa, 50, axis=0),
-                                   np.percentile(fa, 95, axis=0))
-
-            fig_fci = go.Figure()
-            fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_u,
-                line=dict(color="rgba(0,229,176,0)"), showlegend=False))
-            fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_l,
-                name="95% CI", fill="tonexty", fillcolor="rgba(0,229,176,0.12)",
-                line=dict(color="rgba(0,229,176,0)")))
-            fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_m,
-                name="Forecast", mode="lines+markers",
-                line=dict(color=C_GREEN, width=2), marker=dict(size=7)))
-            fig_fci.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
-                annotation_text=f"Last close ${last_close:.2f}", annotation_font_color=C_GREY)
-            fig_fci.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"{ticker} · {future_days}-Day Forecast with 95% CI",
-                    font=dict(color=C_GREEN, size=12)),
-                xaxis_title="Days from today", yaxis_title="Price ($)", height=350)
-            st.plotly_chart(fig_fci, use_container_width=True)
-
-        # ── Model Comparison ───────────────────────────────────────────────────────
-        if run_model_compare:
-            st.subheader("Model Comparison — XGBoost vs Prophet vs Linear Regression")
-            from sklearn.linear_model import LinearRegression as LR
-            cmp = {}
-            cmp["XGBoost"] = {"preds": preds, "color": C_GREEN,
-                "rmse": float(np.sqrt(mean_squared_error(actual, preds))),
-                "mae":  float(mean_absolute_error(actual, preds)),
-                "mape": float(np.mean(np.abs((actual-preds)/actual))*100),
-                "r2":   float(1 - np.sum((actual-preds)**2)/np.sum((actual-np.mean(actual))**2))}
-
-            with st.spinner("Training Linear Regression..."):
-                lr_m = LR(); lr_m.fit(X_train, y_train); lr_p = lr_m.predict(X_test)
-            cmp["Linear Regression"] = {"preds": lr_p, "color": C_GREY,
-                "rmse": float(np.sqrt(mean_squared_error(actual, lr_p))),
-                "mae":  float(mean_absolute_error(actual, lr_p)),
-                "mape": float(np.mean(np.abs((actual-lr_p)/actual))*100),
-                "r2":   float(1 - np.sum((actual-lr_p)**2)/np.sum((actual-np.mean(actual))**2))}
-
-            try:
-                from prophet import Prophet
-                cs_full = df["Close"].squeeze()
-                pdf = pd.DataFrame({"ds": df.index[:len(cs_full)], "y": cs_full.values}).dropna()
-                ptr = pdf.iloc[:int(len(pdf)*0.8)]; pte = pdf.iloc[int(len(pdf)*0.8):]
-                with st.spinner("Training Prophet..."):
-                    pm = Prophet(daily_seasonality=False, weekly_seasonality=True,
-                                 yearly_seasonality=True, changepoint_prior_scale=0.05)
-                    pm.fit(ptr)
-                    pfut  = pm.make_future_dataframe(periods=len(pte), freq="B")
-                    pfcst = pm.predict(pfut)
-                    pp    = pfcst["yhat"].values[-len(pte):]
-                    pa    = pte["y"].values; ml = min(len(pp), len(actual))
-                    pp, pa = pp[:ml], actual[:ml]
-                cmp["Prophet"] = {"preds": pp, "color": C_YELLOW,
-                    "rmse": float(np.sqrt(mean_squared_error(pa, pp))),
-                    "mae":  float(mean_absolute_error(pa, pp)),
-                    "mape": float(np.mean(np.abs((pa-pp)/pa))*100),
-                    "r2":   float(1 - np.sum((pa-pp)**2)/np.sum((pa-np.mean(pa))**2))}
-            except ImportError:
-                st.info("Add `prophet` to requirements.txt to enable Prophet comparison.")
-
-            rows = [{"Model": n, "RMSE ($)": f"${r['rmse']:.2f}", "MAE ($)": f"${r['mae']:.2f}",
-                     "MAPE (%)": f"{r['mape']:.2f}%", "R²": f"{r['r2']:.4f}"}
-                    for n, r in cmp.items()]
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-            fig_cmp = go.Figure()
-            fig_cmp.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_BLUE, width=2)))
-            for n, r in cmp.items():
-                fig_cmp.add_trace(go.Scatter(y=r["preds"], name=n,
-                    line=dict(color=r["color"], width=1.5, dash="dot")))
-            fig_cmp.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"{ticker} · Model Comparison (Test Set)", font=dict(color=C_GREEN, size=12)),
-                height=380, yaxis_title="Price ($)")
-            st.plotly_chart(fig_cmp, use_container_width=True)
-
-            names_l = list(cmp.keys()); rmse_l = [r["rmse"] for r in cmp.values()]
-            best    = names_l[rmse_l.index(min(rmse_l))]
-            fig_b   = go.Figure(go.Bar(x=names_l, y=rmse_l,
-                marker_color=[r["color"] for r in cmp.values()],
-                text=[f"${v:.2f}" for v in rmse_l], textposition="outside"))
-            fig_b.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"RMSE Comparison · Lower is Better · Best: {best}",
-                    font=dict(color=C_GREEN, size=12)),
-                yaxis_title="RMSE ($)", height=300)
-            st.plotly_chart(fig_b, use_container_width=True)
-
-        # ── Halal / Shariah ────────────────────────────────────────────────────────
-        if run_halal_check:
-            st.markdown("""
-            <div style="background:rgba(0,229,176,0.03);border:1px solid rgba(0,229,176,0.15);
-                 border-left:4px solid #00e5b0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
-                 display:flex;align-items:center;gap:1rem;">
-                <div style="font-size:1.4rem;">☪</div>
-                <div>
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#00e5b0;">Halal / Shariah Compliance Screen</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#3d5068;margin-top:2px;">
-                        Automated screening based on AAOIFI Standard No.21 — a unique feature not found in mainstream platforms
+                # Always update stored verdict after this run
+                st.session_state.alert_signals[ticker] = verdict_short
+    
+            verdict_css = 'sell' if verdict_short == 'SELL' else 'hold' if verdict_short == 'HOLD' else ''
+            sign        = '+' if xgb_pct >= 0 else ''
+    
+            # ── Main Signal Panel ──────────────────────────────────────────────────
+            rr_color    = 'positive' if risk_reward >= 1.5 else 'negative' if risk_reward < 1 else 'neutral'
+            sl_color    = 'negative'
+            tp_color    = 'positive'
+            score_color = '#00e5b0' if total_score > 0 else '#ff3d57' if total_score < 0 else '#ffdd2d'
+    
+            st.markdown(f"""
+            <div class="signal-panel-v2">
+                <div class="signal-main-v2 {verdict_css}">
+                    <div class="signal-label-v2">Composite Signal</div>
+                    <div class="signal-action-v2 {verdict_css}">{verdict}</div>
+                    <div class="signal-pct-v2">{sign}{xgb_pct:.2f}% forecast</div>
+                    <div class="signal-label-v2" style="margin-top:8px;">Score: <span style="color:{score_color};font-size:0.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
+                </div>
+                <div class="signal-details-v2">
+                    <div class="sig-detail-card-v2 {tp_color}">
+                        <div class="sig-detail-label-v2">Take Profit</div>
+                        <div class="sig-detail-val-v2">${take_profit:.2f}</div>
+                        <div class="sig-detail-sub-v2">+{((take_profit-last_close)/last_close*100):.1f}% · 3× ATR</div>
+                    </div>
+                    <div class="sig-detail-card-v2 {sl_color}">
+                        <div class="sig-detail-label-v2">Stop Loss</div>
+                        <div class="sig-detail-val-v2">${stop_loss:.2f}</div>
+                        <div class="sig-detail-sub-v2">{((stop_loss-last_close)/last_close*100):.1f}% · 2× ATR</div>
+                    </div>
+                    <div class="sig-detail-card-v2 {rr_color}">
+                        <div class="sig-detail-label-v2">Risk / Reward</div>
+                        <div class="sig-detail-val-v2">{risk_reward:.2f}×</div>
+                        <div class="sig-detail-sub-v2">{"✓ Favorable" if risk_reward >= 1.5 else "⚠ Marginal" if risk_reward >= 1 else "✗ Unfavorable"}</div>
+                    </div>
+                    <div class="sig-detail-card-v2 {'positive' if rsi_val < 50 else 'negative'}">
+                        <div class="sig-detail-label-v2">RSI (14)</div>
+                        <div class="sig-detail-val-v2">{rsi_val:.1f}</div>
+                        <div class="sig-detail-sub-v2">{"Oversold" if rsi_val < 30 else "Overbought" if rsi_val > 70 else "Neutral zone"}</div>
                     </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            st.markdown(
-                '<div class="model-badge">Based on AAOIFI Standard No.21 + S&P Shariah Indices Methodology</div>',
-                unsafe_allow_html=True)
-
-            with st.spinner(f"Fetching financial data for {ticker}..."):
-                sd = get_shariah_data(ticker)
-
-            if sd is None:
-                st.warning(
-                    f"⚠ Could not fetch detailed financial data for **{ticker}** from Yahoo Finance. "
-                    "This may be a temporary API issue. The ticker symbol screening will use "
-                    "the known-ticker list only.")
-                # Build minimal sd from ticker list screening only
-                sd = {
-                    "debt_to_mktcap": 0, "debt_to_assets": 0, "cash_to_assets": 0,
-                    "market_cap": 0, "total_debt": 0, "total_assets": 0, "total_cash": 0,
-                    "sector": "Unknown", "industry": "Unknown", "company_name": ticker,
-                }
-            if sd is not None:
-                cr      = check_shariah_compliance(ticker, sd)
-                verdict = cr["verdict"]
-                v_color = {"COMPLIANT": C_GREEN, "NON-COMPLIANT": C_RED, "QUESTIONABLE": C_YELLOW}[verdict]
-                v_bg    = {"COMPLIANT": "rgba(0,229,176,0.05)", "NON-COMPLIANT": "rgba(255,61,87,0.05)",
-                           "QUESTIONABLE": "rgba(255,221,45,0.05)"}[verdict]
-                v_icon  = {"COMPLIANT": "✅", "NON-COMPLIANT": "❌", "QUESTIONABLE": "⚠️"}[verdict]
-
-                st.markdown(
-                    f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};'
-                    f'padding:1.2rem 2rem;margin:1rem 0;text-align:center;">'
-                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#3d5068;'
-                    f'letter-spacing:.15em;text-transform:uppercase;">{sd["company_name"]} ({ticker})</div>'
-                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;'
-                    f'color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{verdict}</div>'
-                    f'<div style="font-size:.78rem;color:#7a8fa8;margin-top:.3rem;">'
-                    f'Sector: {sd["sector"]} | Industry: {sd["industry"]}</div>'
-                    f'</div>', unsafe_allow_html=True)
-
-                st.markdown("#### Screening Criteria Breakdown")
-                cl, cr2 = st.columns(2)
-                with cl:
-                    bs = cr["business"]
-                    if bs["haram_hit"]:
-                        st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>'
-                                    f'Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
-                    elif bs["questionable"]:
-                        st.markdown('<div class="halal-card" style="border-left-color:#ffdd2d">'
-                                    '<b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>',
-                                    unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>'
-                                    f'No Haram core business detected<br>'
-                                    f'<small style="color:#3d5068">Sector: {sd["sector"]}</small></div>',
-                                    unsafe_allow_html=True)
-                    dm = cr["debt_mktcap"]
-                    cc = "halal-card" if dm["pass"] else "halal-card-fail"
-                    st.markdown(f'<div class="{cc}"><b>{"✅" if dm["pass"] else "❌"} Debt / Market Cap</b>'
-                                f'<br>{dm["label"]}</div>', unsafe_allow_html=True)
-                with cr2:
-                    da = cr["debt_assets"]
-                    cc = "halal-card" if da["pass"] else "halal-card-fail"
-                    st.markdown(f'<div class="{cc}"><b>{"✅" if da["pass"] else "❌"} Debt / Total Assets</b>'
-                                f'<br>{da["label"]}</div>', unsafe_allow_html=True)
-                    ca = cr["cash_assets"]
-                    cc = "halal-card" if ca["pass"] else "halal-card-fail"
-                    st.markdown(f'<div class="{cc}"><b>{"✅" if ca["pass"] else "❌"} Cash / Total Assets</b>'
-                                f'<br>{ca["label"]}</div>', unsafe_allow_html=True)
-
-                st.markdown("#### Financial Snapshot")
-                f1, f2, f3, f4 = st.columns(4)
-                f1.metric("Market Cap",   f'${sd["market_cap"]/1e9:.2f}B')
-                f2.metric("Total Debt",   f'${sd["total_debt"]/1e9:.2f}B')
-                f3.metric("Total Assets", f'${sd["total_assets"]/1e9:.2f}B')
-                f4.metric("Cash",         f'${sd["total_cash"]/1e9:.2f}B')
-
-                st.markdown(
-                    '<div style="background:#0d1117;border:1px solid #182030;padding:.7rem 1.2rem;'
-                    'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3d5068;margin-top:1rem;">'
-                    '⚠ Automated screen based on AAOIFI Standard No.21. '
-                    'Does not constitute a fatwa. Consult a qualified Islamic finance scholar for binding rulings.</div>',
-                    unsafe_allow_html=True)
-
-        # ── Download ───────────────────────────────────────────────────────────────
-        st.subheader("Download Report")
-        export_df = df[['Open','High','Low','Close','Volume',
-                        'MA50','MA200','RSI','MACD','BB_Upper','BB_Lower','ATR']].copy()
-        csv_hist    = export_df.to_csv().encode('utf-8')
-        csv_signals = signal_df.to_csv(index=False).encode('utf-8')
-        csv_future  = future_df.to_csv(index=False).encode('utf-8')
-
-        dl1, dl2, dl3 = st.columns(3)
-        with dl1:
-            st.download_button("⬇ Historical Data + Indicators", data=csv_hist,
-                               file_name=f"{ticker}_historical.csv", mime="text/csv")
-        with dl2:
-            st.download_button("⬇ Buy/Sell Signals", data=csv_signals,
-                               file_name=f"{ticker}_signals.csv", mime="text/csv")
-        with dl3:
-            st.download_button("⬇ Forecast Data", data=csv_future,
-                               file_name=f"{ticker}_forecast.csv", mime="text/csv")
-
-        # ── Multi-Stock Comparison ─────────────────────────────────────────────
-        if compare_tickers:
-            st.subheader(f"Multi-Stock Comparison vs {ticker}")
-            st.markdown(
-                f'<div class="model-badge">🔥 COMPARING: {ticker} + {", ".join(compare_tickers[:4])}'
-                f' — Live Composite Signal Ranking</div>',
-                unsafe_allow_html=True)
-
-            compare_results = []
-            for ct in [ticker] + compare_tickers[:4]:
+    
+            # ── Per-Indicator Breakdown ────────────────────────────────────────────
+            st.markdown('<div class="composite-meter"><div class="meter-title">⚙ Per-Indicator Signal Breakdown</div>', unsafe_allow_html=True)
+    
+            indicator_rows_html = ""
+            for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
+                bar_width = min(100, abs(ind_score) / 35 * 100)
+                sig_class = ind_sig.lower() if ind_sig in ('BUY','SELL') else 'hold'
+                indicator_rows_html += f"""
+                <div class="signal-indicator-row">
+                    <span class="sir-label">{ind_name}</span>
+                    <div class="sir-bar-bg"><div class="sir-bar {ind_class}" style="width:{bar_width:.0f}%;"></div></div>
+                    <span class="sir-val">{ind_val:.2f}</span>
+                    <span class="sir-signal {sig_class}">{ind_sig}</span>
+                </div>"""
+    
+            st.markdown(indicator_rows_html + '</div>', unsafe_allow_html=True)
+    
+            # ── Why This Signal? Human-readable explanation ────────────────────────
+            reason_lines = []
+            emoji_map = {'BUY': '🟢', 'SELL': '🔴', 'HOLD': '🟡'}
+            for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
+                if ind_sig == 'BUY':
+                    if ind_name == 'XGBoost Forecast':
+                        reason_lines.append(f"🟢 XGBoost model predicts <b style='color:#00e5b0;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                    elif ind_name == 'RSI (14)':
+                        reason_lines.append(f"🟢 RSI is <b style='color:#00e5b0;'>{ind_val:.1f}</b> — {'oversold territory' if ind_val < 30 else 'leaning oversold'}")
+                    elif ind_name == 'MACD Cross':
+                        reason_lines.append(f"🟢 MACD shows {'fresh bullish crossover' if abs(ind_score) >= 20 else 'bullish momentum'}")
+                    elif ind_name == 'Bollinger %B':
+                        reason_lines.append(f"🟢 Price near lower Bollinger Band (%B = {ind_val:.2f}) — potential bounce")
+                    elif ind_name == 'MA Cross':
+                        reason_lines.append(f"🟢 MA50 above MA200 — Golden Cross (uptrend)")
+                    elif ind_name == 'Volume':
+                        reason_lines.append(f"🟢 Volume {ind_val:.1f}× average confirms buying pressure")
+                elif ind_sig == 'SELL':
+                    if ind_name == 'XGBoost Forecast':
+                        reason_lines.append(f"🔴 XGBoost model predicts <b style='color:#ff3d57;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                    elif ind_name == 'RSI (14)':
+                        reason_lines.append(f"🔴 RSI is <b style='color:#ff3d57;'>{ind_val:.1f}</b> — {'overbought territory' if ind_val > 70 else 'leaning overbought'}")
+                    elif ind_name == 'MACD Cross':
+                        reason_lines.append(f"🔴 MACD shows {'fresh bearish crossover' if abs(ind_score) >= 20 else 'bearish momentum'}")
+                    elif ind_name == 'Bollinger %B':
+                        reason_lines.append(f"🔴 Price near upper Bollinger Band (%B = {ind_val:.2f}) — potential reversal")
+                    elif ind_name == 'MA Cross':
+                        reason_lines.append(f"🔴 MA50 below MA200 — Death Cross (downtrend)")
+                    elif ind_name == 'Volume':
+                        reason_lines.append(f"🔴 Volume {ind_val:.1f}× average confirms selling pressure")
+                else:
+                    if ind_name == 'XGBoost Forecast':
+                        reason_lines.append(f"🟡 XGBoost predicts only {xgb_pct:+.2f}% — not enough directional conviction")
+    
+            border_color = '#00e5b0' if verdict_short == 'BUY' else '#ff3d57' if verdict_short == 'SELL' else '#ffdd2d'
+            reasons_html = "".join(
+                f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#7a8fa8;">{r}</div>'
+                for r in reason_lines
+            )
+            st.markdown(f"""
+            <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid {border_color};
+                 padding:1.1rem 1.5rem;margin:.8rem 0;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.18em;
+                   text-transform:uppercase;color:#3d5068;margin-bottom:.7rem;">
+                💡 Why This Signal? — <span style="color:{border_color};">{verdict}</span>
+              </div>
+              <div style="font-family:'IBM Plex Sans',sans-serif;line-height:1.7;">
+                {reasons_html if reasons_html else '<span style="color:#3d5068;font-size:.8rem;">All indicators neutral — no strong directional edge detected.</span>'}
+              </div>
+              <div style="margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border);
+                   font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#3d5068;">
+                ⚠ Technical signals use price & volume only. See News Sentiment section below for headline analysis.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+            # ── Historical signal list ─────────────────────────────────────────────
+            signal_list = []
+            for i in range(len(preds)):
+                diff_pct = (preds[i] - actual[i]) / actual[i] * 100
+                if diff_pct > 1.0:
+                    signal_list.append("BUY")
+                elif diff_pct < -1.0:
+                    signal_list.append("SELL")
+                else:
+                    signal_list.append("HOLD")
+    
+            buy_idx  = [i for i, s in enumerate(signal_list) if s == "BUY"]
+            sell_idx = [i for i, s in enumerate(signal_list) if s == "SELL"]
+    
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(y=actual, name="Actual Price",
+                line=dict(color=C_GREY, width=1)))
+            fig2.add_trace(go.Scatter(x=buy_idx,  y=[actual[i] for i in buy_idx],
+                mode='markers', name='BUY',
+                marker=dict(color=C_GREEN, symbol='triangle-up', size=10,
+                            line=dict(width=1, color='#080b0f'))))
+            fig2.add_trace(go.Scatter(x=sell_idx, y=[actual[i] for i in sell_idx],
+                mode='markers', name='SELL',
+                marker=dict(color=C_RED, symbol='triangle-down', size=10,
+                            line=dict(width=1, color='#080b0f'))))
+            # Add stop-loss and take-profit reference lines
+            fig2.add_hline(y=stop_loss,   line_dash="dot", line_color=C_RED,    line_width=1,
+                           annotation_text=f"Stop ${stop_loss:.2f}", annotation_font=dict(color=C_RED,   size=9))
+            fig2.add_hline(y=take_profit, line_dash="dot", line_color=C_GREEN,  line_width=1,
+                           annotation_text=f"Target ${take_profit:.2f}", annotation_font=dict(color=C_GREEN, size=9))
+            fig2.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · Signal Map — BUY ▲ / SELL ▼ (XGBoost ±1% threshold) · SL/TP lines shown",
+                           font=dict(color=C_GREEN, size=12)),
+                height=380)
+            st.plotly_chart(fig2, use_container_width=True)
+    
+            signal_df = pd.DataFrame({
+                "Day":               range(1, len(signal_list) + 1),
+                "Actual Price ($)":  [f"${p:.2f}" for p in actual],
+                "Predicted ($)":     [f"${p:.2f}" for p in preds],
+                "Signal":            signal_list,
+                "Δ%":                [f"{(preds[i]-actual[i])/actual[i]*100:+.2f}%" for i in range(len(preds))],
+            })
+            st.dataframe(signal_df.tail(10), use_container_width=True, hide_index=True)
+    
+            st.divider()
+    
+            # ══════════════════════════════════════════════════════════════════════
+            # ── 📰 NEWS SENTIMENT ANALYSIS ────────────────────────────────────────
+            # ══════════════════════════════════════════════════════════════════════
+            st.subheader("📰 News Sentiment")
+            st.caption("Live headlines fetched from Yahoo Finance · Sentiment scored via TextBlob NLP")
+    
+            @st.cache_data(ttl=900)   # cache 15 min so reruns don't re-fetch
+            def fetch_news_headlines(sym):
+                """Fetch recent news headlines for a ticker via yfinance (no API key needed)."""
                 try:
-                    with st.spinner(f"Fetching {ct}..."):
-                        cdf = fetch_data(ct, start_date, end_date)
-                    if cdf.empty or len(cdf) < 60:
-                        continue
-                    cdf = add_technical_features(cdf)
-                    cX, cy = build_xgb_dataset(cdf, seq_len)
-                    if len(cX) < 30:
-                        continue
-                    csplit = int(len(cX) * 0.8)
-                    cmodel = XGBRegressor(n_estimators=150, max_depth=4,
-                                          learning_rate=0.05, subsample=0.8,
-                                          colsample_bytree=0.8, random_state=42, verbosity=0)
-                    cmodel.fit(cX[:csplit], cy[:csplit], verbose=False)
-                    cpred_last = float(cmodel.predict(cX[-1].reshape(1, -1))[0])
-                    c_last_close = float(cdf['Close'].squeeze().iloc[-1])
-                    ccomp = compute_composite_signal(cdf, c_last_close, cpred_last, cmodel.predict(cX), cy)
-                    crmse = float(np.sqrt(np.mean((cmodel.predict(cX[csplit:]) - cy[csplit:])**2)))
-                    crsi  = float(cdf['RSI'].squeeze().iloc[-1])
-                    compare_results.append({
-                        'Ticker':        ct,
-                        'Last Price':    f"${c_last_close:.2f}",
-                        'Signal':        ccomp['verdict'],
-                        'Score':         ccomp['total_score'],
-                        'Forecast Δ%':   f"{ccomp['xgb_pct']:+.2f}%",
-                        'RSI':           f"{crsi:.1f}",
-                        'Stop Loss':     f"${ccomp['stop_loss']:.2f}",
-                        'Take Profit':   f"${ccomp['take_profit']:.2f}",
-                        'Risk:Reward':   f"{ccomp['risk_reward']:.2f}×",
-                        'RMSE ($)':      f"${crmse:.2f}",
-                    })
-                except Exception as e:
-                    st.warning(f"Could not process {ct}: {e}")
-                    continue
-
-            if compare_results:
-                comp_df = pd.DataFrame(compare_results).sort_values('Score', ascending=False)
-
-                # Colour-coded signal column
-                def signal_color_html(row):
-                    sc = {'STRONG BUY': '#00e5b0', 'BUY': '#00e5b0',
-                          'STRONG SELL': '#ff3d57', 'SELL': '#ff3d57'}.get(row['Signal'], '#ffdd2d')
-                    return (f'<span style="color:{sc};font-weight:700;font-family:IBM Plex Mono,'
-                            f'monospace;font-size:.75rem;">{row["Signal"]}</span>')
-
-                rows_html = ""
-                for _, row in comp_df.iterrows():
-                    sc = '#00e5b0' if row['Score'] > 0 else '#ff3d57' if row['Score'] < 0 else '#ffdd2d'
-                    sig_html = {'STRONG BUY': '<span style="color:#00e5b0;font-weight:800;">⬆ STRONG BUY</span>',
-                                'BUY':        '<span style="color:#00e5b0;font-weight:700;">▲ BUY</span>',
-                                'STRONG SELL':'<span style="color:#ff3d57;font-weight:800;">⬇ STRONG SELL</span>',
-                                'SELL':       '<span style="color:#ff3d57;font-weight:700;">▼ SELL</span>',
-                                'HOLD':       '<span style="color:#ffdd2d;font-weight:700;">◆ HOLD</span>'}.get(row['Signal'], row['Signal'])
-                    rows_html += f"""
-                    <tr style="border-bottom:1px solid #182030;">
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;font-weight:700;
-                          color:#eef2f7;font-size:.85rem;">{row['Ticker']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['Last Price']}</td>
-                      <td style="padding:.55rem .8rem;">{sig_html}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
-                          color:{sc};font-weight:700;">{row['Score']:+.0f}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
-                          color:{'#00e5b0' if '+' in row['Forecast Δ%'] else '#ff3d57'};">{row['Forecast Δ%']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['RSI']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#ff3d57;">{row['Stop Loss']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#00e5b0;">{row['Take Profit']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['Risk:Reward']}</td>
-                    </tr>"""
-
-                st.markdown(f"""
-                <div style="overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;background:#0d1117;
-                       border:1px solid #182030;font-size:.8rem;">
-                  <thead>
-                    <tr style="border-bottom:2px solid #243346;">
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Ticker</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Price</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Signal</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Score</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Forecast Δ</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">RSI</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Stop Loss</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Take Profit</th>
-                      <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">R:R</th>
-                    </tr>
-                  </thead>
-                  <tbody>{rows_html}</tbody>
-                </table>
+                    tk   = yf.Ticker(sym)
+                    news = tk.news or []
+                    out  = []
+                    for item in news[:10]:
+                        title     = item.get("title", "")
+                        publisher = item.get("publisher", "")
+                        link      = item.get("link", "")
+                        ts        = item.get("providerPublishTime", 0)
+                        age_h     = int((pd.Timestamp.now().timestamp() - ts) / 3600) if ts else 0
+                        if title:
+                            out.append({"title": title, "publisher": publisher,
+                                        "link": link, "age_h": age_h})
+                    return out
+                except Exception:
+                    return []
+    
+            def analyze_sentiment_textblob(headlines):
+                """Score each headline with TextBlob polarity (-1 → +1)."""
+                try:
+                    from textblob import TextBlob
+                except ImportError:
+                    return None, []          # TextBlob not installed — handled below
+    
+                scored = []
+                for h in headlines:
+                    pol = TextBlob(h["title"]).sentiment.polarity
+                    sub = TextBlob(h["title"]).sentiment.subjectivity
+                    scored.append({**h, "polarity": pol, "subjectivity": sub})
+                return scored
+    
+            def sentiment_label(avg_pol):
+                if avg_pol >= 0.15:
+                    return "VERY POSITIVE", "#00e5b0", "🟢"
+                elif avg_pol >= 0.03:
+                    return "POSITIVE",      "#00e5b0", "🟢"
+                elif avg_pol <= -0.15:
+                    return "VERY NEGATIVE", "#ff3d57", "🔴"
+                elif avg_pol <= -0.03:
+                    return "NEGATIVE",      "#ff3d57", "🔴"
+                else:
+                    return "NEUTRAL",       "#ffdd2d", "⚪"
+    
+            with st.spinner("Fetching latest news…"):
+                headlines = fetch_news_headlines(ticker)
+    
+            if not headlines:
+                st.info("No recent news found for this ticker. Try a major index stock like AAPL, TSLA, MSFT.")
+            else:
+                scored = analyze_sentiment_textblob(headlines)
+    
+                if scored is None:
+                    # TextBlob missing — show headlines only, no scores
+                    st.warning("Install `textblob` in requirements.txt for sentiment scoring. Showing headlines only.")
+                    for h in headlines:
+                        st.markdown(f"🔹 [{h['title']}]({h['link']})  \n"
+                                    f"<span style='font-size:.72rem;color:#3d5068;'>"
+                                    f"{h['publisher']} · {h['age_h']}h ago</span>",
+                                    unsafe_allow_html=True)
+                else:
+                    polarities  = [s["polarity"] for s in scored]
+                    avg_polarity = sum(polarities) / len(polarities) if polarities else 0
+                    label, sent_color, sent_icon = sentiment_label(avg_polarity)
+    
+                    # ── Overall Sentiment Banner ───────────────────────────────────
+                    bullish_count  = sum(1 for p in polarities if p >  0.03)
+                    bearish_count  = sum(1 for p in polarities if p < -0.03)
+                    neutral_count  = len(polarities) - bullish_count - bearish_count
+    
+                    ns1, ns2, ns3, ns4 = st.columns(4)
+                    ns1.metric("📰 News Sentiment", f"{sent_icon} {label}")
+                    ns2.metric("Avg Polarity Score", f"{avg_polarity:+.3f}",
+                               delta="Bullish lean" if avg_polarity > 0.03
+                                     else "Bearish lean" if avg_polarity < -0.03 else "Neutral",
+                               delta_color="normal" if avg_polarity > 0.03
+                                           else "inverse" if avg_polarity < -0.03 else "off")
+                    ns3.metric("🟢 Positive Headlines", bullish_count)
+                    ns4.metric("🔴 Negative Headlines", bearish_count)
+    
+                    # ── Combined Signal Banner (AI + News) ────────────────────────
+                    _tech_bull = verdict_short == "BUY"
+                    _tech_bear = verdict_short == "SELL"
+                    _news_bull = avg_polarity > 0.03
+                    _news_bear = avg_polarity < -0.03
+    
+                    if _tech_bull and _news_bull:
+                        combo_label = "⬆ STRONG CONFLUENCE — Technical BUY + Positive News"
+                        combo_color = "#00e5b0"
+                    elif _tech_bear and _news_bear:
+                        combo_label = "⬇ STRONG CONFLUENCE — Technical SELL + Negative News"
+                        combo_color = "#ff3d57"
+                    elif _tech_bull and _news_bear:
+                        combo_label = "⚠ DIVERGENCE — Technical BUY but Negative News sentiment"
+                        combo_color = "#ffdd2d"
+                    elif _tech_bear and _news_bull:
+                        combo_label = "⚠ DIVERGENCE — Technical SELL but Positive News sentiment"
+                        combo_color = "#ffdd2d"
+                    else:
+                        combo_label = "◆ MIXED — No strong confluence between technicals and news"
+                        combo_color = "#3d5068"
+    
+                    st.markdown(
+                        f'<div style="background:rgba(255,255,255,0.02);border:1px solid {combo_color};'
+                        f'border-left:4px solid {combo_color};padding:.8rem 1.4rem;margin:.6rem 0 1rem 0;'
+                        f'font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{combo_color};'
+                        f'letter-spacing:.04em;">🧠 Combined Intelligence: {combo_label}</div>',
+                        unsafe_allow_html=True
+                    )
+    
+                    # ── Headlines with per-article sentiment bars ──────────────────
+                    with st.expander(f"📋 {len(scored)} Recent Headlines — click to expand", expanded=True):
+                        for h in scored:
+                            pol   = h["polarity"]
+                            _hcol = "#00e5b0" if pol > 0.03 else "#ff3d57" if pol < -0.03 else "#ffdd2d"
+                            _hico = "🟢" if pol > 0.03 else "🔴" if pol < -0.03 else "⚪"
+                            _bar_pct = min(100, int(abs(pol) * 300))   # scale to visible width
+    
+                            st.markdown(
+                                f'<div style="padding:.55rem 0;border-bottom:1px solid #182030;">'
+                                f'  <div style="display:flex;align-items:flex-start;gap:.6rem;">'
+                                f'    <span style="font-size:.9rem;margin-top:.05rem;">{_hico}</span>'
+                                f'    <div style="flex:1;">'
+                                f'      <a href="{h["link"]}" target="_blank" style="color:#eef2f7;'
+                                f'         font-family:IBM Plex Sans,sans-serif;font-size:.82rem;'
+                                f'         text-decoration:none;line-height:1.4;">{h["title"]}</a>'
+                                f'      <div style="display:flex;align-items:center;gap:.8rem;margin-top:.3rem;">'
+                                f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
+                                f'               color:#3d5068;">{h["publisher"]} · {h["age_h"]}h ago</span>'
+                                f'        <div style="flex:1;max-width:120px;height:3px;'
+                                f'             background:#182030;border-radius:2px;">'
+                                f'          <div style="width:{_bar_pct}%;height:100%;'
+                                f'               background:{_hcol};border-radius:2px;"></div></div>'
+                                f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
+                                f'               color:{_hcol};">{pol:+.3f}</span>'
+                                f'      </div>'
+                                f'    </div>'
+                                f'  </div>'
+                                f'</div>',
+                                unsafe_allow_html=True
+                            )
+    
+                    # ── Polarity distribution mini chart ──────────────────────────
+                    if len(scored) >= 3:
+                        fig_sent = go.Figure()
+                        titles_short = [s["title"][:40] + "…" if len(s["title"]) > 40
+                                        else s["title"] for s in scored]
+                        bar_colors   = [C_GREEN if p > 0.03 else C_RED if p < -0.03 else C_YELLOW
+                                        for p in polarities]
+                        fig_sent.add_trace(go.Bar(
+                            x=polarities, y=titles_short,
+                            orientation="h",
+                            marker_color=bar_colors,
+                            text=[f"{p:+.3f}" for p in polarities],
+                            textposition="outside",
+                            textfont=dict(family="IBM Plex Mono", size=9, color="#7a8fa8"),
+                        ))
+                        fig_sent.add_vline(x=0, line_color="#243346", line_width=1)
+                        fig_sent.add_vline(x=avg_polarity, line_color=sent_color,
+                                           line_dash="dot", line_width=1.5,
+                                           annotation_text=f"avg {avg_polarity:+.3f}",
+                                           annotation_font=dict(color=sent_color, size=9))
+                        _sent_layout = {**PLOTLY_LAYOUT, "margin": dict(l=10, r=80, t=30, b=10)}
+                        fig_sent.update_layout(
+                            **_sent_layout,
+                            title=dict(text=f"{ticker} · Headline Sentiment Polarity (TextBlob)",
+                                       font=dict(color=C_GREEN, size=11)),
+                            height=max(220, len(scored) * 32),
+                            xaxis_title="Polarity (negative ← 0 → positive)",
+                            xaxis=dict(range=[-1, 1], gridcolor="#182030",
+                                       linecolor="#182030", zeroline=False,
+                                       tickfont=dict(color="#3d5068", size=9)),
+                        )
+                        st.plotly_chart(fig_sent, use_container_width=True)
+    
+                    st.caption("⚠ Sentiment is based on headline text only — not article content. "
+                               "Use as a supplementary signal, not a sole decision factor.")
+    
+            st.divider()
+    
+            # ── Future Forecast ────────────────────────────────────────────────────────
+            st.subheader(f"Forecast — Next {future_days} Days")
+            future_prices    = []
+            last_known_close = float(df['Close'].squeeze().iloc[-1])
+            last_row_feats   = X[-1].copy()
+            current_close    = last_known_close
+    
+            for d in range(future_days):
+                next_pred = float(model.predict(last_row_feats.reshape(1, -1))[0])
+                future_prices.append(next_pred)
+                n_tech         = len(feature_cols)
+                lags           = last_row_feats[n_tech:]
+                new_lags       = np.append(lags[1:], next_pred)
+                last_row_feats = np.concatenate([last_row_feats[:n_tech], new_lags])
+                current_close  = next_pred
+    
+            trend_color = C_GREEN if future_prices[-1] > last_close else C_RED
+    
+            # Build expanding uncertainty band even without full bootstrap (lightweight ±σ proxy)
+            price_std    = float(df['Close'].squeeze().pct_change().std())  # daily vol
+            decay_upper  = [future_prices[i] * (1 + price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
+            decay_lower  = [future_prices[i] * (1 - price_std * np.sqrt(i + 1) * 1.5) for i in range(future_days)]
+    
+            fig3 = go.Figure()
+            # Expanding uncertainty shading
+            fig3.add_trace(go.Scatter(
+                x=list(range(future_days)), y=decay_upper,
+                line=dict(color="rgba(0,229,176,0)"), showlegend=False, hoverinfo="skip"))
+            fig3.add_trace(go.Scatter(
+                x=list(range(future_days)), y=decay_lower,
+                name="Uncertainty band", fill="tonexty",
+                fillcolor="rgba(0,229,176,0.07)", line=dict(color="rgba(0,229,176,0)"), hoverinfo="skip"))
+    
+            fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
+                           annotation_text=f"Last close ${last_close:.2f}",
+                           annotation_font_color=C_GREY)
+            if alert_price > 0:
+                fig3.add_hline(y=alert_price, line_dash="dash", line_color=C_YELLOW,
+                               annotation_text=f"Target ${alert_price:.2f}",
+                               annotation_font_color=C_YELLOW)
+            fig3.add_trace(go.Scatter(
+                x=list(range(future_days)), y=future_prices,
+                mode='lines+markers', name='XGBoost Forecast',
+                line=dict(color=trend_color, width=2),
+                marker=dict(size=7, color=trend_color, line=dict(width=1, color="#080b0f"))
+            ))
+            # Vertical reliability boundary at day 5
+            if future_days > 5:
+                fig3.add_vline(x=4.5, line_dash="dot", line_color="#243346",
+                               annotation_text="↑ Higher confidence  |  Lower confidence ↓",
+                               annotation_font=dict(color="#3d5068", size=9),
+                               annotation_position="top")
+    
+            fig3.update_layout(**PLOTLY_LAYOUT,
+                title=dict(text=f"{ticker} · {future_days}-Day Price Forecast (XGBoost) · Band shows ±1.5σ uncertainty growth",
+                           font=dict(color=C_GREEN, size=12)),
+                xaxis_title="Days from today", yaxis_title="Price (USD)", height=380)
+            st.plotly_chart(fig3, use_container_width=True)
+    
+            if future_days > 5:
+                st.markdown(
+                    '<div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.2);'
+                    'border-left:3px solid #ffdd2d;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
+                    'font-size:0.7rem;color:#ffdd2d;letter-spacing:.05em;margin-top:-.5rem;">'
+                    '⚠ Forecast reliability decreases significantly beyond Day 5. '
+                    'Errors compound in iterative multi-step prediction. Use Days 6+ as directional signals only.'
+                    '</div>', unsafe_allow_html=True)
+    
+            future_df = pd.DataFrame({
+                "Day":                 [f"+{i+1}" for i in range(future_days)],
+                "Predicted Price ($)": [f"${p:.2f}" for p in future_prices],
+                "vs Last Close":       [f"{'▲' if p > last_close else '▼'} {abs(p - last_close):.2f}"
+                                        f" ({(p-last_close)/last_close*100:+.2f}%)" for p in future_prices]
+            })
+            st.dataframe(future_df, use_container_width=True, hide_index=True)
+    
+            # ── Backtesting ────────────────────────────────────────────────────────────
+            if run_backtest and not fast_mode:
+                st.subheader("Backtesting Engine")
+                st.markdown(
+                    f'<div class="model-badge">STRATEGY: XGBoost Signal ±{bt_signal_threshold}% '
+                    f'| Capital: ${bt_initial_capital:,.0f} | Commission: ${bt_commission}/trade</div>',
+                    unsafe_allow_html=True)
+    
+                with st.spinner("Running backtest simulation..."):
+                    bt = run_backtest_engine(
+                        actual_prices=actual, predicted_prices=preds,
+                        initial_capital=bt_initial_capital,
+                        commission=bt_commission, threshold_pct=bt_signal_threshold,
+                    )
+    
+                strat_color = "bt-card-value-green" if bt["strat_return"] >= 0 else "bt-card-value-red"
+                bh_color    = "bt-card-value-green" if bt["bh_return"]    >= 0 else "bt-card-value-red"
+                dd_color    = "bt-card-value-red"   if bt["max_drawdown"] < -10 else "bt-card-value"
+                sh_color    = "bt-card-value-green" if bt["sharpe"]       >= 1  else "bt-card-value-red"
+    
+                k1, k2, k3, k4 = st.columns(4)
+                k1.markdown(f'<div class="bt-card"><div class="bt-card-label">Strategy Return</div>'
+                            f'<div class="{strat_color}">{bt["strat_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
+                k2.markdown(f'<div class="bt-card"><div class="bt-card-label">Buy &amp; Hold Return</div>'
+                            f'<div class="{bh_color}">{bt["bh_return"]:+.2f}%</div></div>', unsafe_allow_html=True)
+                k3.markdown(f'<div class="bt-card"><div class="bt-card-label">Max Drawdown</div>'
+                            f'<div class="{dd_color}">{bt["max_drawdown"]:.2f}%</div></div>', unsafe_allow_html=True)
+                k4.markdown(f'<div class="bt-card"><div class="bt-card-label">Sharpe Ratio</div>'
+                            f'<div class="{sh_color}">{bt["sharpe"]:.2f}</div></div>', unsafe_allow_html=True)
+    
+                k5, k6, k7, k8 = st.columns(4)
+                k5.markdown(f'<div class="bt-card"><div class="bt-card-label">Final Capital</div>'
+                            f'<div class="bt-card-value">${bt["final_capital"]:,.0f}</div></div>', unsafe_allow_html=True)
+                k6.markdown(f'<div class="bt-card"><div class="bt-card-label">Total Trades</div>'
+                            f'<div class="bt-card-value">{bt["total_trades"]}</div></div>', unsafe_allow_html=True)
+                k7.markdown(f'<div class="bt-card"><div class="bt-card-label">Win Rate</div>'
+                            f'<div class="bt-card-value">{bt["win_rate"]:.1f}%</div></div>', unsafe_allow_html=True)
+                k8.markdown(f'<div class="bt-card"><div class="bt-card-label">Profit Factor</div>'
+                            f'<div class="bt-card-value">{bt["profit_factor"]:.2f}x</div></div>', unsafe_allow_html=True)
+    
+                # Equity Curve
+                fig_eq = go.Figure()
+                fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy",
+                    line=dict(color=C_GREEN, width=2),
+                    fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
+                fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold",
+                    line=dict(color=C_BLUE, width=1.5, dash="dot")))
+                fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY,
+                                 annotation_text=f"Start ${bt_initial_capital:,}",
+                                 annotation_font_color=C_GREY)
+                fig_eq.update_layout(**PLOTLY_LAYOUT,
+                    title=dict(text=f"{ticker} · Strategy Equity Curve vs Buy & Hold",
+                               font=dict(color=C_GREEN, size=12)),
+                    yaxis_title="Portfolio Value ($)", xaxis_title="Trading Day (test set)", height=380)
+                st.plotly_chart(fig_eq, use_container_width=True)
+    
+                # Drawdown
+                fig_dd = go.Figure()
+                fig_dd.add_trace(go.Scatter(y=[d * 100 for d in bt["drawdown_series"]],
+                    name="Drawdown", line=dict(color=C_RED, width=1.5),
+                    fill="tozeroy", fillcolor="rgba(255,61,87,0.07)"))
+                fig_dd.update_layout(**PLOTLY_LAYOUT,
+                    title=dict(text=f"{ticker} · Strategy Drawdown (%)", font=dict(color=C_RED, size=12)),
+                    yaxis_title="Drawdown (%)", xaxis_title="Trading Day (test set)", height=250)
+                st.plotly_chart(fig_dd, use_container_width=True)
+    
+                # Trade log
+                if not bt["trades_df"].empty:
+                    st.markdown("#### Trade Log")
+                    display_trades = bt["trades_df"].copy()
+                    display_trades["Price"]   = display_trades["Price"].apply(lambda x: f"${x:.2f}")
+                    display_trades["Capital"] = display_trades["Capital"].apply(lambda x: f"${x:,.0f}")
+                    if "P&L" in display_trades.columns:
+                        display_trades["P&L"] = display_trades["P&L"].apply(
+                            lambda x: f"+${x:.2f}" if pd.notna(x) and x >= 0 else (f"-${abs(x):.2f}" if pd.notna(x) else "-"))
+                    st.dataframe(display_trades, use_container_width=True, hide_index=True)
+                    csv_bt = bt["trades_df"].to_csv(index=False).encode("utf-8")
+                    st.download_button("⬇ Download Trade Log", data=csv_bt,
+                                       file_name=f"{ticker}_trades.csv", mime="text/csv")
+    
+            # ── Confidence Intervals ───────────────────────────────────────────────────
+            if show_conf_interval:
+                st.subheader("Forecast with Confidence Intervals")
+                st.markdown('<div class="ci-badge">95% CI — Bootstrap Resampling</div>', unsafe_allow_html=True)
+    
+                with st.spinner(f"Running {ci_bootstrap_n} bootstrap samples..."):
+                    ci_lower, ci_median, ci_upper = bootstrap_confidence_intervals(
+                        model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
+    
+                fig_ci = go.Figure()
+                fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,229,176,0)"),
+                    showlegend=False))
+                fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band",
+                    fill="tonexty", fillcolor="rgba(0,229,176,0.10)",
+                    line=dict(color="rgba(0,229,176,0)")))
+                fig_ci.add_trace(go.Scatter(y=actual, name="Actual",
+                    line=dict(color=C_BLUE, width=1.5)))
+                fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median",
+                    line=dict(color=C_GREEN, width=1.8, dash="dot")))
+                fig_ci.update_layout(**PLOTLY_LAYOUT,
+                    title=dict(text=f"{ticker} · Predictions with 95% CI", font=dict(color=C_GREEN, size=12)),
+                    height=380, yaxis_title="Price ($)", xaxis_title="Trading Day (test set)")
+                st.plotly_chart(fig_ci, use_container_width=True)
+    
+                # Future CI
+                future_all = []
+                for _ in range(ci_bootstrap_n):
+                    fp, lrf = [], X[-1].copy()
+                    for d in range(future_days):
+                        nxt = float(model.predict((lrf + np.random.normal(0, 0.015, lrf.shape)).reshape(1,-1))[0])
+                        fp.append(nxt)
+                        n_tech = len(feature_cols)
+                        lrf    = np.concatenate([lrf[:n_tech], np.append(lrf[n_tech+1:], nxt)])
+                    future_all.append(fp)
+                fa = np.array(future_all)
+                fut_l, fut_m, fut_u = (np.percentile(fa, 5,  axis=0),
+                                       np.percentile(fa, 50, axis=0),
+                                       np.percentile(fa, 95, axis=0))
+    
+                fig_fci = go.Figure()
+                fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_u,
+                    line=dict(color="rgba(0,229,176,0)"), showlegend=False))
+                fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_l,
+                    name="95% CI", fill="tonexty", fillcolor="rgba(0,229,176,0.12)",
+                    line=dict(color="rgba(0,229,176,0)")))
+                fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_m,
+                    name="Forecast", mode="lines+markers",
+                    line=dict(color=C_GREEN, width=2), marker=dict(size=7)))
+                fig_fci.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
+                    annotation_text=f"Last close ${last_close:.2f}", annotation_font_color=C_GREY)
+                fig_fci.update_layout(**PLOTLY_LAYOUT,
+                    title=dict(text=f"{ticker} · {future_days}-Day Forecast with 95% CI",
+                        font=dict(color=C_GREEN, size=12)),
+                    xaxis_title="Days from today", yaxis_title="Price ($)", height=350)
+                st.plotly_chart(fig_fci, use_container_width=True)
+    
+            # ── Model Comparison ───────────────────────────────────────────────────────
+            if run_model_compare:
+                st.subheader("Model Comparison — XGBoost vs Prophet vs Linear Regression")
+                from sklearn.linear_model import LinearRegression as LR
+                cmp = {}
+                cmp["XGBoost"] = {"preds": preds, "color": C_GREEN,
+                    "rmse": float(np.sqrt(mean_squared_error(actual, preds))),
+                    "mae":  float(mean_absolute_error(actual, preds)),
+                    "mape": float(np.mean(np.abs((actual-preds)/actual))*100),
+                    "r2":   float(1 - np.sum((actual-preds)**2)/np.sum((actual-np.mean(actual))**2))}
+    
+                with st.spinner("Training Linear Regression..."):
+                    lr_m = LR(); lr_m.fit(X_train, y_train); lr_p = lr_m.predict(X_test)
+                cmp["Linear Regression"] = {"preds": lr_p, "color": C_GREY,
+                    "rmse": float(np.sqrt(mean_squared_error(actual, lr_p))),
+                    "mae":  float(mean_absolute_error(actual, lr_p)),
+                    "mape": float(np.mean(np.abs((actual-lr_p)/actual))*100),
+                    "r2":   float(1 - np.sum((actual-lr_p)**2)/np.sum((actual-np.mean(actual))**2))}
+    
+                try:
+                    from prophet import Prophet
+                    cs_full = df["Close"].squeeze()
+                    pdf = pd.DataFrame({"ds": df.index[:len(cs_full)], "y": cs_full.values}).dropna()
+                    ptr = pdf.iloc[:int(len(pdf)*0.8)]; pte = pdf.iloc[int(len(pdf)*0.8):]
+                    with st.spinner("Training Prophet..."):
+                        pm = Prophet(daily_seasonality=False, weekly_seasonality=True,
+                                     yearly_seasonality=True, changepoint_prior_scale=0.05)
+                        pm.fit(ptr)
+                        pfut  = pm.make_future_dataframe(periods=len(pte), freq="B")
+                        pfcst = pm.predict(pfut)
+                        pp    = pfcst["yhat"].values[-len(pte):]
+                        pa    = pte["y"].values; ml = min(len(pp), len(actual))
+                        pp, pa = pp[:ml], actual[:ml]
+                    cmp["Prophet"] = {"preds": pp, "color": C_YELLOW,
+                        "rmse": float(np.sqrt(mean_squared_error(pa, pp))),
+                        "mae":  float(mean_absolute_error(pa, pp)),
+                        "mape": float(np.mean(np.abs((pa-pp)/pa))*100),
+                        "r2":   float(1 - np.sum((pa-pp)**2)/np.sum((pa-np.mean(pa))**2))}
+                except ImportError:
+                    st.info("Add `prophet` to requirements.txt to enable Prophet comparison.")
+    
+                rows = [{"Model": n, "RMSE ($)": f"${r['rmse']:.2f}", "MAE ($)": f"${r['mae']:.2f}",
+                         "MAPE (%)": f"{r['mape']:.2f}%", "R²": f"{r['r2']:.4f}"}
+                        for n, r in cmp.items()]
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    
+                fig_cmp = go.Figure()
+                fig_cmp.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_BLUE, width=2)))
+                for n, r in cmp.items():
+                    fig_cmp.add_trace(go.Scatter(y=r["preds"], name=n,
+                        line=dict(color=r["color"], width=1.5, dash="dot")))
+                fig_cmp.update_layout(**PLOTLY_LAYOUT,
+                    title=dict(text=f"{ticker} · Model Comparison (Test Set)", font=dict(color=C_GREEN, size=12)),
+                    height=380, yaxis_title="Price ($)")
+                st.plotly_chart(fig_cmp, use_container_width=True)
+    
+                names_l = list(cmp.keys()); rmse_l = [r["rmse"] for r in cmp.values()]
+                best    = names_l[rmse_l.index(min(rmse_l))]
+                fig_b   = go.Figure(go.Bar(x=names_l, y=rmse_l,
+                    marker_color=[r["color"] for r in cmp.values()],
+                    text=[f"${v:.2f}" for v in rmse_l], textposition="outside"))
+                fig_b.update_layout(**PLOTLY_LAYOUT,
+                    title=dict(text=f"RMSE Comparison · Lower is Better · Best: {best}",
+                        font=dict(color=C_GREEN, size=12)),
+                    yaxis_title="RMSE ($)", height=300)
+                st.plotly_chart(fig_b, use_container_width=True)
+    
+            # ── Halal / Shariah ────────────────────────────────────────────────────────
+            if run_halal_check:
+                st.markdown("""
+                <div style="background:rgba(0,229,176,0.03);border:1px solid rgba(0,229,176,0.15);
+                     border-left:4px solid #00e5b0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
+                     display:flex;align-items:center;gap:1rem;">
+                    <div style="font-size:1.4rem;">☪</div>
+                    <div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
+                             text-transform:uppercase;color:#00e5b0;">Halal / Shariah Compliance Screen</div>
+                        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#3d5068;margin-top:2px;">
+                            Automated screening based on AAOIFI Standard No.21 — a unique feature not found in mainstream platforms
+                        </div>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
-
-                csv_compare = comp_df.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇ Download Comparison", data=csv_compare,
-                                   file_name=f"comparison_{ticker}.csv", mime="text/csv")
-
-        st.markdown("---")
-        st.markdown('<div class="stat-row">⚠ For educational purposes only. Not financial advice.</div>',
+                st.markdown(
+                    '<div class="model-badge">Based on AAOIFI Standard No.21 + S&P Shariah Indices Methodology</div>',
                     unsafe_allow_html=True)
-
+    
+                with st.spinner(f"Fetching financial data for {ticker}..."):
+                    sd = get_shariah_data(ticker)
+    
+                if sd is None:
+                    st.warning(
+                        f"⚠ Could not fetch detailed financial data for **{ticker}** from Yahoo Finance. "
+                        "This may be a temporary API issue. The ticker symbol screening will use "
+                        "the known-ticker list only.")
+                    # Build minimal sd from ticker list screening only
+                    sd = {
+                        "debt_to_mktcap": 0, "debt_to_assets": 0, "cash_to_assets": 0,
+                        "market_cap": 0, "total_debt": 0, "total_assets": 0, "total_cash": 0,
+                        "sector": "Unknown", "industry": "Unknown", "company_name": ticker,
+                    }
+                if sd is not None:
+                    cr      = check_shariah_compliance(ticker, sd)
+                    verdict = cr["verdict"]
+                    v_color = {"COMPLIANT": C_GREEN, "NON-COMPLIANT": C_RED, "QUESTIONABLE": C_YELLOW}[verdict]
+                    v_bg    = {"COMPLIANT": "rgba(0,229,176,0.05)", "NON-COMPLIANT": "rgba(255,61,87,0.05)",
+                               "QUESTIONABLE": "rgba(255,221,45,0.05)"}[verdict]
+                    v_icon  = {"COMPLIANT": "✅", "NON-COMPLIANT": "❌", "QUESTIONABLE": "⚠️"}[verdict]
+    
+                    st.markdown(
+                        f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};'
+                        f'padding:1.2rem 2rem;margin:1rem 0;text-align:center;">'
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#3d5068;'
+                        f'letter-spacing:.15em;text-transform:uppercase;">{sd["company_name"]} ({ticker})</div>'
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;'
+                        f'color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{verdict}</div>'
+                        f'<div style="font-size:.78rem;color:#7a8fa8;margin-top:.3rem;">'
+                        f'Sector: {sd["sector"]} | Industry: {sd["industry"]}</div>'
+                        f'</div>', unsafe_allow_html=True)
+    
+                    st.markdown("#### Screening Criteria Breakdown")
+                    cl, cr2 = st.columns(2)
+                    with cl:
+                        bs = cr["business"]
+                        if bs["haram_hit"]:
+                            st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>'
+                                        f'Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
+                        elif bs["questionable"]:
+                            st.markdown('<div class="halal-card" style="border-left-color:#ffdd2d">'
+                                        '<b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>',
+                                        unsafe_allow_html=True)
+                        else:
+                            st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>'
+                                        f'No Haram core business detected<br>'
+                                        f'<small style="color:#3d5068">Sector: {sd["sector"]}</small></div>',
+                                        unsafe_allow_html=True)
+                        dm = cr["debt_mktcap"]
+                        cc = "halal-card" if dm["pass"] else "halal-card-fail"
+                        st.markdown(f'<div class="{cc}"><b>{"✅" if dm["pass"] else "❌"} Debt / Market Cap</b>'
+                                    f'<br>{dm["label"]}</div>', unsafe_allow_html=True)
+                    with cr2:
+                        da = cr["debt_assets"]
+                        cc = "halal-card" if da["pass"] else "halal-card-fail"
+                        st.markdown(f'<div class="{cc}"><b>{"✅" if da["pass"] else "❌"} Debt / Total Assets</b>'
+                                    f'<br>{da["label"]}</div>', unsafe_allow_html=True)
+                        ca = cr["cash_assets"]
+                        cc = "halal-card" if ca["pass"] else "halal-card-fail"
+                        st.markdown(f'<div class="{cc}"><b>{"✅" if ca["pass"] else "❌"} Cash / Total Assets</b>'
+                                    f'<br>{ca["label"]}</div>', unsafe_allow_html=True)
+    
+                    st.markdown("#### Financial Snapshot")
+                    f1, f2, f3, f4 = st.columns(4)
+                    f1.metric("Market Cap",   f'${sd["market_cap"]/1e9:.2f}B')
+                    f2.metric("Total Debt",   f'${sd["total_debt"]/1e9:.2f}B')
+                    f3.metric("Total Assets", f'${sd["total_assets"]/1e9:.2f}B')
+                    f4.metric("Cash",         f'${sd["total_cash"]/1e9:.2f}B')
+    
+                    st.markdown(
+                        '<div style="background:#0d1117;border:1px solid #182030;padding:.7rem 1.2rem;'
+                        'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3d5068;margin-top:1rem;">'
+                        '⚠ Automated screen based on AAOIFI Standard No.21. '
+                        'Does not constitute a fatwa. Consult a qualified Islamic finance scholar for binding rulings.</div>',
+                        unsafe_allow_html=True)
+    
+            # ── Download ───────────────────────────────────────────────────────────────
+            st.subheader("Download Report")
+            export_df = df[['Open','High','Low','Close','Volume',
+                            'MA50','MA200','RSI','MACD','BB_Upper','BB_Lower','ATR']].copy()
+            csv_hist    = export_df.to_csv().encode('utf-8')
+            csv_signals = signal_df.to_csv(index=False).encode('utf-8')
+            csv_future  = future_df.to_csv(index=False).encode('utf-8')
+    
+            dl1, dl2, dl3 = st.columns(3)
+            with dl1:
+                st.download_button("⬇ Historical Data + Indicators", data=csv_hist,
+                                   file_name=f"{ticker}_historical.csv", mime="text/csv")
+            with dl2:
+                st.download_button("⬇ Buy/Sell Signals", data=csv_signals,
+                                   file_name=f"{ticker}_signals.csv", mime="text/csv")
+            with dl3:
+                st.download_button("⬇ Forecast Data", data=csv_future,
+                                   file_name=f"{ticker}_forecast.csv", mime="text/csv")
+    
+            # ── Multi-Stock Comparison ─────────────────────────────────────────────
+            if compare_tickers:
+                st.subheader(f"Multi-Stock Comparison vs {ticker}")
+                st.markdown(
+                    f'<div class="model-badge">🔥 COMPARING: {ticker} + {", ".join(compare_tickers[:4])}'
+                    f' — Live Composite Signal Ranking</div>',
+                    unsafe_allow_html=True)
+    
+                compare_results = []
+                for ct in [ticker] + compare_tickers[:4]:
+                    try:
+                        with st.spinner(f"Fetching {ct}..."):
+                            cdf = fetch_data(ct, start_date, end_date)
+                        if cdf.empty or len(cdf) < 60:
+                            continue
+                        cdf = add_technical_features(cdf)
+                        cX, cy = build_xgb_dataset(cdf, seq_len)
+                        if len(cX) < 30:
+                            continue
+                        csplit = int(len(cX) * 0.8)
+                        cmodel = XGBRegressor(n_estimators=150, max_depth=4,
+                                              learning_rate=0.05, subsample=0.8,
+                                              colsample_bytree=0.8, random_state=42, verbosity=0)
+                        cmodel.fit(cX[:csplit], cy[:csplit], verbose=False)
+                        cpred_last = float(cmodel.predict(cX[-1].reshape(1, -1))[0])
+                        c_last_close = float(cdf['Close'].squeeze().iloc[-1])
+                        ccomp = compute_composite_signal(cdf, c_last_close, cpred_last, cmodel.predict(cX), cy)
+                        crmse = float(np.sqrt(np.mean((cmodel.predict(cX[csplit:]) - cy[csplit:])**2)))
+                        crsi  = float(cdf['RSI'].squeeze().iloc[-1])
+                        compare_results.append({
+                            'Ticker':        ct,
+                            'Last Price':    f"${c_last_close:.2f}",
+                            'Signal':        ccomp['verdict'],
+                            'Score':         ccomp['total_score'],
+                            'Forecast Δ%':   f"{ccomp['xgb_pct']:+.2f}%",
+                            'RSI':           f"{crsi:.1f}",
+                            'Stop Loss':     f"${ccomp['stop_loss']:.2f}",
+                            'Take Profit':   f"${ccomp['take_profit']:.2f}",
+                            'Risk:Reward':   f"{ccomp['risk_reward']:.2f}×",
+                            'RMSE ($)':      f"${crmse:.2f}",
+                        })
+                    except Exception as e:
+                        st.warning(f"Could not process {ct}: {e}")
+                        continue
+    
+                if compare_results:
+                    comp_df = pd.DataFrame(compare_results).sort_values('Score', ascending=False)
+    
+                    # Colour-coded signal column
+                    def signal_color_html(row):
+                        sc = {'STRONG BUY': '#00e5b0', 'BUY': '#00e5b0',
+                              'STRONG SELL': '#ff3d57', 'SELL': '#ff3d57'}.get(row['Signal'], '#ffdd2d')
+                        return (f'<span style="color:{sc};font-weight:700;font-family:IBM Plex Mono,'
+                                f'monospace;font-size:.75rem;">{row["Signal"]}</span>')
+    
+                    rows_html = ""
+                    for _, row in comp_df.iterrows():
+                        sc = '#00e5b0' if row['Score'] > 0 else '#ff3d57' if row['Score'] < 0 else '#ffdd2d'
+                        sig_html = {'STRONG BUY': '<span style="color:#00e5b0;font-weight:800;">⬆ STRONG BUY</span>',
+                                    'BUY':        '<span style="color:#00e5b0;font-weight:700;">▲ BUY</span>',
+                                    'STRONG SELL':'<span style="color:#ff3d57;font-weight:800;">⬇ STRONG SELL</span>',
+                                    'SELL':       '<span style="color:#ff3d57;font-weight:700;">▼ SELL</span>',
+                                    'HOLD':       '<span style="color:#ffdd2d;font-weight:700;">◆ HOLD</span>'}.get(row['Signal'], row['Signal'])
+                        rows_html += f"""
+                        <tr style="border-bottom:1px solid #182030;">
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;font-weight:700;
+                              color:#eef2f7;font-size:.85rem;">{row['Ticker']}</td>
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['Last Price']}</td>
+                          <td style="padding:.55rem .8rem;">{sig_html}</td>
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
+                              color:{sc};font-weight:700;">{row['Score']:+.0f}</td>
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
+                              color:{'#00e5b0' if '+' in row['Forecast Δ%'] else '#ff3d57'};">{row['Forecast Δ%']}</td>
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['RSI']}</td>
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#ff3d57;">{row['Stop Loss']}</td>
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#00e5b0;">{row['Take Profit']}</td>
+                          <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['Risk:Reward']}</td>
+                        </tr>"""
+    
+                    st.markdown(f"""
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;background:#0d1117;
+                           border:1px solid #182030;font-size:.8rem;">
+                      <thead>
+                        <tr style="border-bottom:2px solid #243346;">
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Ticker</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Price</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Signal</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Score</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Forecast Δ</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">RSI</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Stop Loss</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Take Profit</th>
+                          <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
+                              letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">R:R</th>
+                        </tr>
+                      </thead>
+                      <tbody>{rows_html}</tbody>
+                    </table>
+                    </div>
+                    """, unsafe_allow_html=True)
+    
+                    csv_compare = comp_df.to_csv(index=False).encode("utf-8")
+                    st.download_button("⬇ Download Comparison", data=csv_compare,
+                                       file_name=f"comparison_{ticker}.csv", mime="text/csv")
+    
+            st.markdown("---")
+            st.markdown('<div class="stat-row">⚠ For educational purposes only. Not financial advice.</div>',
+                        unsafe_allow_html=True)
+    
 else:
     land_tab_overview, land_tab_methodology = st.tabs(["🏠  Overview", "📖  Methodology"])
 
