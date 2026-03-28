@@ -8,7 +8,10 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 import warnings
+import supabase
 warnings.filterwarnings('ignore')
+
+st.write("Supabase installed successfully!")
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide",
@@ -1821,7 +1824,7 @@ if run_btn:
         verdict_css = 'sell' if verdict_short == 'SELL' else 'hold' if verdict_short == 'HOLD' else ''
         sign        = '+' if xgb_pct >= 0 else ''
 
-        # (Final Decision Card is rendered after reason_lines is computed — see below)
+        # ── Main Signal Panel ──────────────────────────────────────────────────
         rr_color    = 'positive' if risk_reward >= 1.5 else 'negative' if risk_reward < 1 else 'neutral'
         sl_color    = 'negative'
         tp_color    = 'positive'
@@ -1916,67 +1919,6 @@ if run_btn:
             f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#8a9bb0;">{r}</div>'
             for r in reason_lines
         )
-
-        # ── 🎯 FINAL DECISION CARD — Level 1 (most important, rendered after reason_lines) ──
-        _d_bg  = {'BUY':'rgba(0,212,160,0.08)','SELL':'rgba(255,71,87,0.08)','HOLD':'rgba(255,211,42,0.06)'}.get(verdict_short,'rgba(0,212,160,0.08)')
-        _d_bdr = {'BUY':'#00d4a0','SELL':'#ff4757','HOLD':'#ffd32a'}.get(verdict_short,'#00d4a0')
-        _d_ico = {'BUY':'🟢','SELL':'🔴','HOLD':'🟡'}.get(verdict_short,'🟢')
-        _d_act = {'BUY':'CONSIDER BUYING','SELL':'CONSIDER SELLING','HOLD':'HOLD POSITION'}.get(verdict_short,'CONSIDER BUYING')
-        _conf_label = "HIGH" if confidence_score >= 75 else "MODERATE" if confidence_score >= 55 else "LOW"
-        _conf_clr   = '#00d4a0' if _conf_label == 'HIGH' else '#ffd32a' if _conf_label == 'MODERATE' else '#ff4757'
-        _top_r = [r for r in reason_lines if r.startswith("🟢") or r.startswith("🔴")][:3]
-        _reason_short = " · ".join(
-            r.replace("🟢 ","").replace("🔴 ","").split("<")[0].strip() for r in _top_r
-        ) or "Mixed signals — no dominant directional edge."
-
-        st.markdown(f"""
-        <div style="background:{_d_bg};border:2px solid {_d_bdr};
-             padding:1.6rem 2rem;margin:1.2rem 0 1.5rem 0;
-             display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1.2rem;
-             position:relative;overflow:hidden;">
-          <div style="position:absolute;top:0;left:0;right:0;height:3px;
-               background:linear-gradient(90deg,{_d_bdr}60,{_d_bdr},{_d_bdr}60);"></div>
-          <div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.22em;
-                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.5rem;">⚡ Final Decision</div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:2.6rem;font-weight:800;
-                 color:{_d_bdr};letter-spacing:.12em;line-height:1;">{_d_ico} {verdict}</div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#8a9bb0;
-                 margin-top:.4rem;letter-spacing:.06em;">{_d_act}</div>
-          </div>
-          <div style="flex:1;min-width:180px;border-left:1px solid rgba(255,255,255,0.06);padding-left:1.5rem;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.16em;
-                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.3rem;">Confidence</div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:700;
-                 color:{_conf_clr};line-height:1.1;">{_conf_label}</div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#4a5a6a;">{confidence_score:.0f} / 100</div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.16em;
-                 text-transform:uppercase;color:#4a5a6a;margin:.7rem 0 .3rem;">Price Now</div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.3rem;font-weight:600;
-                 color:#e8edf2;">${last_close:.2f}</div>
-          </div>
-          <div style="flex:2;min-width:220px;border-left:1px solid rgba(255,255,255,0.06);padding-left:1.5rem;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.16em;
-                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.5rem;">Why this signal</div>
-            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:.82rem;color:#8a9bb0;line-height:1.65;">
-                {_reason_short}
-            </div>
-            <div style="margin-top:.8rem;display:flex;gap:.8rem;flex-wrap:wrap;">
-              <span style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#4a5a6a;">
-                🎯 Target <span style="color:#00d4a0;">${take_profit:.2f}</span></span>
-              <span style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#4a5a6a;">
-                🛑 Stop <span style="color:#ff4757;">${stop_loss:.2f}</span></span>
-              <span style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:#4a5a6a;">
-                ⚖ R/R <span style="color:#ffd32a;">{risk_reward:.1f}×</span></span>
-            </div>
-          </div>
-        </div>
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:.56rem;color:#2a3a4e;
-             text-align:right;margin-top:-.9rem;margin-bottom:1.2rem;letter-spacing:.06em;">
-          ⚠ Educational use only · Not financial advice
-        </div>
-        """, unsafe_allow_html=True)
-
         st.markdown(f"""
         <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid {border_color};
              padding:1.1rem 1.5rem;margin:.8rem 0;">
@@ -2750,22 +2692,18 @@ else:
         # ── Hero ──────────────────────────────────────────────────────────────
         st.markdown("""
         <div style="text-align:center;padding:3rem 1rem 1.5rem 1rem;">
-            <div style="display:inline-block;background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.25);
-                 font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.2em;color:#00d4a0;
-                 padding:.3rem 1.1rem;margin-bottom:1.2rem;text-transform:uppercase;">
-                ● Live Market Intelligence Platform
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.3em;
+                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
+                Free · Open-source · No login required
             </div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:3.2rem;font-weight:700;
-                 color:#e8edf2;letter-spacing:.05em;line-height:1.05;margin-bottom:.7rem;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:2.8rem;font-weight:700;
+                 color:#e8edf2;letter-spacing:.05em;line-height:1.15;margin-bottom:.8rem;">
                 STOCK<span style="color:#00d4a0;">CAST</span>
             </div>
-            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:1.25rem;font-weight:600;color:#e8edf2;
-                 max-width:520px;margin:0 auto .5rem auto;line-height:1.4;">
-                AI predictions, signals &amp; market sentiment in seconds.
-            </div>
-            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:.92rem;color:#8a9bb0;
-                 max-width:480px;margin:0 auto 1.8rem auto;line-height:1.7;">
-                Type a stock in the sidebar → click <b style="color:#00d4a0;font-family:'IBM Plex Mono',monospace;">▶ RUN FORECAST</b> → get your signal.
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:1.1rem;color:#8a9bb0;
+                 max-width:580px;margin:0 auto 1.5rem auto;line-height:1.7;">
+                AI-powered stock intelligence with <span style="color:#e8edf2;">explainable signals</span> —
+                not just a prediction, but <span style="color:#00d4a0;">why</span> the model thinks it.
             </div>
             <div style="display:flex;justify-content:center;gap:.8rem;flex-wrap:wrap;margin-bottom:2.5rem;">
                 <span style="background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);
