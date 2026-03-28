@@ -9,6 +9,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from supabase import create_client
 import warnings
+import os
 warnings.filterwarnings('ignore')
 
 # ── Supabase config ────────────────────────────────────────────────────────────
