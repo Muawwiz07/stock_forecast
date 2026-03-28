@@ -7,3 +7,4 @@ xgboost
 prophet
 plotly
 supabase
+textblob
