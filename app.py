@@ -2350,6 +2350,13 @@ else:
                 except Exception as e:
                     st.warning(f"Could not fetch news: {e}")
 
+                from textblob import TextBlob
+
+                for article in news_data:
+                text = article['title']
+                sentiment = TextBlob(text).sentiment.polarity
+                print(sentiment)
+
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
