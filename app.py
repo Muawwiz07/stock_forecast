@@ -3134,7 +3134,7 @@ else:
         <div style="text-align:center;padding:3rem 1rem 1.5rem 1rem;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.3em;
                  text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
-                Free · Open-source · No login required
+                Free · Open-source ·
             </div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:2.8rem;font-weight:700;
                  color:#e8edf2;letter-spacing:.05em;line-height:1.15;margin-bottom:.8rem;">
