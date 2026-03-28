@@ -1050,86 +1050,134 @@ if st.session_state.user is None:
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
 <style>
-  body { background:#121315; font-family:'Inter',sans-serif; color:#fff; margin:0; }
-  .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
-  .gradient-text { background:linear-gradient(135deg,#3fff8b 0%,#13ea79 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #121315; font-family: 'Inter', sans-serif; color: #fff; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+  .forecast-pulse-texture {
+    background-image: radial-gradient(circle at 2px 2px, rgba(63,255,139,0.05) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
   @keyframes sc-pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(63,255,139,0.5);} 50%{opacity:.7;box-shadow:0 0 0 7px rgba(63,255,139,0);} }
+  @keyframes bar-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  .chart-bar { transform-origin: bottom; animation: bar-rise 1s ease-out forwards; }
 </style>
 </head>
 <body>
-<div style="min-height:100vh;padding:3.5rem 3rem;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;background:#121315;">
-  <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(63,255,139,0.04) 0%,transparent 70%);pointer-events:none;"></div>
-  <div style="position:absolute;top:25%;left:-6rem;width:28rem;height:28rem;background:rgba(63,255,139,0.06);filter:blur(110px);border-radius:50%;pointer-events:none;"></div>
-  <div style="position:absolute;bottom:20%;right:-6rem;width:22rem;height:22rem;background:rgba(69,254,201,0.04);filter:blur(90px);border-radius:50%;pointer-events:none;"></div>
+<div class="forecast-pulse-texture" style="min-height:100vh;padding:3rem 3rem;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+  <!-- Ambient glows -->
+  <div style="position:absolute;top:25%;left:-5rem;width:26rem;height:26rem;background:rgba(63,255,139,0.07);filter:blur(110px);border-radius:50%;pointer-events:none;z-index:0;"></div>
+  <div style="position:absolute;bottom:20%;right:-5rem;width:20rem;height:20rem;background:rgba(69,254,201,0.05);filter:blur(90px);border-radius:50%;pointer-events:none;z-index:0;"></div>
+  <!-- Decorative trading room background -->
+  <div style="position:absolute;inset:0;opacity:0.07;pointer-events:none;z-index:0;overflow:hidden;">
+    <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtVciMobXdrEkXbJw-yFvYglj9rDCT9oAWQqlRhg8V6vcDVerwYGDMD4bsGnEKE6UMHAIuBQBI7vlO0PCpPr10eRDcYmTNwsE51dklXEdET0kmGMrEKfq1ljaIxlI0HS42CVXPLM41OcX0NyRppI_C9jSxIG5wioUfq8wd5ZIKwm1fSSnQm83J0F66f6upJWmr5-71EkJpQU6b7ORqCGbv49p5NtF67oIgLSYcDZ0ZvR3LNBPxmIU-PnAX2zhC9m8PDqviCj2Od_E"
+         alt="" style="width:100%;height:100%;object-fit:cover;" />
+  </div>
 
-  <!-- Nav -->
-  <nav style="display:flex;align-items:center;gap:0.5rem;position:relative;z-index:1;">
-    <span style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;">WealthIntel</span>
-    <span style="font-size:0.58rem;padding:0.2rem 0.55rem;border:1px solid rgba(63,255,139,0.2);color:#3fff8b;font-family:'Space Grotesk',sans-serif;letter-spacing:0.12em;background:rgba(63,255,139,0.04);">TERMINAL V3.0</span>
+  <!-- Branding -->
+  <nav style="position:relative;z-index:1;display:flex;align-items:center;gap:0.6rem;">
+    <span class="material-symbols-outlined" style="color:#3fff8b;font-size:2rem;">insights</span>
+    <div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;line-height:1.1;">WealthIntel</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:0.52rem;letter-spacing:0.16em;color:rgba(63,255,139,0.55);text-transform:uppercase;">Terminal v3.0</div>
+    </div>
   </nav>
 
-  <!-- Hero -->
-  <div style="position:relative;z-index:1;margin:auto 0;">
-    <div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.3rem 0.85rem;border-radius:9999px;background:#252627;border:1px solid rgba(71,72,73,0.2);margin-bottom:2rem;">
-      <span style="width:8px;height:8px;border-radius:50%;background:#3fff8b;animation:sc-pulse 2s infinite;display:inline-block;"></span>
-      <span style="font-size:0.62rem;font-family:'Space Grotesk',sans-serif;letter-spacing:0.12em;color:#3fff8b;">LIVE MARKET FEED ACTIVE</span>
-    </div>
-    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:3.2rem;font-weight:700;line-height:1.15;letter-spacing:-0.02em;color:#fff;margin-bottom:1.2rem;">
-      Precision is the<br><span class="gradient-text">new standard</span>
-    </h1>
-    <p style="font-family:'Inter',sans-serif;font-size:1rem;color:#ababac;line-height:1.75;max-width:420px;margin-bottom:2.5rem;">
-      Access high-frequency forecasting models powered by XGBoost architecture. Trade with the authority of institutional data.
+  <!-- Hero copy -->
+  <div style="position:relative;z-index:1;margin:auto 0;padding:2rem 0;">
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:2.6rem;font-weight:500;line-height:1.18;letter-spacing:-0.02em;color:#fff;margin-bottom:1rem;">
+      Predicting the pulse<br>of <span style="background:linear-gradient(135deg,#3fff8b,#13ea79);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">global markets.</span>
+    </h2>
+    <p style="font-family:'Inter',sans-serif;font-size:0.95rem;color:#ababac;line-height:1.75;max-width:400px;margin-bottom:2rem;">
+      Access high-frequency forecasting models and neural-driven market analysis in one unified institutional interface.
     </p>
-    <div style="display:flex;flex-direction:column;gap:1.2rem;">
-      <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:2.8rem;height:2.8rem;border-radius:4px;background:#252627;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.2rem;">query_stats</span>
+    <!-- Feature badges -->
+    <div style="display:flex;flex-direction:column;gap:0.85rem;">
+      <div style="display:flex;align-items:center;gap:0.85rem;">
+        <div style="width:2.6rem;height:2.6rem;border-radius:4px;background:#1e2021;border:1px solid rgba(71,72,73,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.1rem;">query_stats</span>
         </div>
         <div>
-          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:2px;">Advanced Probabilities</p>
-          <p style="font-family:'Inter',sans-serif;font-size:0.72rem;color:#ababac;">XGBoost + 6-Factor Signal Engine</p>
+          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.82rem;font-weight:600;color:#fff;margin-bottom:1px;">XGBoost Forecasting Engine</p>
+          <p style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#ababac;">6-factor signal · backtesting · bootstrap CI</p>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:1rem;">
-        <div style="width:2.8rem;height:2.8rem;border-radius:4px;background:#252627;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.2rem;">security</span>
+      <div style="display:flex;align-items:center;gap:0.85rem;">
+        <div style="width:2.6rem;height:2.6rem;border-radius:4px;background:#1e2021;border:1px solid rgba(71,72,73,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.1rem;">mosque</span>
         </div>
         <div>
-          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.85rem;font-weight:600;color:#fff;margin-bottom:2px;">Institutional Security</p>
-          <p style="font-family:'Inter',sans-serif;font-size:0.72rem;color:#ababac;">Supabase Auth · 256-bit encryption</p>
+          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.82rem;font-weight:600;color:#fff;margin-bottom:1px;">Shariah Compliance Screening</p>
+          <p style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#ababac;">AAOIFI Standard No.21 automated checks</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.85rem;">
+        <div style="width:2.6rem;height:2.6rem;border-radius:4px;background:#1e2021;border:1px solid rgba(71,72,73,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.1rem;">security</span>
+        </div>
+        <div>
+          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.82rem;font-weight:600;color:#fff;margin-bottom:1px;">Institutional Security</p>
+          <p style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#ababac;">Supabase Auth · 256-bit encryption</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer style="position:relative;z-index:1;display:flex;gap:1.5rem;flex-wrap:wrap;">
-    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.65rem;color:#757576;text-decoration:none;">Terms of Service</a>
-    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.65rem;color:#757576;text-decoration:none;">Privacy Policy</a>
-    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.65rem;color:#757576;text-decoration:none;">Security Protocol</a>
-    <span style="font-family:'Inter',sans-serif;font-size:0.65rem;color:#474849;margin-left:auto;">© 2024 WealthIntel Terminal</span>
+  <!-- Live Alpha Stream card (from Stockcast Terminal) -->
+  <div style="position:relative;z-index:1;background:rgba(25,26,27,0.75);backdrop-filter:blur(20px);border:1px solid rgba(71,72,73,0.2);border-radius:8px;padding:1.2rem 1.4rem;margin-bottom:1.5rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:0.58rem;letter-spacing:0.18em;text-transform:uppercase;color:#ababac;">Live Alpha Stream</span>
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3fff8b;animation:sc-pulse 2s infinite;"></span>
+    </div>
+    <!-- Abstract bar chart -->
+    <div style="height:72px;background:#000;border-radius:4px;overflow:hidden;display:flex;align-items:flex-end;padding:0 8px 6px;gap:5px;">
+      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.18);border-radius:2px 2px 0 0;height:40%;animation-delay:0.0s;"></div>
+      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.36);border-radius:2px 2px 0 0;height:58%;animation-delay:0.1s;"></div>
+      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.54);border-radius:2px 2px 0 0;height:52%;animation-delay:0.2s;"></div>
+      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.72);border-radius:2px 2px 0 0;height:80%;animation-delay:0.3s;"></div>
+      <div class="chart-bar" style="flex:1;background:#3fff8b;border-radius:2px 2px 0 0;height:100%;animation-delay:0.4s;box-shadow:0 0 14px rgba(63,255,139,0.35);"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:0.75rem;">
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;color:#ababac;">Model Confidence</span>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;font-weight:700;color:#3fff8b;">98.4%</span>
+    </div>
+  </div>
+
+  <!-- Footer links -->
+  <footer style="position:relative;z-index:1;display:flex;gap:1.5rem;flex-wrap:wrap;border-top:1px solid rgba(71,72,73,0.15);padding-top:1rem;">
+    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">Terms of Service</a>
+    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">Privacy Policy</a>
+    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">API Documentation</a>
+    <span style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#474849;margin-left:auto;">© 2025 WealthIntel Terminal</span>
   </footer>
 </div>
 </body></html>
 """, height=780, scrolling=False)
 
         with right_col:
+            # ── Segmented toggle header (decorative — switching handled by button below)
             st.markdown("""
-            <div style="background:#191a1b;min-height:100vh;padding:3.5rem 2.5rem;display:flex;flex-direction:column;justify-content:center;border-left:1px solid rgba(71,72,73,0.1);">
-              <div style="margin-bottom:2rem;">
-                <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:600;color:#fff;margin-bottom:0.4rem;">Terminal Access</h2>
-                <p style="font-family:'Inter',sans-serif;font-size:0.85rem;color:#ababac;">Welcome back. Enter your credentials to sync with the pulse.</p>
+            <div style="background:#191a1b;padding:2.5rem 2.5rem 0;border-left:1px solid rgba(71,72,73,0.1);">
+              <!-- Segmented toggle -->
+              <div style="display:flex;padding:4px;background:#000;border-radius:12px;border:1px solid rgba(71,72,73,0.12);margin-bottom:2rem;">
+                <div style="flex:1;padding:0.7rem 1rem;border-radius:8px;background:linear-gradient(135deg,#3fff8b,#13ea79);text-align:center;
+                     font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.78rem;color:#005d2c;
+                     box-shadow:0 4px 14px rgba(63,255,139,0.2);">Terminal Access</div>
+                <div style="flex:1;padding:0.7rem 1rem;text-align:center;font-family:'Space Grotesk',sans-serif;font-weight:700;
+                     font-size:0.78rem;color:rgba(171,171,172,0.6);">Create Account</div>
               </div>
+              <!-- Welcome copy -->
+              <h3 style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;color:#fff;margin-bottom:0.3rem;">Welcome Back</h3>
+              <p style="font-family:'Inter',sans-serif;font-size:0.82rem;color:#ababac;margin-bottom:1.5rem;">Synchronize with the terminal to resume analysis.</p>
             </div>
             """, unsafe_allow_html=True)
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:#ababac;margin-bottom:4px;">User Identifier</p>', unsafe_allow_html=True)
-            login_email = st.text_input("Email", key="login_email", placeholder="name@company.com")
+            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:#ababac;margin-bottom:4px;">Identity Token (Email)</p>', unsafe_allow_html=True)
+            login_email = st.text_input("Email", key="login_email", placeholder="name@firm.com")
 
-            st.markdown('<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;margin-bottom:4px;"><p style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:#ababac;">Encryption Key</p><a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.62rem;color:rgba(63,255,139,0.7);text-decoration:none;">Forgotten Key?</a></div>', unsafe_allow_html=True)
-            login_password = st.text_input("Password", key="login_password", type="password", placeholder="••••••••••••")
+            st.markdown('<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;margin-bottom:4px;"><p style="font-family:Space Grotesk,sans-serif;font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:#ababac;">Access Key</p><a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;color:rgba(63,255,139,0.7);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em;">Forgot Key?</a></div>', unsafe_allow_html=True)
+            login_password = st.text_input("Password", key="login_password", type="password", placeholder="••••••••")
 
-            if st.button("INITIALIZE CONNECTION →", key="login_btn"):
+            if st.button("AUTHORIZE ACCESS  →", key="login_btn"):
                 if login_email and login_password:
                     with st.spinner("Securing session..."):
                         try:
@@ -1143,22 +1191,30 @@ if st.session_state.user is None:
                         except Exception as e:
                             st.error(f"⚠ Authorization failed: {e}")
                 else:
-                    st.warning("Please enter your identifier and key.")
+                    st.warning("Please enter your identity token and access key.")
 
             st.markdown("""
-            <div style="position:relative;padding:1.5rem 0;display:flex;align-items:center;gap:1rem;">
-              <div style="flex:1;height:1px;background:rgba(71,72,73,0.1);"></div>
-              <span style="font-family:'Space Grotesk',sans-serif;font-size:0.58rem;letter-spacing:0.18em;text-transform:uppercase;color:#757576;white-space:nowrap;">OR SECURE VIA</span>
-              <div style="flex:1;height:1px;background:rgba(71,72,73,0.1);"></div>
+            <div style="position:relative;padding:1.2rem 0;display:flex;align-items:center;gap:1rem;">
+              <div style="flex:1;height:1px;background:rgba(71,72,73,0.12);"></div>
+              <span style="font-family:'Space Grotesk',sans-serif;font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:#757576;white-space:nowrap;">Alternative Protocols</span>
+              <div style="flex:1;height:1px;background:rgba(71,72,73,0.12);"></div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:2rem;">
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#252627;border:1px solid rgba(71,72,73,0.1);border-radius:0.5rem;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.75rem;cursor:pointer;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.5rem;">
+              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#1e2021;border:1px solid rgba(71,72,73,0.12);border-radius:8px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:0.72rem;cursor:pointer;">
                 <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                Google Auth
+                Google
               </button>
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#252627;border:1px solid rgba(71,72,73,0.1);border-radius:0.5rem;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.75rem;cursor:pointer;">
-                🔑 Passkey
+              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#1e2021;border:1px solid rgba(71,72,73,0.12);border-radius:8px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:0.72rem;cursor:pointer;">
+                ⌨ SSO
               </button>
+            </div>
+            <!-- Limited Offer trial banner (from Stockcast Terminal) -->
+            <div style="padding:1rem 1.2rem;background:rgba(63,255,139,0.04);border-radius:8px;border:1px solid rgba(63,255,139,0.12);display:flex;align-items:flex-start;gap:0.75rem;margin-bottom:1.5rem;">
+              <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.3rem;flex-shrink:0;font-variation-settings:'FILL' 1;">verified</span>
+              <div>
+                <p style="font-family:'Space Grotesk',sans-serif;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#3fff8b;margin-bottom:3px;">Limited Offer</p>
+                <p style="font-family:'Inter',sans-serif;font-size:0.72rem;color:#ababac;line-height:1.5;">Start your 14-day trial of Alpha-Tier models. No credit card required for initial calibration.</p>
+              </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1166,7 +1222,7 @@ if st.session_state.user is None:
                 st.session_state.auth_view = "signup"
                 st.rerun()
 
-            st.markdown('<div style="text-align:center;margin-top:0.5rem;font-family:Space Grotesk,sans-serif;font-size:0.58rem;color:#474849;letter-spacing:0.08em;">⚠ FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE</div>', unsafe_allow_html=True)
+            st.markdown('<div style="text-align:center;margin-top:1rem;font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#474849;letter-spacing:0.1em;text-transform:uppercase;">⚠ For Educational Purposes Only · Not Financial Advice</div>', unsafe_allow_html=True)
 
     else:
         # ── SIGNUP: Full two-panel layout ─────────────────────────────────────
