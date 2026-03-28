@@ -21,6 +21,21 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 if "user" not in st.session_state:
     st.session_state.user = None
 
+if st.button("Login →", use_container_width=True, key="login_btn"):
+    if login_email and login_password:
+        with st.spinner("🔐 Securing session..."):
+            try:
+                res = supabase.auth.sign_in_with_password({
+                    "email":    login_email,
+                    "password": login_password,
+                })
+                if res.user:
+                    st.session_state.user = res.user
+                    st.success("✓ Welcome back! Loading your dashboard...")
+                    st.rerun()
+                else:
+                    st.error("⚠ Invalid credentials. Please try again.")
+
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide",
                    initial_sidebar_state="expanded")
