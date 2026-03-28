@@ -723,66 +723,396 @@ def validate_ticker(sym):
 
 # ── Auth Gate: Login / Signup ──────────────────────────────────────────────────
 if st.session_state.user is None:
+
+    # ── Full-page auth styles ──────────────────────────────────────────────────
     st.markdown("""
-    <div style="max-width:460px;margin:4rem auto 0 auto;text-align:center;">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
-             color:#e8edf2;letter-spacing:.06em;margin-bottom:.4rem;">
-            STOCK<span style="color:#00d4a0;">CAST</span>
-        </div>
-        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:.9rem;color:#8a9bb0;
-             margin-bottom:2rem;">AI-powered stock intelligence platform</div>
-    </div>
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+    /* Full page override for auth screen */
+    html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
+        background: #0a0f1e !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
+
+    /* Hide streamlit chrome */
+    header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
+    [data-testid="stSidebar"] { display: none !important; }
+
+    /* Animated background blobs */
+    .auth-bg {
+        position: fixed; inset: 0; z-index: 0;
+        background: #0a0f1e;
+        overflow: hidden;
+    }
+    .auth-bg::before {
+        content: '';
+        position: absolute;
+        top: -20%; left: -10%;
+        width: 600px; height: 600px;
+        background: radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 65%);
+        animation: float1 12s ease-in-out infinite;
+    }
+    .auth-bg::after {
+        content: '';
+        position: absolute;
+        bottom: -10%; right: -5%;
+        width: 500px; height: 500px;
+        background: radial-gradient(circle, rgba(59,130,246,0.07) 0%, transparent 65%);
+        animation: float2 15s ease-in-out infinite;
+    }
+    @keyframes float1 {
+        0%,100% { transform: translate(0,0) scale(1); }
+        50%      { transform: translate(60px, 40px) scale(1.1); }
+    }
+    @keyframes float2 {
+        0%,100% { transform: translate(0,0) scale(1); }
+        50%      { transform: translate(-40px, -30px) scale(1.08); }
+    }
+
+    /* Card */
+    .auth-card {
+        position: relative; z-index: 10;
+        background: rgba(17, 24, 39, 0.85);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(34,197,94,0.15);
+        border-radius: 20px;
+        padding: 2.5rem 2.2rem 2rem;
+        max-width: 420px;
+        margin: 0 auto;
+        box-shadow: 0 0 0 1px rgba(255,255,255,0.03),
+                    0 25px 50px rgba(0,0,0,0.5),
+                    0 0 80px rgba(34,197,94,0.04);
+        animation: cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes cardIn {
+        from { opacity: 0; transform: translateY(24px) scale(0.97); }
+        to   { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+
+    /* Logo */
+    .auth-logo {
+        text-align: center;
+        margin-bottom: 0.3rem;
+    }
+    .auth-logo-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 52px; height: 52px;
+        background: linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.05));
+        border: 1px solid rgba(34,197,94,0.3);
+        border-radius: 14px;
+        font-size: 1.5rem;
+        margin-bottom: 0.9rem;
+        box-shadow: 0 0 20px rgba(34,197,94,0.12);
+    }
+    .auth-title {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        letter-spacing: 0.04em;
+        line-height: 1;
+    }
+    .auth-title span { color: #22c55e; }
+    .auth-subtitle {
+        font-size: 0.875rem;
+        color: #64748b;
+        margin-top: 0.4rem;
+        font-weight: 400;
+    }
+
+    /* Tab bar */
+    .auth-tabs {
+        display: flex;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+        padding: 4px;
+        margin: 1.6rem 0 1.4rem;
+        gap: 4px;
+    }
+    .auth-tab {
+        flex: 1; text-align: center;
+        padding: 0.5rem;
+        border-radius: 7px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: #64748b;
+        border: none; background: transparent;
+    }
+    .auth-tab.active {
+        background: rgba(34,197,94,0.12);
+        color: #22c55e;
+        border: 1px solid rgba(34,197,94,0.25);
+        box-shadow: 0 2px 8px rgba(34,197,94,0.08);
+    }
+
+    /* Input group */
+    .auth-input-group {
+        margin-bottom: 1rem;
+    }
+    .auth-label {
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: #94a3b8;
+        margin-bottom: 0.4rem;
+        letter-spacing: 0.03em;
+    }
+    .auth-input-wrap {
+        position: relative;
+    }
+    .auth-input-icon {
+        position: absolute; left: 14px; top: 50%;
+        transform: translateY(-50%);
+        color: #475569; font-size: 0.9rem;
+        pointer-events: none; z-index: 1;
+    }
+
+    /* Override Streamlit inputs */
+    [data-testid="stTextInput"] input {
+        background: rgba(255,255,255,0.04) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: 10px !important;
+        color: #f1f5f9 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.875rem !important;
+        padding: 0.65rem 1rem 0.65rem 2.6rem !important;
+        transition: border-color 0.2s, box-shadow 0.2s !important;
+    }
+    [data-testid="stTextInput"] input:focus {
+        border-color: rgba(34,197,94,0.5) !important;
+        box-shadow: 0 0 0 3px rgba(34,197,94,0.08) !important;
+        outline: none !important;
+    }
+    [data-testid="stTextInput"] input::placeholder { color: #475569 !important; }
+    [data-testid="stTextInput"] label {
+        display: none !important;
+    }
+
+    /* Button */
+    .stButton > button {
+        background: linear-gradient(135deg, #16a34a, #22c55e) !important;
+        color: #fff !important;
+        border: none !important;
+        border-radius: 10px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.875rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.04em !important;
+        padding: 0.7rem 1rem !important;
+        width: 100% !important;
+        margin-top: 0.4rem !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 4px 15px rgba(34,197,94,0.25) !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-1px) scale(1.01) !important;
+        box-shadow: 0 6px 25px rgba(34,197,94,0.35) !important;
+        background: linear-gradient(135deg, #15803d, #16a34a) !important;
+    }
+    .stButton > button:active {
+        transform: scale(0.98) !important;
+    }
+
+    /* Divider */
+    .auth-divider {
+        display: flex; align-items: center; gap: 0.8rem;
+        margin: 1.2rem 0;
+        color: #334155; font-size: 0.75rem;
+    }
+    .auth-divider::before, .auth-divider::after {
+        content: ''; flex: 1;
+        height: 1px; background: rgba(255,255,255,0.06);
+    }
+
+    /* Forgot password */
+    .auth-forgot {
+        text-align: right;
+        margin-top: -0.5rem;
+        margin-bottom: 1rem;
+    }
+    .auth-forgot a {
+        font-size: 0.75rem;
+        color: #22c55e;
+        text-decoration: none;
+        opacity: 0.8;
+        transition: opacity 0.15s;
+    }
+    .auth-forgot a:hover { opacity: 1; }
+
+    /* Trust badges */
+    .auth-trust {
+        display: flex; justify-content: center; gap: 1.2rem;
+        margin-top: 1.4rem;
+        flex-wrap: wrap;
+    }
+    .auth-trust-item {
+        font-size: 0.7rem; color: #334155;
+        display: flex; align-items: center; gap: 0.3rem;
+    }
+    .auth-trust-item span { color: #22c55e; }
+
+    /* Streamlit alert overrides */
+    [data-testid="stAlert"] {
+        border-radius: 10px !important;
+        font-size: 0.82rem !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    </style>
+
+    <!-- Animated background -->
+    <div class="auth-bg"></div>
     """, unsafe_allow_html=True)
 
-    _auth_col = st.columns([1, 2, 1])[1]
-    with _auth_col:
-        auth_tab1, auth_tab2 = st.tabs(["🔑  Login", "📝  Sign Up"])
+    # ── Centered layout ────────────────────────────────────────────────────────
+    _l, _mid, _r = st.columns([1, 1.4, 1])
+    with _mid:
 
-        # ── LOGIN ──────────────────────────────────────────────────────────────
+        # ── Logo + Title ───────────────────────────────────────────────────────
+        st.markdown("""
+        <div style="text-align:center;padding:2.5rem 0 0;animation:cardIn 0.4s ease both;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;
+                 width:54px;height:54px;
+                 background:linear-gradient(135deg,rgba(34,197,94,0.18),rgba(34,197,94,0.04));
+                 border:1px solid rgba(34,197,94,0.28);border-radius:14px;
+                 font-size:1.5rem;margin-bottom:.9rem;
+                 box-shadow:0 0 24px rgba(34,197,94,0.12);">📈</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.8rem;font-weight:700;
+                 color:#f1f5f9;letter-spacing:.04em;line-height:1;">
+                STOCK<span style="color:#22c55e;">CAST</span>
+            </div>
+            <div style="font-size:.85rem;color:#64748b;margin-top:.4rem;font-family:'Inter',sans-serif;">
+                AI-powered stock intelligence platform
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<div style='height:1.4rem'></div>", unsafe_allow_html=True)
+
+        # ── Card wrapper open ──────────────────────────────────────────────────
+        st.markdown("""
+        <div style="background:rgba(17,24,39,0.88);backdrop-filter:blur(20px);
+             border:1px solid rgba(34,197,94,0.13);border-radius:20px;
+             padding:2rem 1.8rem 1.6rem;
+             box-shadow:0 0 0 1px rgba(255,255,255,0.03),
+                        0 25px 50px rgba(0,0,0,0.55),
+                        0 0 80px rgba(34,197,94,0.05);
+             animation:cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both 0.1s;
+             opacity:0;animation-fill-mode:forwards;">
+        """, unsafe_allow_html=True)
+
+        auth_tab1, auth_tab2 = st.tabs(["🔑  Login", "✨  Sign Up"])
+
+        # ── LOGIN TAB ──────────────────────────────────────────────────────────
         with auth_tab1:
-            login_email    = st.text_input("Email",    key="login_email",
-                                           placeholder="you@example.com")
-            login_password = st.text_input("Password", key="login_password",
-                                           type="password", placeholder="••••••••")
-            if st.button("Login", use_container_width=True, key="login_btn"):
-                if login_email and login_password:
-                    try:
-                        res = supabase.auth.sign_in_with_password({
-                            "email":    login_email,
-                            "password": login_password,
-                        })
-                        if res.user:
-                            st.session_state.user = res.user
-                            st.success("✓ Logged in successfully!")
-                            st.rerun()
-                        else:
-                            st.error("Invalid credentials. Please try again.")
-                    except Exception as e:
-                        st.error(f"Login failed: {e}")
-                else:
-                    st.warning("Please enter both email and password.")
+            st.markdown('<div style="position:relative;">'
+                        '<span style="position:absolute;left:12px;top:50%;transform:translateY(-8px);'
+                        'color:#475569;font-size:.9rem;z-index:999;pointer-events:none;">✉</span>'
+                        '</div>', unsafe_allow_html=True)
+            login_email = st.text_input("Email", key="login_email",
+                                        placeholder="  you@example.com",
+                                        label_visibility="collapsed")
 
-        # ── SIGNUP ─────────────────────────────────────────────────────────────
-        with auth_tab2:
-            signup_email    = st.text_input("Email",    key="signup_email",
-                                            placeholder="you@example.com")
-            signup_password = st.text_input("Password", key="signup_password",
-                                            type="password", placeholder="Min. 6 characters")
-            if st.button("Create Account", use_container_width=True, key="signup_btn"):
-                if signup_email and signup_password:
-                    try:
-                        res = supabase.auth.sign_up({
-                            "email":    signup_email,
-                            "password": signup_password,
-                        })
-                        if res.user:
-                            st.success("✓ Account created! Check your email to confirm.")
-                        else:
-                            st.error("Signup failed. Please try again.")
-                    except Exception as e:
-                        st.error(f"Signup failed: {e}")
+            st.markdown('<div style="position:relative;">'
+                        '<span style="position:absolute;left:12px;top:50%;transform:translateY(-8px);'
+                        'color:#475569;font-size:.9rem;z-index:999;pointer-events:none;">🔒</span>'
+                        '</div>', unsafe_allow_html=True)
+            login_password = st.text_input("Password", key="login_password",
+                                           type="password",
+                                           placeholder="  ••••••••",
+                                           label_visibility="collapsed")
+
+            st.markdown('<div style="text-align:right;margin-top:-.4rem;margin-bottom:.8rem;">'
+                        '<a href="#" style="font-size:.75rem;color:#22c55e;text-decoration:none;opacity:.8;">'
+                        'Forgot password?</a></div>', unsafe_allow_html=True)
+
+            if st.button("Login →", use_container_width=True, key="login_btn"):
+                if login_email and login_password:
+                    with st.spinner("Authenticating..."):
+                        try:
+                            res = supabase.auth.sign_in_with_password({
+                                "email":    login_email,
+                                "password": login_password,
+                            })
+                            if res.user:
+                                st.session_state.user = res.user
+                                st.success("✓ Welcome back! Loading your dashboard...")
+                                st.rerun()
+                            else:
+                                st.error("⚠ Invalid credentials. Please try again.")
+                        except Exception as e:
+                            st.error(f"⚠ Login failed: {e}")
                 else:
-                    st.warning("Please enter both email and password.")
+                    st.warning("Please enter your email and password.")
+
+            st.markdown("""
+            <div style="display:flex;justify-content:center;gap:1.4rem;margin-top:1.2rem;flex-wrap:wrap;">
+              <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
+                <span style="color:#22c55e;">✓</span> 256-bit encryption</span>
+              <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
+                <span style="color:#22c55e;">✓</span> No data stored</span>
+              <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
+                <span style="color:#22c55e;">✓</span> Free to use</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ── SIGNUP TAB ─────────────────────────────────────────────────────────
+        with auth_tab2:
+            signup_email = st.text_input("Email", key="signup_email",
+                                         placeholder="  you@example.com",
+                                         label_visibility="collapsed")
+            signup_password = st.text_input("Password", key="signup_password",
+                                            type="password",
+                                            placeholder="  Min. 6 characters",
+                                            label_visibility="collapsed")
+            signup_confirm = st.text_input("Confirm Password", key="signup_confirm",
+                                           type="password",
+                                           placeholder="  Re-enter password",
+                                           label_visibility="collapsed")
+
+            if st.button("Create Account →", use_container_width=True, key="signup_btn"):
+                if signup_email and signup_password and signup_confirm:
+                    if signup_password != signup_confirm:
+                        st.error("⚠ Passwords do not match.")
+                    elif len(signup_password) < 6:
+                        st.error("⚠ Password must be at least 6 characters.")
+                    else:
+                        with st.spinner("Creating your account..."):
+                            try:
+                                res = supabase.auth.sign_up({
+                                    "email":    signup_email,
+                                    "password": signup_password,
+                                })
+                                if res.user:
+                                    st.success("✓ Account created! Check your email to confirm, then log in.")
+                                else:
+                                    st.error("⚠ Signup failed. Please try again.")
+                            except Exception as e:
+                                st.error(f"⚠ Signup failed: {e}")
+                else:
+                    st.warning("Please fill in all fields.")
+
+            st.markdown("""
+            <div style="text-align:center;margin-top:1rem;font-size:.75rem;color:#334155;font-family:'Inter',sans-serif;">
+              By signing up you agree to our
+              <a href="#" style="color:#22c55e;text-decoration:none;">Terms</a> &
+              <a href="#" style="color:#22c55e;text-decoration:none;">Privacy Policy</a>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ── Card wrapper close ─────────────────────────────────────────────────
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="text-align:center;margin-top:1.4rem;font-size:.72rem;color:#1e293b;
+             font-family:'Inter',sans-serif;">
+            ⚠ For educational purposes only · Not financial advice
+        </div>
+        """, unsafe_allow_html=True)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
