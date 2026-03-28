@@ -2250,6 +2250,15 @@ if run_btn:
         with dash_tab:
             # ── Pull live price for dashboard ──────────────────────────────────────
             _dash_close = float(df["Close"].squeeze().iloc[-1])
+
+            # Pre-compute confidence bar (can't nest f-strings with quotes inside outer f-string)
+            _filled = int(confidence_score / 5)
+            _conf_bar_html = "".join(
+                '<span style="height:4px;flex:1;background:' +
+                ('#4da6ff' if i < _filled else '#182030') +
+                ';border-radius:2px;"></span>'
+                for i in range(20)
+            )
             _dash_prev  = float(df["Close"].squeeze().iloc[-2]) if len(df) > 1 else _dash_close
             _dash_chg   = _dash_close - _dash_prev
             _dash_pct   = (_dash_chg / _dash_prev * 100) if _dash_prev != 0 else 0
@@ -2494,7 +2503,7 @@ if run_btn:
                   </div>
                 </div>
               </td>
-              <td style="color:#4da6ff;font-weight:700;font-family:monospace;">{max(0,100-{mape if "mape" in dir() else 0.0}):.1f}%</td>
+              <td style="color:#4da6ff;font-weight:700;font-family:monospace;">{max(0, 100 - mape):.1f}%</td>
               <td style="font-family:monospace;">{mae:.2f}</td>
               <td style="font-family:monospace;">{rmse:.2f}</td>
               <td style="text-align:right;"><span class="badge badge-active">ACTIVE</span></td>
@@ -2550,7 +2559,7 @@ if run_btn:
           <div style="font-size:.6rem;font-weight:800;color:#3d5068;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">Confidence Score</div>
           <div style="font-size:1.6rem;font-weight:900;">{confidence_score:.0f}<span style="font-size:.9rem;color:#3d5068;">/100</span></div>
           <div style="margin-top:.5rem;display:flex;gap:.2rem;">
-            {"".join(f'<span style="height:4px;flex:1;background:{"#4da6ff" if i < confidence_score/5 else "#182030"};border-radius:2px;"></span>' for i in range(20))}
+            {_conf_bar_html}
           </div>
         </div>
         <div class="bento-card" style="background:linear-gradient(135deg,rgba(0,88,190,0.25),rgba(0,229,176,0.1));border-color:rgba(0,88,190,0.3);">
