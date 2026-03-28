@@ -1364,13 +1364,13 @@ if st.session_state.user is None:
 st.markdown("""
 <div class="wi-header">
   <div>
-    <div class="wi-logo">Wealth<span>Intel</span> &nbsp;<span style="color:#424754;font-weight:300;">·</span>&nbsp; Market Intelligence</div>
+    <div class="wi-logo">Stock<span>cast</span> &nbsp;<span style="color:#424754;font-weight:300;">·</span>&nbsp; Ai Market Intelligence</div>
     <div class="wi-sub">XGBoost · 6-Factor Signals · Backtesting · Shariah Screening · News NLP</div>
   </div>
   <div style="display:flex;align-items:center;gap:1.5rem;">
     <div style="text-align:right;">
       <div style="font-size:.55rem;color:#424754;letter-spacing:.14em;text-transform:uppercase;font-weight:700;font-family:Manrope,sans-serif;">Platform</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#8c909f;">v3.0 Institutional</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#8c909f;">Developed by Muawwiz Ghani</div>
     </div>
     <div style="width:1px;height:28px;background:#2d3449;"></div>
     <div>
