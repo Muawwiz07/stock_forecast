@@ -1097,40 +1097,45 @@ if st.session_state.user is None:
     """, unsafe_allow_html=True)
 
     # ── Centered layout ────────────────────────────────────────────────────────
+    # Extra CSS to style the middle column as the card
+    st.markdown("""
+    <style>
+    /* Style the auth middle column as a glassy card */
+    [data-testid="stApp"] [data-testid="stHorizontalBlock"] > div:nth-child(2) > div {
+        background: rgba(13,17,23,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-top: 1px solid rgba(0,229,176,0.18) !important;
+        border-radius: 20px !important;
+        padding: 2rem 1.6rem 1.8rem !important;
+        box-shadow:
+            0 24px 64px rgba(0,0,0,0.8),
+            inset 0 1px 0 rgba(0,229,176,0.07),
+            0 0 60px rgba(0,229,176,0.05) !important;
+        margin-top: 3rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     _l, _mid, _r = st.columns([1, 1.4, 1])
     with _mid:
 
         # ── Logo + Title ───────────────────────────────────────────────────────
         st.markdown("""
-        <div style="text-align:center;padding:2.5rem 0 0;animation:cardIn 0.4s ease both;">
+        <div style="text-align:center;padding:0.5rem 0 1.2rem;animation:cardIn 0.4s ease both;">
             <div style="display:inline-flex;align-items:center;justify-content:center;
-                 width:54px;height:54px;
-                 background:linear-gradient(135deg,rgba(0,229,176,0.18),rgba(0,229,176,0.04));
-                 border:1px solid rgba(0,229,176,0.28);border-radius:14px;
-                 font-size:1.5rem;margin-bottom:.9rem;
-                 box-shadow:0 0 24px rgba(0,229,176,0.12);">📈</div>
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.8rem;font-weight:700;
-                 color:#f1f5f9;letter-spacing:.04em;line-height:1;">
-                STOCK<span style="color:#00e5b0;">CAST</span>
+                 width:58px;height:58px;
+                 background:linear-gradient(135deg,rgba(0,229,176,0.20),rgba(0,229,176,0.05));
+                 border:1px solid rgba(0,229,176,0.35);border-radius:16px;
+                 font-size:1.6rem;margin-bottom:1rem;
+                 box-shadow:0 0 32px rgba(0,229,176,0.20),inset 0 1px 0 rgba(0,229,176,0.15);">📈</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.9rem;font-weight:700;
+                 color:#eef2f7;letter-spacing:.05em;line-height:1;">
+                STOCK<span style="color:#00e5b0;text-shadow:0 0 24px rgba(0,229,176,0.5);">CAST</span>
             </div>
-            <div style="font-size:.85rem;color:#64748b;margin-top:.4rem;font-family:'Inter',sans-serif;">
+            <div style="font-size:.82rem;color:#3d5068;margin-top:.5rem;font-family:'Inter',sans-serif;letter-spacing:.03em;">
                 AI-powered stock intelligence platform
             </div>
         </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<div style='height:1.4rem'></div>", unsafe_allow_html=True)
-
-        # ── Card wrapper open ──────────────────────────────────────────────────
-        st.markdown("""
-        <div style="background:rgba(17,24,39,0.75);backdrop-filter:blur(25px);-webkit-backdrop-filter:blur(25px);
-             border:1px solid rgba(255,255,255,0.06);border-radius:20px;
-             padding:2rem 1.8rem 1.6rem;
-             box-shadow:0 10px 40px rgba(0,0,0,0.6),
-                        inset 0 1px 0 rgba(255,255,255,0.05),
-                        0 0 0 1px rgba(255,255,255,0.02);
-             animation:cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both 0.1s;
-             opacity:0;animation-fill-mode:forwards;">
         """, unsafe_allow_html=True)
 
         auth_tab1, auth_tab2 = st.tabs(["🔑  Login", "✨  Sign Up"])
@@ -1232,13 +1237,10 @@ if st.session_state.user is None:
             </div>
             """, unsafe_allow_html=True)
 
-        # ── Card wrapper close ─────────────────────────────────────────────────
-        st.markdown("</div>", unsafe_allow_html=True)
-
         st.markdown("""
-        <div style="text-align:center;margin-top:1.4rem;font-size:.72rem;color:#1e293b;
-             font-family:'Inter',sans-serif;">
-            ⚠ For educational purposes only · Not financial advice
+        <div style="text-align:center;margin-top:1.6rem;font-family:'IBM Plex Mono',monospace;
+             font-size:.6rem;color:#182030;letter-spacing:.08em;">
+            ⚠ FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE
         </div>
         """, unsafe_allow_html=True)
 
