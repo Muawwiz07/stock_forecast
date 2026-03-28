@@ -44,7 +44,7 @@ st.set_page_config(
     page_title="Stockcast —  Stock Analytics",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -259,7 +259,7 @@ label, [data-testid="stSelectbox"] label,
     border-bottom: 1px solid var(--border);
     border-left: 4px solid var(--accent);
     padding: 1rem 2rem;
-    margin: 0 -2rem 1.5rem 0;
+    margin: 0 -2rem 1.5rem -2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
