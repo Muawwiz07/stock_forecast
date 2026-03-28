@@ -9,12 +9,11 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from supabase import create_client
 import warnings
-import os
 warnings.filterwarnings('ignore')
 
-# ── Supabase config (uses Streamlit secrets or env vars) ───────────────────────
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", "https://tpaqlfjszguinigygxcq.supabase.co"))
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", "sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV"))
+# ── Supabase config ────────────────────────────────────────────────────────────
+SUPABASE_URL = "https://tpaqlfjszguinigygxcq.supabase.co"
+SUPABASE_KEY = "sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Session state: Auth ────────────────────────────────────────────────────────
@@ -716,30 +715,46 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Live Ticker Tape ───────────────────────────────────────────────────────────
-@st.cache_data(ttl=60)
-def get_live_tape():
-    TAPE_SYMBOLS = ["AAPL","TSLA","NVDA","MSFT","GOOGL","META","AMZN","AMD","JPM","SPY","QQQ","NFLX"]
-    items = []
-    for sym in TAPE_SYMBOLS:
-        try:
-            fi   = yf.Ticker(sym).fast_info
-            px   = fi.get("last_price") or fi.get("regularMarketPrice") or 0
-            chg  = fi.get("regularMarketChangePercent") or 0
-            sign = "▲" if chg >= 0 else "▼"
-            cls  = "tape-up" if chg >= 0 else "tape-down"
-            items.append(f'<span><span class="tape-sym">{sym}</span> '
-                         f'<span class="{cls}">{sign} ${px:.2f} {chg:+.1f}%</span></span>')
-        except Exception:
-            pass
-    return items
-
-_tape_items = get_live_tape()
-_tape_html  = ' <span style="color:#182030;">·</span> '.join(_tape_items * 2)  # duplicate for seamless loop
-
-st.markdown(f"""
+# ── Animated Ticker Tape ───────────────────────────────────────────────────────
+st.markdown("""
 <div class="ticker-tape-wrap">
-  <div class="ticker-tape">{_tape_html}</div>
+  <div class="ticker-tape">
+    <span><span class="tape-sym">AAPL</span> <span class="tape-up">▲ $189.42 +1.2%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">TSLA</span> <span class="tape-down">▼ $248.11 -0.8%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">NVDA</span> <span class="tape-up">▲ $875.33 +2.1%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">MSFT</span> <span class="tape-up">▲ $421.05 +0.5%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">GOOGL</span> <span class="tape-down">▼ $168.22 -0.3%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">META</span> <span class="tape-up">▲ $512.88 +1.7%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AMZN</span> <span class="tape-up">▲ $186.44 +0.9%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AMD</span> <span class="tape-up">▲ $167.55 +3.2%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">JPM</span> <span class="tape-down">▼ $198.30 -0.4%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">SPY</span> <span class="tape-up">▲ $521.67 +0.6%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">QQQ</span> <span class="tape-up">▲ $448.90 +0.8%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AAPL</span> <span class="tape-up">▲ $189.42 +1.2%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">TSLA</span> <span class="tape-down">▼ $248.11 -0.8%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">NVDA</span> <span class="tape-up">▲ $875.33 +2.1%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">MSFT</span> <span class="tape-up">▲ $421.05 +0.5%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">GOOGL</span> <span class="tape-down">▼ $168.22 -0.3%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">META</span> <span class="tape-up">▲ $512.88 +1.7%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AMZN</span> <span class="tape-up">▲ $186.44 +0.9%</span></span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1076,47 +1091,6 @@ if st.session_state.user is None:
         font-size: 0.82rem !important;
         font-family: 'Inter', sans-serif !important;
     }
-
-    /* ── MICRO-INTERACTIONS: input hover glow ── */
-    [data-testid="stTextInput"] input:hover {
-        border-color: rgba(0,229,176,0.5) !important;
-        box-shadow: 0 0 12px rgba(0,229,176,0.15) !important;
-    }
-
-    /* ── BUTTON CLICK SCALE ── */
-    .stButton > button:active {
-        transform: scale(0.96) !important;
-        box-shadow: 0 2px 10px rgba(0,229,176,0.2) !important;
-    }
-
-    /* ── GLASSMORPHISM ENHANCEMENT ── */
-    [data-testid="stHorizontalBlock"] > div:nth-child(2) > div {
-        backdrop-filter: blur(40px) saturate(140%) !important;
-        -webkit-backdrop-filter: blur(40px) saturate(140%) !important;
-    }
-
-    /* ── FIRST IMPRESSION ANIMATION ── */
-    @keyframes appFade {
-        from { opacity: 0; transform: scale(0.985); }
-        to   { opacity: 1; transform: scale(1); }
-    }
-    [data-testid="stAppViewContainer"] {
-        animation: appFade 0.45s ease both;
-    }
-
-    /* ── MOBILE OPTIMIZATION ── */
-    @media (max-width: 768px) {
-        .app-header { padding: 0.7rem 1rem !important; flex-wrap: wrap; gap: 0.5rem; }
-        .app-title  { font-size: 0.85rem !important; }
-        .glass-summary-grid { grid-template-columns: repeat(2,1fr) !important; }
-        .signal-panel-v2 { flex-direction: column !important; }
-        .signal-main-v2  { flex: none !important; width: 100% !important; }
-        .signal-details-v2 { grid-template-columns: 1fr 1fr !important; }
-        [data-testid="stHorizontalBlock"] > div:nth-child(2) > div {
-            margin: 0.5rem !important;
-            padding: 1.2rem 1rem !important;
-        }
-    }
     </style>
 
     <!-- Animated background -->
@@ -1181,30 +1155,18 @@ if st.session_state.user is None:
                         '<span style="position:absolute;left:12px;top:50%;transform:translateY(-8px);'
                         'color:#475569;font-size:.9rem;z-index:999;pointer-events:none;">🔒</span>'
                         '</div>', unsafe_allow_html=True)
-
-            # ── Show Password toggle ───────────────────────────────────────────
-            show_pass = st.checkbox("👁 Show password", key="show_pass_login",
-                                    help="Toggle password visibility")
             login_password = st.text_input("Password", key="login_password",
-                                           type="default" if show_pass else "password",
+                                           type="password",
                                            placeholder="  ••••••••",
                                            label_visibility="collapsed")
 
-            # ── Remember Me + Forgot password row ─────────────────────────────
-            col_rem, col_forgot = st.columns([1, 1])
-            with col_rem:
-                remember_me = st.checkbox("Remember me", key="remember_me")
-            with col_forgot:
-                st.markdown('<div style="text-align:right;padding-top:.35rem;">'
-                            '<a href="#" style="font-size:.75rem;color:#00e5b0;text-decoration:none;opacity:.8;">'
-                            'Forgot password?</a></div>', unsafe_allow_html=True)
-
-            if remember_me:
-                st.session_state["remember"] = True
+            st.markdown('<div style="text-align:right;margin-top:-.4rem;margin-bottom:.8rem;">'
+                        '<a href="#" style="font-size:.75rem;color:#00e5b0;text-decoration:none;opacity:.8;">'
+                        'Forgot password?</a></div>', unsafe_allow_html=True)
 
             if st.button("Login →", use_container_width=True, key="login_btn"):
                 if login_email and login_password:
-                    with st.spinner("🔐 Authenticating..."):
+                    with st.spinner("🔐 Securing session..."):
                         try:
                             res = supabase.auth.sign_in_with_password({
                                 "email":    login_email,
@@ -1212,46 +1174,17 @@ if st.session_state.user is None:
                             })
                             if res.user:
                                 st.session_state.user = res.user
-                                st.markdown("""
-                                <div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.3);
-                                     border-left:3px solid #00e5b0;border-radius:4px;padding:.75rem 1rem;
-                                     font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:#00e5b0;">
-                                    ✓ Welcome back! Loading your dashboard...
-                                </div>""", unsafe_allow_html=True)
+                                st.success("✓ Welcome back! Loading your dashboard...")
                                 st.rerun()
                             else:
-                                st.markdown("""
-                                <div style="background:rgba(255,61,87,0.08);border:1px solid rgba(255,61,87,0.3);
-                                     border-left:3px solid #ff3d57;border-radius:4px;padding:.75rem 1rem;
-                                     font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:#ff3d57;">
-                                    ⚠ Invalid credentials. Please try again.
-                                </div>""", unsafe_allow_html=True)
+                                st.error("⚠ Invalid credentials. Please try again.")
                         except Exception as e:
-                            st.markdown(f"""
-                            <div style="background:rgba(255,61,87,0.08);border:1px solid rgba(255,61,87,0.3);
-                                 border-left:3px solid #ff3d57;border-radius:4px;padding:.75rem 1rem;
-                                 font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:#ff3d57;">
-                                ⚠ Login failed: {e}
-                            </div>""", unsafe_allow_html=True)
+                            st.error(f"⚠ Login failed: {e}")
                 else:
-                    st.markdown("""
-                    <div style="background:rgba(255,221,45,0.08);border:1px solid rgba(255,221,45,0.3);
-                         border-left:3px solid #ffdd2d;border-radius:4px;padding:.75rem 1rem;
-                         font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:#ffdd2d;">
-                        ⚠ Please enter your email and password.
-                    </div>""", unsafe_allow_html=True)
-
-            # ── AI Tip ────────────────────────────────────────────────────────
-            st.markdown("""
-            <div style="background:rgba(77,166,255,0.05);border:1px solid rgba(77,166,255,0.15);
-                 border-radius:6px;padding:.6rem 1rem;margin-top:.8rem;
-                 font-family:'Inter',sans-serif;font-size:.75rem;color:#4da6ff;">
-                💡 <strong>Tip:</strong> Try analyzing NVDA or TSLA for high-volatility signals
-            </div>
-            """, unsafe_allow_html=True)
+                    st.warning("Please enter your email and password.")
 
             st.markdown("""
-            <div style="display:flex;justify-content:center;gap:1.4rem;margin-top:1rem;flex-wrap:wrap;">
+            <div style="display:flex;justify-content:center;gap:1.4rem;margin-top:1.2rem;flex-wrap:wrap;">
               <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
                 <span style="color:#00e5b0;">✓</span> 256-bit encryption</span>
               <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
@@ -2082,35 +2015,7 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
-if not run_btn:
-    st.markdown("""
-    <div style="text-align:center;padding:4rem 2rem;opacity:.85;">
-        <div style="font-size:3rem;margin-bottom:1rem;">📭</div>
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;letter-spacing:.18em;
-             text-transform:uppercase;color:#243346;margin-bottom:.6rem;">
-            No Analysis Running
-        </div>
-        <div style="font-family:'Inter',sans-serif;font-size:.9rem;color:#3d5068;max-width:400px;margin:0 auto;">
-            Search for a stock in the sidebar and press <span style="color:#00e5b0;font-weight:600;">▶ RUN FORECAST</span> to begin your analysis.
-        </div>
-        <div style="display:flex;justify-content:center;gap:1rem;margin-top:2rem;flex-wrap:wrap;">
-            <span style="background:rgba(0,229,176,0.06);border:1px solid rgba(0,229,176,0.2);
-                  color:#00e5b0;font-family:'IBM Plex Mono',monospace;font-size:.62rem;
-                  letter-spacing:.1em;padding:.3rem .9rem;border-radius:4px;">Try: AAPL</span>
-            <span style="background:rgba(0,229,176,0.06);border:1px solid rgba(0,229,176,0.2);
-                  color:#00e5b0;font-family:'IBM Plex Mono',monospace;font-size:.62rem;
-                  letter-spacing:.1em;padding:.3rem .9rem;border-radius:4px;">Try: NVDA</span>
-            <span style="background:rgba(0,229,176,0.06);border:1px solid rgba(0,229,176,0.2);
-                  color:#00e5b0;font-family:'IBM Plex Mono',monospace;font-size:.62rem;
-                  letter-spacing:.1em;padding:.3rem .9rem;border-radius:4px;">Try: TSLA</span>
-            <span style="background:rgba(77,166,255,0.06);border:1px solid rgba(77,166,255,0.2);
-                  color:#4da6ff;font-family:'IBM Plex Mono',monospace;font-size:.62rem;
-                  letter-spacing:.1em;padding:.3rem .9rem;border-radius:4px;">Try: 2222.SR</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-elif run_btn:
+if run_btn:
     with st.spinner(f"Fetching {ticker} data..."):
         df = fetch_data(ticker, start_date, end_date)
 
