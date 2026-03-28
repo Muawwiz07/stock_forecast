@@ -12,8 +12,8 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ── Supabase config ────────────────────────────────────────────────────────────
-SUPABASE_URL = "https://tpaqlfjszguinigygxcq.supabase.co"
-SUPABASE_KEY = "sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV"
+SUPABASE_URL = os.getenv("https://tpaqlfjszguinigygxcq.supabase.co")
+SUPABASE_KEY = os.getenv("sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Session state: Auth ────────────────────────────────────────────────────────
