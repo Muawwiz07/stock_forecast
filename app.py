@@ -11,7 +11,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ── Page config ────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide",
+st.set_page_config(page_title="StockCast — Stock Market Intelligence", page_icon="📈", layout="wide",
                    initial_sidebar_state="expanded")
 
 # ── Bloomberg-style CSS ────────────────────────────────────────────────────────
@@ -1872,13 +1872,13 @@ if run_btn:
             )
 
         # Recompute composite with what-if values
-        wi_price       = last_close * (1 + wi_price_chg / 100)
-        wi_forecast    = preds[-1] * (1 + wi_price_chg / 100)  # scale forecast proportionally
+        wi_price    = last_close * (1 + wi_price_chg / 100)
+        wi_forecast = preds[-1]  # forecast stays fixed; price change shifts current price
 
-        # Build what-if signals (same logic as compute_composite_signal but with overrides)
-        wi_sigs = dict(sigs)  # copy
+        # Build what-if signals — fully recompute all price/RSI-dependent signals
+        wi_sigs = dict(sigs)  # start from copy, then override all affected signals
 
-        # Override XGBoost forecast signal
+        # 1. XGBoost Forecast — pct changes because wi_price (current) shifted
         wi_xgb_pct = (wi_forecast - wi_price) / wi_price * 100
         if wi_xgb_pct > 1.5:
             wi_sigs['XGBoost Forecast'] = ('BUY',  min(35, abs(wi_xgb_pct) * 6), wi_xgb_pct, 'positive')
@@ -1887,7 +1887,7 @@ if run_btn:
         else:
             wi_sigs['XGBoost Forecast'] = ('HOLD', 0, wi_xgb_pct, 'neutral')
 
-        # Override RSI signal
+        # 2. RSI — user override
         wi_rsi = wi_rsi_override
         if wi_rsi < 30:
             wi_sigs['RSI (14)'] = ('BUY',  20, wi_rsi, 'positive')
@@ -1899,6 +1899,27 @@ if run_btn:
             wi_sigs['RSI (14)'] = ('SELL', -8, wi_rsi, 'negative')
         else:
             wi_sigs['RSI (14)'] = ('HOLD', 0, wi_rsi, 'neutral')
+
+        # 3. Bollinger %B — recompute based on wi_price vs bands
+        bb_upper = float(df['BB_Upper'].squeeze().iloc[-1])
+        bb_lower = float(df['BB_Lower'].squeeze().iloc[-1])
+        wi_bb_pct = (wi_price - bb_lower) / (bb_upper - bb_lower) if (bb_upper - bb_lower) != 0 else 0.5
+        if wi_bb_pct < 0.1:
+            wi_sigs['Bollinger %B'] = ('BUY',  10, wi_bb_pct, 'positive')
+        elif wi_bb_pct > 0.9:
+            wi_sigs['Bollinger %B'] = ('SELL', -10, wi_bb_pct, 'negative')
+        else:
+            wi_sigs['Bollinger %B'] = ('HOLD', 0, wi_bb_pct, 'neutral')
+
+        # 4. Volume — direction follows updated XGBoost signal
+        wi_xgb_direction = wi_sigs['XGBoost Forecast'][0]
+        wi_vol_r = float(df['Volume_Ratio'].squeeze().iloc[-1])
+        if wi_vol_r > 1.5:
+            wi_vol_score = 5 if wi_xgb_direction == 'BUY' else -5 if wi_xgb_direction == 'SELL' else 0
+            wi_sigs['Volume'] = (wi_xgb_direction, wi_vol_score, wi_vol_r,
+                                 'positive' if wi_vol_score > 0 else 'negative' if wi_vol_score < 0 else 'neutral')
+        else:
+            wi_sigs['Volume'] = ('HOLD', 0, wi_vol_r, 'neutral')
 
         wi_total = sum(v[1] for v in wi_sigs.values())
         if wi_total >= 20:
