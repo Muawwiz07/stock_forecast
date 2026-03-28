@@ -41,7 +41,7 @@ if "portfolio_history" not in st.session_state:
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="WealthIntel — Institutional Stock Analytics",
+    page_title="Stockcast —  Stock Analytics",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1079,7 +1079,7 @@ if st.session_state.user is None:
   <nav style="position:relative;z-index:1;display:flex;align-items:center;gap:0.6rem;">
     <span class="material-symbols-outlined" style="color:#3fff8b;font-size:2rem;">insights</span>
     <div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;line-height:1.1;">WealthIntel</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;line-height:1.1;">Stockcast</div>
       <div style="font-family:'Space Grotesk',sans-serif;font-size:0.52rem;letter-spacing:0.16em;color:rgba(63,255,139,0.55);text-transform:uppercase;">Terminal v3.0</div>
     </div>
   </nav>
@@ -1149,7 +1149,7 @@ if st.session_state.user is None:
     <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">Terms of Service</a>
     <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">Privacy Policy</a>
     <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">API Documentation</a>
-    <span style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#474849;margin-left:auto;">© 2025 WealthIntel Terminal</span>
+    <span style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#474849;margin-left:auto;">© 2025 Stockcast Terminal</span>
   </footer>
 </div>
 </body></html>
@@ -1251,7 +1251,7 @@ if st.session_state.user is None:
 
   <div style="position:relative;z-index:1;max-width:560px;">
     <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:3rem;">
-      <span style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;">WealthIntel</span>
+      <span style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;">Stockcast</span>
       <span style="font-size:0.58rem;padding:0.2rem 0.55rem;background:#252627;color:#3fff8b;font-family:'Space Grotesk',sans-serif;letter-spacing:0.1em;font-weight:700;text-transform:uppercase;border-radius:2px;">Terminal v3.0</span>
     </div>
 
@@ -1348,7 +1348,7 @@ if st.session_state.user is None:
 
             st.markdown("""
             <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:1.2rem;opacity:0.4;margin-top:2rem;padding-top:1.5rem;border-top:1px solid rgba(71,72,73,0.2);">
-              <span style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;">© 2024 WealthIntel</span>
+              <span style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;">© 2024 Stockcast</span>
               <a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;text-decoration:none;">Privacy</a>
               <a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;text-decoration:none;">SLA</a>
               <a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;text-decoration:none;">Support</a>
@@ -2350,18 +2350,11 @@ else:
                 except Exception as e:
                     st.warning(f"Could not fetch news: {e}")
 
-                from textblob import TextBlob
-
-                for article in news_data:
-                text = article['title']
-                sentiment = TextBlob(text).sentiment.polarity
-                print(sentiment)
-
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
-    ⚠ WEALTHINTEL · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · v3.0 INSTITUTIONAL
+    ⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · v3.0 INSTITUTIONAL
   </div>
 </div>
 """, unsafe_allow_html=True)
