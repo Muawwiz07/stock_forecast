@@ -1710,137 +1710,143 @@ if run_btn:
             height=350)
         st.plotly_chart(fig1, use_container_width=True)
 
-        # ── Multi-Factor Buy/Sell Signal Engine ──────────────────────────────────
+        # ── Signal Intelligence (Visual, Grouped, Interactive) ──────────────────
         st.subheader("Signal Intelligence")
 
         # Build composite signal
-        composite = compute_composite_signal(df, last_close, preds[-1], preds, actual)
-        verdict        = composite['verdict']
-        verdict_short  = composite['verdict_short']
-        total_score    = composite['total_score']
-        xgb_pct        = composite['xgb_pct']
-        stop_loss      = composite['stop_loss']
-        take_profit    = composite['take_profit']
-        risk_reward    = composite['risk_reward']
-        rsi_val        = composite['rsi']
-        vol_ratio      = composite['vol_ratio']
-        atr_val        = composite['atr']
-        sigs           = composite['signals']
+        composite     = compute_composite_signal(df, last_close, preds[-1], preds, actual)
+        verdict       = composite['verdict']
+        verdict_short = composite['verdict_short']
+        total_score   = composite['total_score']
+        xgb_pct       = composite['xgb_pct']
+        stop_loss     = composite['stop_loss']
+        take_profit   = composite['take_profit']
+        risk_reward   = composite['risk_reward']
+        rsi_val       = composite['rsi']
+        vol_ratio     = composite['vol_ratio']
+        atr_val       = composite['atr']
+        sigs          = composite['signals']
+        sign          = '+' if xgb_pct >= 0 else ''
 
-        verdict_css = 'sell' if verdict_short == 'SELL' else 'hold' if verdict_short == 'HOLD' else ''
-        sign        = '+' if xgb_pct >= 0 else ''
-
-        # ── Main Signal Panel ──────────────────────────────────────────────────
-        rr_color    = 'positive' if risk_reward >= 1.5 else 'negative' if risk_reward < 1 else 'neutral'
-        sl_color    = 'negative'
-        tp_color    = 'positive'
-        score_color = '#00d4a0' if total_score > 0 else '#ff4757' if total_score < 0 else '#ffd32a'
-
-        st.markdown(f"""
-        <div class="signal-panel-v2">
-            <div class="signal-main-v2 {verdict_css}">
-                <div class="signal-label-v2">Composite Signal</div>
-                <div class="signal-action-v2 {verdict_css}">{verdict}</div>
-                <div class="signal-pct-v2">{sign}{xgb_pct:.2f}% forecast</div>
-                <div class="signal-label-v2" style="margin-top:8px;">Score: <span style="color:{score_color};font-size:0.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
-            </div>
-            <div class="signal-details-v2">
-                <div class="sig-detail-card-v2 {tp_color}">
-                    <div class="sig-detail-label-v2">Take Profit</div>
-                    <div class="sig-detail-val-v2">${take_profit:.2f}</div>
-                    <div class="sig-detail-sub-v2">+{((take_profit-last_close)/last_close*100):.1f}% · 3× ATR</div>
-                </div>
-                <div class="sig-detail-card-v2 {sl_color}">
-                    <div class="sig-detail-label-v2">Stop Loss</div>
-                    <div class="sig-detail-val-v2">${stop_loss:.2f}</div>
-                    <div class="sig-detail-sub-v2">{((stop_loss-last_close)/last_close*100):.1f}% · 2× ATR</div>
-                </div>
-                <div class="sig-detail-card-v2 {rr_color}">
-                    <div class="sig-detail-label-v2">Risk / Reward</div>
-                    <div class="sig-detail-val-v2">{risk_reward:.2f}×</div>
-                    <div class="sig-detail-sub-v2">{"✓ Favorable" if risk_reward >= 1.5 else "⚠ Marginal" if risk_reward >= 1 else "✗ Unfavorable"}</div>
-                </div>
-                <div class="sig-detail-card-v2 {'positive' if rsi_val < 50 else 'negative'}">
-                    <div class="sig-detail-label-v2">RSI (14)</div>
-                    <div class="sig-detail-val-v2">{rsi_val:.1f}</div>
-                    <div class="sig-detail-sub-v2">{"Oversold" if rsi_val < 30 else "Overbought" if rsi_val > 70 else "Neutral zone"}</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── Per-Indicator Breakdown ────────────────────────────────────────────
-        st.markdown('<div class="composite-meter"><div class="meter-title">⚙ Per-Indicator Signal Breakdown</div>', unsafe_allow_html=True)
-
-        indicator_rows_html = ""
-        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
-            bar_width = min(100, abs(ind_score) / 35 * 100)
-            sig_class = ind_sig.lower() if ind_sig in ('BUY','SELL') else 'hold'
-            indicator_rows_html += f"""
-            <div class="signal-indicator-row">
-                <span class="sir-label">{ind_name}</span>
-                <div class="sir-bar-bg"><div class="sir-bar {ind_class}" style="width:{bar_width:.0f}%;"></div></div>
-                <span class="sir-val">{ind_val:.2f}</span>
-                <span class="sir-signal {sig_class}">{ind_sig}</span>
-            </div>"""
-
-        st.markdown(indicator_rows_html + '</div>', unsafe_allow_html=True)
-
-        # ── Why This Signal? Human-readable explanation ────────────────────────
-        reason_lines = []
-        emoji_map = {'BUY': '🟢', 'SELL': '🔴', 'HOLD': '🟡'}
-        for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
-            if ind_sig == 'BUY':
-                if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🟢 XGBoost model predicts <b style='color:#00d4a0;'>{xgb_pct:+.2f}%</b> move tomorrow")
-                elif ind_name == 'RSI (14)':
-                    reason_lines.append(f"🟢 RSI is <b style='color:#00d4a0;'>{ind_val:.1f}</b> — {'oversold territory' if ind_val < 30 else 'leaning oversold'}")
-                elif ind_name == 'MACD Cross':
-                    reason_lines.append(f"🟢 MACD shows {'fresh bullish crossover' if abs(ind_score) >= 20 else 'bullish momentum'}")
-                elif ind_name == 'Bollinger %B':
-                    reason_lines.append(f"🟢 Price near lower Bollinger Band (%B = {ind_val:.2f}) — potential bounce")
-                elif ind_name == 'MA Cross':
-                    reason_lines.append(f"🟢 MA50 above MA200 — Golden Cross (uptrend)")
-                elif ind_name == 'Volume':
-                    reason_lines.append(f"🟢 Volume {ind_val:.1f}× average confirms buying pressure")
-            elif ind_sig == 'SELL':
-                if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🔴 XGBoost model predicts <b style='color:#ff4757;'>{xgb_pct:+.2f}%</b> move tomorrow")
-                elif ind_name == 'RSI (14)':
-                    reason_lines.append(f"🔴 RSI is <b style='color:#ff4757;'>{ind_val:.1f}</b> — {'overbought territory' if ind_val > 70 else 'leaning overbought'}")
-                elif ind_name == 'MACD Cross':
-                    reason_lines.append(f"🔴 MACD shows {'fresh bearish crossover' if abs(ind_score) >= 20 else 'bearish momentum'}")
-                elif ind_name == 'Bollinger %B':
-                    reason_lines.append(f"🔴 Price near upper Bollinger Band (%B = {ind_val:.2f}) — potential reversal")
-                elif ind_name == 'MA Cross':
-                    reason_lines.append(f"🔴 MA50 below MA200 — Death Cross (downtrend)")
-                elif ind_name == 'Volume':
-                    reason_lines.append(f"🔴 Volume {ind_val:.1f}× average confirms selling pressure")
-            else:
-                if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🟡 XGBoost predicts only {xgb_pct:+.2f}% — not enough directional conviction")
-
-        border_color = '#00d4a0' if verdict_short == 'BUY' else '#ff4757' if verdict_short == 'SELL' else '#ffd32a'
-        reasons_html = "".join(
-            f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#8a9bb0;">{r}</div>'
-            for r in reason_lines
+        # ── 1. Final Summary Card — instant top-level decision ─────────────────
+        conf_label = (
+            "HIGH ✅" if confidence_score >= 80 else
+            "MODERATE ⚠" if confidence_score >= 60 else "LOW ⛔"
         )
-        st.markdown(f"""
-        <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid {border_color};
-             padding:1.1rem 1.5rem;margin:.8rem 0;">
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.18em;
-               text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
-            💡 Why This Signal? — <span style="color:{border_color};">{verdict}</span>
-          </div>
-          <div style="font-family:'IBM Plex Sans',sans-serif;line-height:1.7;">
-            {reasons_html if reasons_html else '<span style="color:#4a5a6a;font-size:.8rem;">All indicators neutral — no strong directional edge detected.</span>'}
-          </div>
-          <div style="margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border);
-               font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#4a5a6a;">
-            ⚠ This is model output only — no awareness of earnings, news, or macro events.
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        verdict_display = {
+            "STRONG BUY":  "⬆ STRONG BUY",
+            "BUY":         "▲ BUY",
+            "STRONG SELL": "⬇ STRONG SELL",
+            "SELL":        "▼ SELL",
+            "HOLD":        "◆ HOLD",
+        }.get(verdict, verdict)
+
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        sc1.metric("Final Signal",    verdict_display,
+                   delta=f"{sign}{xgb_pct:.2f}% XGB forecast")
+        sc2.metric("Confidence",      conf_label,
+                   delta=f"{confidence_score:.0f} / 100")
+        sc3.metric("Composite Score", f"{total_score:+.0f}",
+                   delta="out of ±100")
+        sc4.metric("Risk : Reward",   f"{risk_reward:.2f}×",
+                   delta="Favorable" if risk_reward >= 1.5 else "Marginal" if risk_reward >= 1 else "Unfavorable",
+                   delta_color="normal" if risk_reward >= 1.5 else "inverse")
+
+        # SL / TP row
+        sl1, sl2, sl3 = st.columns(3)
+        sl1.metric("Last Close",  f"${last_close:.2f}")
+        sl2.metric("Stop Loss",   f"${stop_loss:.2f}",
+                   delta=f"{((stop_loss - last_close) / last_close * 100):.1f}%  (2× ATR)",
+                   delta_color="inverse")
+        sl3.metric("Take Profit", f"${take_profit:.2f}",
+                   delta=f"+{((take_profit - last_close) / last_close * 100):.1f}%  (3× ATR)")
+
+        st.divider()
+
+        # ── 2. Visual grouped signals with % score impact ──────────────────────
+        st.markdown("**💡 Why This Signal? — Grouped by Direction**")
+
+        bullish_sigs = [(n, sc, v, cl) for n, (sg, sc, v, cl) in sigs.items() if sg == 'BUY']
+        bearish_sigs = [(n, sc, v, cl) for n, (sg, sc, v, cl) in sigs.items() if sg == 'SELL']
+        neutral_sigs = [(n, sc, v, cl) for n, (sg, sc, v, cl) in sigs.items() if sg == 'HOLD']
+
+        def _explain(name, score, val, xgb_pct_val, rsi_v):
+            impact = f"(**{score:+.0f} pts**)"
+            if name == 'XGBoost Forecast':
+                return f"Model predicts {xgb_pct_val:+.2f}% move tomorrow  {impact}"
+            elif name == 'RSI (14)':
+                zone = ("oversold" if rsi_v < 30 else "overbought" if rsi_v > 70
+                        else "leaning oversold" if rsi_v < 45 else "leaning overbought")
+                return f"RSI = {val:.1f} — {zone}  {impact}"
+            elif name == 'MACD Cross':
+                trend = "fresh crossover" if abs(score) >= 20 else "trend continuation"
+                return f"MACD {trend}  {impact}"
+            elif name == 'Bollinger %B':
+                pos = "near lower band — potential bounce" if val < 0.2 else "near upper band — potential reversal"
+                return f"Bollinger %B = {val:.2f}  ({pos})  {impact}"
+            elif name == 'MA Cross':
+                cross = "Golden Cross — uptrend" if score > 0 else "Death Cross — downtrend"
+                return f"MA50 {'above' if score > 0 else 'below'} MA200 — {cross}  {impact}"
+            elif name == 'Volume':
+                conf = "confirms direction" if abs(score) > 0 else "neutral"
+                return f"Volume {val:.1f}× average — {conf}  {impact}"
+            return f"{name}  {impact}"
+
+        _sep = "  \n"
+
+        if bullish_sigs:
+            msgs = _sep.join(
+                f"🟢 **{n}** — {_explain(n, sc, v, xgb_pct, rsi_val)}"
+                for n, sc, v, cl in sorted(bullish_sigs, key=lambda x: -x[1])
+            )
+            st.success(f"**🟢 Bullish Signals ({len(bullish_sigs)})**\n\n{msgs}")
+
+        if bearish_sigs:
+            msgs = _sep.join(
+                f"🔴 **{n}** — {_explain(n, sc, v, xgb_pct, rsi_val)}"
+                for n, sc, v, cl in sorted(bearish_sigs, key=lambda x: x[1])
+            )
+            st.error(f"**🔴 Bearish Signals ({len(bearish_sigs)})**\n\n{msgs}")
+
+        if neutral_sigs:
+            msgs = _sep.join(
+                f"⚪ **{n}** — {_explain(n, sc, v, xgb_pct, rsi_val)}"
+                for n, sc, v, cl in neutral_sigs
+            )
+            st.info(f"**⚪ Neutral Signals ({len(neutral_sigs)})**\n\n{msgs}")
+
+        if not bullish_sigs and not bearish_sigs:
+            st.info("⚪ All indicators are neutral — no strong directional edge detected.")
+
+        st.caption("⚠ Model uses price & volume only — no awareness of earnings, news, or macro events.")
+
+        # ── 3. Per-indicator score bar chart ──────────────────────────────────
+        with st.expander("📊 Full Indicator Breakdown with Score Impact", expanded=False):
+            bar_data = {"Indicator": [], "Score": [], "Signal": [], "Value": []}
+            for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
+                bar_data["Indicator"].append(ind_name)
+                bar_data["Score"].append(ind_score)
+                bar_data["Signal"].append(ind_sig)
+                bar_data["Value"].append(f"{ind_val:.2f}")
+            bar_df = pd.DataFrame(bar_data).sort_values("Score")
+            colors = [C_GREEN if s > 0 else C_RED if s < 0 else C_YELLOW for s in bar_df["Score"]]
+            fig_bar = go.Figure(go.Bar(
+                x=bar_df["Score"], y=bar_df["Indicator"], orientation="h",
+                marker_color=colors,
+                text=[f"{s:+.0f} pts  |  val: {v}  |  {sig}"
+                      for s, v, sig in zip(bar_df["Score"], bar_df["Value"], bar_df["Signal"])],
+                textposition="outside",
+                textfont=dict(family="IBM Plex Mono", size=10, color="#8a9bb0"),
+            ))
+            fig_bar.add_vline(x=0, line_color="#2a3a4e", line_width=1)
+            _bar_layout = {**PLOTLY_LAYOUT, "margin": dict(l=10, r=120, t=40, b=10)}
+            fig_bar.update_layout(
+                **_bar_layout,
+                title=dict(text=f"{ticker} · Signal Score Impact (positive = bullish, negative = bearish)",
+                           font=dict(color=C_GREEN, size=12)),
+                height=320, xaxis_title="Score contribution (pts)",
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
 
         # ── Historical signal list ─────────────────────────────────────────────
         signal_list = []
