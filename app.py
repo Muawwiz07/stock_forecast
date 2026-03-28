@@ -32,32 +32,35 @@ if "alert_signals" not in st.session_state:
 if "signal_alerts_fired" not in st.session_state:
     st.session_state.signal_alerts_fired = [] # banners to show this run
 
-# ── Bloomberg-style CSS ────────────────────────────────────────────────────────
+# ── Ultra Pro CSS ──────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 /* ── ROOT VARS ── */
 :root {
-    --bg:         #0a0c0f;
-    --bg2:        #0f1318;
-    --bg3:        #131920;
-    --bg4:        #161d26;
-    --green:      #00d4a0;
-    --green-dim:  rgba(0,212,160,0.12);
-    --red:        #ff4757;
-    --red-dim:    rgba(255,71,87,0.12);
-    --blue:       #3d9eff;
-    --blue-dim:   rgba(61,158,255,0.12);
-    --yellow:     #ffd32a;
-    --yellow-dim: rgba(255,211,42,0.12);
-    --t1:         #e8edf2;
-    --t2:         #8a9bb0;
-    --t3:         #4a5a6a;
-    --border:     #1e2a38;
-    --border2:    #2a3a4e;
+    --bg:         #080b0f;
+    --bg2:        #0d1117;
+    --bg3:        #111820;
+    --bg4:        #151f2a;
+    --green:      #00e5b0;
+    --green-dim:  rgba(0,229,176,0.10);
+    --green-glow: rgba(0,229,176,0.20);
+    --red:        #ff3d57;
+    --red-dim:    rgba(255,61,87,0.10);
+    --blue:       #4da6ff;
+    --blue-dim:   rgba(77,166,255,0.10);
+    --yellow:     #ffdd2d;
+    --yellow-dim: rgba(255,221,45,0.10);
+    --purple:     #a78bfa;
+    --t1:         #eef2f7;
+    --t2:         #7a8fa8;
+    --t3:         #3d5068;
+    --border:     #182030;
+    --border2:    #243346;
     --mono:       'IBM Plex Mono', monospace;
-    --sans:       'IBM Plex Sans', sans-serif;
+    --sans:       'Inter', sans-serif;
+    --radius:     4px;
 }
 
 /* ── GLOBAL ── */
@@ -67,36 +70,40 @@ html, body, [class*="css"], [data-testid="stApp"],
     background-color: var(--bg) !important;
     color: var(--t1) !important;
 }
-.block-container { padding: 1.5rem 2rem !important; max-width: 100% !important; }
+.block-container { padding: 1.2rem 2rem !important; max-width: 100% !important; }
 
-/* scanline */
+/* subtle noise/scanline texture */
 [data-testid="stApp"]::before {
     content: '';
     position: fixed; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px,
-        rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    background:
+        repeating-linear-gradient(0deg, transparent, transparent 2px,
+            rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px),
+        radial-gradient(ellipse at 0% 0%, rgba(0,229,176,0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 100% 100%, rgba(77,166,255,0.03) 0%, transparent 50%);
     pointer-events: none; z-index: 9999;
 }
 
 /* ── SIDEBAR ── */
 [data-testid="stSidebar"],
 [data-testid="stSidebar"] > div:first-child {
-    background-color: var(--bg2) !important;
+    background: linear-gradient(180deg, #0d1117 0%, #080b0f 100%) !important;
     border-right: 1px solid var(--border) !important;
 }
 [data-testid="stSidebar"] * { color: var(--t2) !important; }
 [data-testid="stSidebar"] input {
     background-color: var(--bg3) !important;
     border: 1px solid var(--border2) !important;
-    border-radius: 0 !important;
+    border-radius: var(--radius) !important;
     color: var(--green) !important;
     font-family: var(--mono) !important;
     font-weight: 600 !important;
     letter-spacing: 0.06em !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
 }
 [data-testid="stSidebar"] input:focus {
     border-color: var(--green) !important;
-    box-shadow: 0 0 0 1px var(--green), 0 0 12px rgba(0,212,160,0.1) !important;
+    box-shadow: 0 0 0 2px var(--green-glow), 0 0 16px rgba(0,229,176,0.08) !important;
 }
 
 /* ── BUTTONS ── */
@@ -104,40 +111,58 @@ html, body, [class*="css"], [data-testid="stApp"],
     background: transparent !important;
     color: var(--green) !important;
     border: 1px solid var(--green) !important;
-    border-radius: 0 !important;
+    border-radius: var(--radius) !important;
     font-family: var(--mono) !important;
     font-weight: 600 !important;
     font-size: 0.75rem !important;
     letter-spacing: 0.12em !important;
     text-transform: uppercase !important;
     padding: 0.6rem 1.4rem !important;
-    transition: all 0.15s ease !important;
+    transition: all 0.18s cubic-bezier(0.4,0,0.2,1) !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+.stButton > button::before {
+    content: '' !important;
+    position: absolute !important;
+    inset: 0 !important;
+    background: linear-gradient(135deg, var(--green-dim), transparent) !important;
+    opacity: 0 !important;
+    transition: opacity 0.18s !important;
 }
 .stButton > button:hover {
     background: var(--green) !important;
     color: #000 !important;
-    box-shadow: 0 0 20px rgba(0,212,160,0.25) !important;
+    box-shadow: 0 0 24px var(--green-glow), 0 4px 16px rgba(0,0,0,0.4) !important;
+    transform: translateY(-1px) !important;
 }
+.stButton > button:hover::before { opacity: 1 !important; }
+.stButton > button:active { transform: translateY(0) !important; }
 
 /* ── METRICS ── */
 [data-testid="metric-container"] {
-    background: var(--bg2) !important;
+    background: linear-gradient(145deg, var(--bg2), var(--bg3)) !important;
     border: 1px solid var(--border) !important;
     border-top: 2px solid var(--green) !important;
-    border-radius: 0 !important;
+    border-radius: var(--radius) !important;
     padding: 1rem 1.2rem !important;
+    transition: box-shadow 0.2s, transform 0.2s !important;
+}
+[data-testid="metric-container"]:hover {
+    box-shadow: 0 0 20px var(--green-dim), 0 4px 20px rgba(0,0,0,0.3) !important;
+    transform: translateY(-1px) !important;
 }
 [data-testid="stMetricLabel"] {
     font-family: var(--mono) !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.15em !important;
+    font-size: 0.62rem !important;
+    letter-spacing: 0.16em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
 }
 [data-testid="stMetricValue"] {
     font-family: var(--mono) !important;
-    font-size: 1.6rem !important;
-    font-weight: 600 !important;
+    font-size: 1.55rem !important;
+    font-weight: 700 !important;
     color: var(--green) !important;
 }
 
@@ -145,8 +170,8 @@ html, body, [class*="css"], [data-testid="stApp"],
 h2, h3 {
     font-family: var(--mono) !important;
     color: var(--t1) !important;
-    font-size: 0.8rem !important;
-    letter-spacing: 0.15em !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.16em !important;
     text-transform: uppercase !important;
     border-bottom: 1px solid var(--border) !important;
     padding-bottom: 0.5rem !important;
@@ -154,8 +179,8 @@ h2, h3 {
 }
 h4 {
     font-family: var(--mono) !important;
-    font-size: 0.7rem !important;
-    letter-spacing: 0.12em !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.13em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
 }
@@ -171,6 +196,7 @@ p, .stMarkdown p {
 [data-testid="stDataFrame"] {
     border: 1px solid var(--border) !important;
     background: var(--bg2) !important;
+    border-radius: var(--radius) !important;
 }
 
 /* ── SELECTBOX / SLIDER LABELS ── */
@@ -178,8 +204,8 @@ label, [data-testid="stSelectbox"] label,
 [data-testid="stSlider"] label,
 [data-testid="stTextInput"] label {
     font-family: var(--mono) !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.12em !important;
+    font-size: 0.62rem !important;
+    letter-spacing: 0.13em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
 }
@@ -188,61 +214,67 @@ label, [data-testid="stSelectbox"] label,
 [data-testid="stTabs"] [role="tablist"] {
     background: var(--bg2) !important;
     border-bottom: 1px solid var(--border) !important;
+    border-radius: var(--radius) var(--radius) 0 0 !important;
+    gap: 2px !important;
 }
 [data-testid="stTabs"] [role="tab"] {
     font-family: var(--mono) !important;
-    font-size: 0.7rem !important;
-    letter-spacing: 0.08em !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.09em !important;
     color: var(--t3) !important;
     border-radius: 0 !important;
     border: none !important;
     padding: 8px 18px !important;
+    transition: color 0.15s !important;
 }
+[data-testid="stTabs"] [role="tab"]:hover { color: var(--t2) !important; }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
     color: var(--green) !important;
     border-bottom: 2px solid var(--green) !important;
     background: transparent !important;
+    text-shadow: 0 0 12px var(--green-glow) !important;
 }
 
 /* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--t3); }
 
 /* ── HIDE STREAMLIT CHROME ── */
 footer { visibility: hidden !important; }
-/* Keep header and sidebar toggle visible */
 
 /* ── CUSTOM COMPONENTS ── */
 
 /* Top header banner */
 .app-header {
-    background: var(--bg2);
+    background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 100%);
     border-bottom: 1px solid var(--border);
     border-left: 3px solid var(--green);
-    padding: 1rem 1.8rem;
-    margin-bottom: 1.5rem;
+    padding: 0.9rem 1.8rem;
+    margin-bottom: 1.2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(0,229,176,0.04);
 }
 .app-header-left {}
 .app-title {
     font-family: var(--mono);
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 700;
     color: var(--t1);
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
-.app-title span { color: var(--green); }
+.app-title span { color: var(--green); text-shadow: 0 0 16px var(--green-glow); }
 .app-sub {
     font-family: var(--sans);
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     color: var(--t3);
-    letter-spacing: 0.04em;
-    margin-top: 2px;
+    letter-spacing: 0.03em;
+    margin-top: 3px;
 }
 .live-dot {
     display: inline-block;
@@ -252,25 +284,26 @@ footer { visibility: hidden !important; }
     animation: pulse 2s infinite;
     margin-right: 6px;
     vertical-align: middle;
+    box-shadow: 0 0 8px var(--green-glow);
 }
 @keyframes pulse {
-    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,212,160,0.5); }
-    50%      { opacity:.7; box-shadow: 0 0 0 6px rgba(0,212,160,0); }
+    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,229,176,0.5); }
+    50%      { opacity:.8; box-shadow: 0 0 0 6px rgba(0,229,176,0); }
 }
 .live-label {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.63rem;
     color: var(--green);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.13em;
     vertical-align: middle;
 }
 
 /* Sidebar stat row label */
 .stat-row {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.62rem;
     color: var(--t3);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
     margin-bottom: 4px;
     margin-top: 2px;
@@ -280,49 +313,52 @@ footer { visibility: hidden !important; }
 .model-badge {
     display: inline-block;
     background: var(--blue-dim);
-    border: 1px solid rgba(61,158,255,0.3);
+    border: 1px solid rgba(77,166,255,0.25);
     color: var(--blue);
     font-family: var(--mono);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 600;
-    padding: 0.25rem 0.9rem;
+    padding: 0.22rem 0.85rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     margin-bottom: 0.8rem;
+    border-radius: var(--radius);
 }
 
 /* CI badge */
 .ci-badge {
     display: inline-block;
     background: var(--blue-dim);
-    border: 1px solid rgba(61,158,255,0.3);
+    border: 1px solid rgba(77,166,255,0.25);
     color: var(--blue);
     font-family: var(--mono);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 600;
-    padding: 0.25rem 0.9rem;
+    padding: 0.22rem 0.85rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     margin-bottom: 0.8rem;
+    border-radius: var(--radius);
 }
 
 /* Alert box */
 .alert-box {
-    background: rgba(0,212,160,0.05);
-    border: 1px solid rgba(0,212,160,0.3);
+    background: rgba(0,229,176,0.04);
+    border: 1px solid rgba(0,229,176,0.25);
     border-left: 3px solid var(--green);
-    padding: 0.9rem 1.4rem;
+    padding: 0.85rem 1.3rem;
     font-family: var(--mono);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: var(--green);
     margin: 0.8rem 0;
     letter-spacing: 0.04em;
+    border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 /* Signal badges */
 .signal-badge-buy {
     display: inline-block;
-    background: rgba(0,212,160,0.08);
+    background: rgba(0,229,176,0.07);
     border: 1px solid var(--green);
     color: var(--green);
     font-family: var(--mono);
@@ -330,6 +366,8 @@ footer { visibility: hidden !important; }
     font-weight: 700;
     padding: 0.5rem 2rem;
     letter-spacing: 0.12em;
+    border-radius: var(--radius);
+    box-shadow: 0 0 20px var(--green-dim);
 }
 .signal-badge-sell {
     display: inline-block;
@@ -341,6 +379,8 @@ footer { visibility: hidden !important; }
     font-weight: 700;
     padding: 0.5rem 2rem;
     letter-spacing: 0.12em;
+    border-radius: var(--radius);
+    box-shadow: 0 0 20px var(--red-dim);
 }
 .signal-badge-hold {
     display: inline-block;
@@ -352,27 +392,32 @@ footer { visibility: hidden !important; }
     font-weight: 700;
     padding: 0.5rem 2rem;
     letter-spacing: 0.12em;
+    border-radius: var(--radius);
+    box-shadow: 0 0 20px var(--yellow-dim);
 }
 
 /* Backtest KPI cards */
 .bt-card {
-    background: var(--bg2);
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border);
     border-top: 2px solid var(--border2);
     padding: 1rem 1.2rem;
     margin-bottom: 0.4rem;
     font-family: var(--mono);
+    border-radius: var(--radius);
+    transition: transform 0.15s, box-shadow 0.15s;
 }
+.bt-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
 .bt-card-label {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     color: var(--t3);
-    letter-spacing: 0.15em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     margin-bottom: 4px;
 }
-.bt-card-value       { font-size: 1.4rem; font-weight: 700; color: var(--t1); }
-.bt-card-value-green { font-size: 1.4rem; font-weight: 700; color: var(--green); }
-.bt-card-value-red   { font-size: 1.4rem; font-weight: 700; color: var(--red); }
+.bt-card-value       { font-size: 1.35rem; font-weight: 700; color: var(--t1); }
+.bt-card-value-green { font-size: 1.35rem; font-weight: 700; color: var(--green); text-shadow: 0 0 10px var(--green-dim); }
+.bt-card-value-red   { font-size: 1.35rem; font-weight: 700; color: var(--red); }
 .bt-win              { color: var(--green) !important; font-weight: 700; }
 .bt-loss             { color: var(--red) !important; font-weight: 700; }
 
@@ -380,54 +425,59 @@ footer { visibility: hidden !important; }
 .halal-pass { color: var(--green); font-weight: 700; }
 .halal-fail { color: var(--red); font-weight: 700; }
 .halal-card {
-    background: rgba(0,212,160,0.04);
-    border: 1px solid rgba(0,212,160,0.15);
+    background: rgba(0,229,176,0.03);
+    border: 1px solid rgba(0,229,176,0.12);
     border-left: 3px solid var(--green);
-    padding: 0.9rem 1.3rem;
-    margin: 0.4rem 0;
+    padding: 0.85rem 1.2rem;
+    margin: 0.35rem 0;
     font-family: var(--mono);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--t2);
+    border-radius: 0 var(--radius) var(--radius) 0;
 }
 .halal-card-fail {
-    background: rgba(255,71,87,0.04);
-    border: 1px solid rgba(255,71,87,0.15);
+    background: rgba(255,61,87,0.03);
+    border: 1px solid rgba(255,61,87,0.12);
     border-left: 3px solid var(--red);
-    padding: 0.9rem 1.3rem;
-    margin: 0.4rem 0;
+    padding: 0.85rem 1.2rem;
+    margin: 0.35rem 0;
     font-family: var(--mono);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--t2);
+    border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 /* Feature importance label */
 .feature-importance-label {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.63rem;
     color: var(--t3);
 }
 
 /* ── TICKER TAPE ── */
 .ticker-tape-wrap {
     overflow: hidden;
-    background: var(--bg2);
+    background: linear-gradient(90deg, var(--bg2), var(--bg3), var(--bg2));
     border-bottom: 1px solid var(--border);
-    padding: 0.35rem 0;
+    border-top: 1px solid var(--border);
+    padding: 0.3rem 0;
     margin-bottom: 0;
 }
 .ticker-tape {
     display: inline-flex;
-    gap: 2.5rem;
-    animation: tape 35s linear infinite;
+    gap: 2.8rem;
+    animation: tape 38s linear infinite;
     white-space: nowrap;
     font-family: var(--mono);
-    font-size: 0.68rem;
-    letter-spacing: 0.08em;
+    font-size: 0.67rem;
+    letter-spacing: 0.07em;
     color: var(--t2);
 }
+.ticker-tape:hover { animation-play-state: paused; }
 @keyframes tape { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 .tape-up   { color: var(--green); font-weight: 700; }
 .tape-down { color: var(--red);   font-weight: 700; }
+.tape-sym  { color: var(--t3); font-size: 0.6rem; margin-right: 0.3rem; }
 
 /* ── SIGNAL PANEL v2 ── */
 .signal-panel-v2 {
@@ -445,9 +495,11 @@ footer { visibility: hidden !important; }
     justify-content: center;
     padding: 1.8rem 1.5rem;
     border: 2px solid var(--green);
-    background: rgba(0,212,160,0.04);
+    background: rgba(0,229,176,0.03);
     position: relative;
     overflow: hidden;
+    border-radius: var(--radius);
+    box-shadow: 0 0 30px rgba(0,229,176,0.06), inset 0 1px 0 rgba(0,229,176,0.08);
 }
 .signal-main-v2::before {
     content: '';
@@ -455,12 +507,12 @@ footer { visibility: hidden !important; }
     bottom: -20px; right: -20px;
     width: 100px; height: 100px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(0,212,160,0.12) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(0,229,176,0.14) 0%, transparent 70%);
 }
-.signal-main-v2.sell { border-color: var(--red);    background: rgba(255,71,87,0.04); }
-.signal-main-v2.sell::before { background: radial-gradient(circle, rgba(255,71,87,0.12) 0%, transparent 70%); }
-.signal-main-v2.hold { border-color: var(--yellow); background: rgba(255,211,42,0.04); }
-.signal-main-v2.hold::before { background: radial-gradient(circle, rgba(255,211,42,0.12) 0%, transparent 70%); }
+.signal-main-v2.sell { border-color: var(--red);    background: rgba(255,61,87,0.03); box-shadow: 0 0 30px rgba(255,61,87,0.06), inset 0 1px 0 rgba(255,61,87,0.06); }
+.signal-main-v2.sell::before { background: radial-gradient(circle, rgba(255,61,87,0.14) 0%, transparent 70%); }
+.signal-main-v2.hold { border-color: var(--yellow); background: rgba(255,221,45,0.03); box-shadow: 0 0 30px rgba(255,221,45,0.06), inset 0 1px 0 rgba(255,221,45,0.06); }
+.signal-main-v2.hold::before { background: radial-gradient(circle, rgba(255,221,45,0.14) 0%, transparent 70%); }
 .signal-action-v2 {
     font-family: var(--mono);
     font-size: 2.2rem;
@@ -468,9 +520,10 @@ footer { visibility: hidden !important; }
     letter-spacing: 0.2em;
     color: var(--green);
     line-height: 1;
+    text-shadow: 0 0 20px var(--green-glow);
 }
-.signal-action-v2.sell { color: var(--red); }
-.signal-action-v2.hold { color: var(--yellow); }
+.signal-action-v2.sell { color: var(--red); text-shadow: 0 0 20px rgba(255,61,87,0.4); }
+.signal-action-v2.hold { color: var(--yellow); text-shadow: 0 0 20px rgba(255,221,45,0.4); }
 .signal-pct-v2 {
     font-family: var(--mono);
     font-size: 1.05rem;
@@ -480,8 +533,8 @@ footer { visibility: hidden !important; }
 }
 .signal-label-v2 {
     font-family: var(--mono);
-    font-size: 0.58rem;
-    letter-spacing: 0.22em;
+    font-size: 0.56rem;
+    letter-spacing: 0.24em;
     color: var(--t3);
     margin-top: 8px;
     text-transform: uppercase;
@@ -494,55 +547,61 @@ footer { visibility: hidden !important; }
     min-width: 200px;
 }
 .sig-detail-card-v2 {
-    background: var(--bg2);
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border);
     padding: 0.75rem 1rem;
     position: relative;
     overflow: hidden;
+    border-radius: var(--radius);
+    transition: transform 0.15s, box-shadow 0.15s;
 }
+.sig-detail-card-v2:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 .sig-detail-card-v2::after {
     content: '';
     position: absolute;
     top: 0; left: 0;
     width: 3px; height: 100%;
     background: var(--border2);
+    border-radius: 2px 0 0 2px;
 }
-.sig-detail-card-v2.positive::after { background: var(--green); }
+.sig-detail-card-v2.positive::after { background: var(--green); box-shadow: 0 0 8px var(--green-dim); }
 .sig-detail-card-v2.negative::after { background: var(--red); }
 .sig-detail-card-v2.neutral::after  { background: var(--yellow); }
 .sig-detail-label-v2 {
     font-family: var(--mono);
-    font-size: 0.57rem;
-    letter-spacing: 0.14em;
+    font-size: 0.55rem;
+    letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--t3);
     margin-bottom: 4px;
 }
 .sig-detail-val-v2 {
     font-family: var(--mono);
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     font-weight: 600;
     color: var(--t1);
 }
 .sig-detail-sub-v2 {
     font-family: var(--mono);
-    font-size: 0.58rem;
+    font-size: 0.56rem;
     color: var(--t3);
     margin-top: 2px;
 }
 
 /* ── COMPOSITE SIGNAL METER ── */
 .composite-meter {
-    background: var(--bg2);
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border);
     border-left: 3px solid var(--blue);
     padding: 1.1rem 1.5rem;
     margin: 0.8rem 0;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
 }
 .meter-title {
     font-family: var(--mono);
-    font-size: 0.6rem;
-    letter-spacing: 0.18em;
+    font-size: 0.58rem;
+    letter-spacing: 0.19em;
     text-transform: uppercase;
     color: var(--t3);
     margin-bottom: 0.8rem;
@@ -553,22 +612,22 @@ footer { visibility: hidden !important; }
     gap: 0.7rem;
     margin-bottom: 0.45rem;
     font-family: var(--mono);
-    font-size: 0.7rem;
+    font-size: 0.68rem;
 }
 .sir-label { color: var(--t2); width: 110px; flex-shrink: 0; }
 .sir-bar-bg {
     flex: 1;
-    height: 5px;
-    background: rgba(255,255,255,0.05);
+    height: 4px;
+    background: rgba(255,255,255,0.04);
     border-radius: 2px;
     overflow: hidden;
 }
-.sir-bar { height: 100%; border-radius: 2px; }
-.sir-bar.positive { background: var(--green); }
-.sir-bar.negative { background: var(--red); }
-.sir-bar.neutral  { background: var(--yellow); }
+.sir-bar { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+.sir-bar.positive { background: linear-gradient(90deg, var(--green), rgba(0,229,176,0.6)); }
+.sir-bar.negative { background: linear-gradient(90deg, var(--red), rgba(255,61,87,0.6)); }
+.sir-bar.neutral  { background: linear-gradient(90deg, var(--yellow), rgba(255,221,45,0.6)); }
 .sir-val { width: 55px; text-align: right; font-weight: 600; color: var(--t1); }
-.sir-signal { width: 40px; text-align: right; font-size: 0.6rem; letter-spacing: 0.1em; font-weight: 700; }
+.sir-signal { width: 40px; text-align: right; font-size: 0.58rem; letter-spacing: 0.1em; font-weight: 700; }
 .sir-signal.buy  { color: var(--green); }
 .sir-signal.sell { color: var(--red); }
 .sir-signal.hold { color: var(--yellow); }
@@ -587,32 +646,46 @@ footer { visibility: hidden !important; }
     padding: 1rem 1.1rem;
     position: relative;
     overflow: hidden;
+    border-radius: var(--radius);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.glass-summary-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+.glass-summary-card::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 60px; height: 60px;
+    background: radial-gradient(circle at top right, rgba(0,229,176,0.06), transparent 70%);
 }
 .glass-summary-card.red   { border-top-color: var(--red); }
+.glass-summary-card.red::after { background: radial-gradient(circle at top right, rgba(255,61,87,0.06), transparent 70%); }
 .glass-summary-card.blue  { border-top-color: var(--blue); }
+.glass-summary-card.blue::after { background: radial-gradient(circle at top right, rgba(77,166,255,0.06), transparent 70%); }
 .glass-summary-card.yellow{ border-top-color: var(--yellow); }
+.glass-summary-card.yellow::after { background: radial-gradient(circle at top right, rgba(255,221,45,0.06), transparent 70%); }
 .gsc-label {
     font-family: var(--mono);
-    font-size: 0.58rem;
-    letter-spacing: 0.15em;
+    font-size: 0.57rem;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--t3);
     margin-bottom: 4px;
 }
 .gsc-value {
     font-family: var(--mono);
-    font-size: 1.45rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: var(--green);
     line-height: 1.1;
+    text-shadow: 0 0 10px var(--green-dim);
 }
-.gsc-value.red    { color: var(--red); }
-.gsc-value.blue   { color: var(--blue); }
-.gsc-value.yellow { color: var(--yellow); }
-.gsc-value.white  { color: var(--t1); }
+.gsc-value.red    { color: var(--red); text-shadow: none; }
+.gsc-value.blue   { color: var(--blue); text-shadow: none; }
+.gsc-value.yellow { color: var(--yellow); text-shadow: none; }
+.gsc-value.white  { color: var(--t1); text-shadow: none; }
 .gsc-sub {
     font-family: var(--mono);
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     color: var(--t3);
     margin-top: 3px;
 }
@@ -625,11 +698,18 @@ st.markdown("""
 <div class="app-header">
     <div class="app-header-left">
         <div class="app-title">STOCK<span>CAST</span> &nbsp;·&nbsp; Market Intelligence</div>
-        <div class="app-sub">XGBoost-powered price prediction · Technical signals · Backtesting · Shariah screening</div>
+        <div class="app-sub">XGBoost · Explainable Signals · Backtesting · Shariah Screening · News NLP</div>
     </div>
-    <div>
-        <span class="live-dot"></span>
-        <span class="live-label">LIVE DATA · NYSE/NASDAQ</span>
+    <div style="display:flex;align-items:center;gap:1.2rem;">
+        <div style="text-align:right;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.58rem;letter-spacing:.14em;color:#3d5068;text-transform:uppercase;">Platform</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:#7a8fa8;letter-spacing:.04em;">v2.0 Ultra</div>
+        </div>
+        <div style="width:1px;height:32px;background:#182030;"></div>
+        <div>
+            <span class="live-dot"></span>
+            <span class="live-label">LIVE · NYSE/NASDAQ</span>
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -638,24 +718,41 @@ st.markdown("""
 st.markdown("""
 <div class="ticker-tape-wrap">
   <div class="ticker-tape">
-    <span>AAPL <span class="tape-up">▲ $189.42 +1.2%</span></span>
-    <span>TSLA <span class="tape-down">▼ $248.11 -0.8%</span></span>
-    <span>NVDA <span class="tape-up">▲ $875.33 +2.1%</span></span>
-    <span>MSFT <span class="tape-up">▲ $421.05 +0.5%</span></span>
-    <span>GOOGL <span class="tape-down">▼ $168.22 -0.3%</span></span>
-    <span>META <span class="tape-up">▲ $512.88 +1.7%</span></span>
-    <span>AMZN <span class="tape-up">▲ $186.44 +0.9%</span></span>
-    <span>AMD <span class="tape-up">▲ $167.55 +3.2%</span></span>
-    <span>JPM <span class="tape-down">▼ $198.30 -0.4%</span></span>
-    <span>SPY <span class="tape-up">▲ $521.67 +0.6%</span></span>
-    <span>QQQ <span class="tape-up">▲ $448.90 +0.8%</span></span>
-    <span>AAPL <span class="tape-up">▲ $189.42 +1.2%</span></span>
-    <span>TSLA <span class="tape-down">▼ $248.11 -0.8%</span></span>
-    <span>NVDA <span class="tape-up">▲ $875.33 +2.1%</span></span>
-    <span>MSFT <span class="tape-up">▲ $421.05 +0.5%</span></span>
-    <span>GOOGL <span class="tape-down">▼ $168.22 -0.3%</span></span>
-    <span>META <span class="tape-up">▲ $512.88 +1.7%</span></span>
-    <span>AMZN <span class="tape-up">▲ $186.44 +0.9%</span></span>
+    <span><span class="tape-sym">AAPL</span> <span class="tape-up">▲ $189.42 +1.2%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">TSLA</span> <span class="tape-down">▼ $248.11 -0.8%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">NVDA</span> <span class="tape-up">▲ $875.33 +2.1%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">MSFT</span> <span class="tape-up">▲ $421.05 +0.5%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">GOOGL</span> <span class="tape-down">▼ $168.22 -0.3%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">META</span> <span class="tape-up">▲ $512.88 +1.7%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AMZN</span> <span class="tape-up">▲ $186.44 +0.9%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AMD</span> <span class="tape-up">▲ $167.55 +3.2%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">JPM</span> <span class="tape-down">▼ $198.30 -0.4%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">SPY</span> <span class="tape-up">▲ $521.67 +0.6%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">QQQ</span> <span class="tape-up">▲ $448.90 +0.8%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AAPL</span> <span class="tape-up">▲ $189.42 +1.2%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">TSLA</span> <span class="tape-down">▼ $248.11 -0.8%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">NVDA</span> <span class="tape-up">▲ $875.33 +2.1%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">MSFT</span> <span class="tape-up">▲ $421.05 +0.5%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">GOOGL</span> <span class="tape-down">▼ $168.22 -0.3%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">META</span> <span class="tape-up">▲ $512.88 +1.7%</span></span>
+    <span style="color:#182030;">·</span>
+    <span><span class="tape-sym">AMZN</span> <span class="tape-up">▲ $186.44 +0.9%</span></span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -732,10 +829,10 @@ if st.session_state.user is None:
     /* Full page override for auth screen */
     html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
         background:
-            radial-gradient(circle at 20% 30%, rgba(34,197,94,0.09), transparent 40%),
-            radial-gradient(circle at 80% 70%, rgba(61,158,255,0.08), transparent 40%),
-            radial-gradient(circle at 55% 10%, rgba(139,92,246,0.05), transparent 35%),
-            #0a0c0f !important;
+            radial-gradient(ellipse at 15% 25%, rgba(0,229,176,0.10), transparent 45%),
+            radial-gradient(ellipse at 85% 75%, rgba(77,166,255,0.09), transparent 45%),
+            radial-gradient(ellipse at 55% 5%,  rgba(167,139,250,0.06), transparent 40%),
+            #080b0f !important;
         font-family: 'Inter', sans-serif !important;
     }
     .block-container { padding: 0 !important; max-width: 100% !important; }
@@ -747,53 +844,56 @@ if st.session_state.user is None:
     /* Animated background blobs */
     .auth-bg {
         position: fixed; inset: 0; z-index: 0;
-        background: #0a0f1e;
+        background: #080b0f;
         overflow: hidden;
     }
     .auth-bg::before {
         content: '';
         position: absolute;
-        top: -20%; left: -10%;
-        width: 600px; height: 600px;
-        background: radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 65%);
-        animation: float1 12s ease-in-out infinite;
+        top: -15%; left: -8%;
+        width: 700px; height: 700px;
+        background: radial-gradient(circle, rgba(0,229,176,0.07) 0%, transparent 60%);
+        animation: float1 14s ease-in-out infinite;
     }
     .auth-bg::after {
         content: '';
         position: absolute;
-        bottom: -10%; right: -5%;
-        width: 500px; height: 500px;
-        background: radial-gradient(circle, rgba(59,130,246,0.07) 0%, transparent 65%);
-        animation: float2 15s ease-in-out infinite;
+        bottom: -8%; right: -5%;
+        width: 600px; height: 600px;
+        background: radial-gradient(circle, rgba(77,166,255,0.06) 0%, transparent 60%);
+        animation: float2 18s ease-in-out infinite;
     }
     @keyframes float1 {
         0%,100% { transform: translate(0,0) scale(1); }
-        50%      { transform: translate(60px, 40px) scale(1.1); }
+        33%      { transform: translate(50px, 35px) scale(1.08); }
+        66%      { transform: translate(20px, -20px) scale(0.96); }
     }
     @keyframes float2 {
         0%,100% { transform: translate(0,0) scale(1); }
-        50%      { transform: translate(-40px, -30px) scale(1.08); }
+        33%      { transform: translate(-35px, -25px) scale(1.06); }
+        66%      { transform: translate(15px, 10px) scale(0.97); }
     }
 
     /* Card */
     .auth-card {
         position: relative; z-index: 10;
-        background: rgba(17, 24, 39, 0.75);
-        backdrop-filter: blur(25px);
-        -webkit-backdrop-filter: blur(25px);
-        border: 1px solid rgba(255,255,255,0.06);
+        background: rgba(13, 17, 23, 0.80);
+        backdrop-filter: blur(30px);
+        -webkit-backdrop-filter: blur(30px);
+        border: 1px solid rgba(255,255,255,0.07);
         border-radius: 20px;
         padding: 2.5rem 2.2rem 2rem;
         max-width: 420px;
         margin: 0 auto;
         box-shadow:
-            0 10px 40px rgba(0,0,0,0.6),
-            inset 0 1px 0 rgba(255,255,255,0.05),
-            0 0 0 1px rgba(255,255,255,0.02);
-        animation: cardIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+            0 20px 60px rgba(0,0,0,0.7),
+            inset 0 1px 0 rgba(255,255,255,0.06),
+            0 0 0 1px rgba(255,255,255,0.02),
+            0 0 80px rgba(0,229,176,0.04);
+        animation: cardIn 0.55s cubic-bezier(0.16,1,0.3,1) both;
     }
     @keyframes cardIn {
-        from { opacity: 0; transform: translateY(24px) scale(0.97); }
+        from { opacity: 0; transform: translateY(28px) scale(0.96); }
         to   { opacity: 1; transform: translateY(0)    scale(1); }
     }
 
@@ -804,28 +904,29 @@ if st.session_state.user is None:
     }
     .auth-logo-icon {
         display: inline-flex; align-items: center; justify-content: center;
-        width: 52px; height: 52px;
-        background: linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.05));
-        border: 1px solid rgba(34,197,94,0.3);
+        width: 54px; height: 54px;
+        background: linear-gradient(135deg, rgba(0,229,176,0.18), rgba(0,229,176,0.04));
+        border: 1px solid rgba(0,229,176,0.28);
         border-radius: 14px;
         font-size: 1.5rem;
         margin-bottom: 0.9rem;
-        box-shadow: 0 0 20px rgba(34,197,94,0.12);
+        box-shadow: 0 0 28px rgba(0,229,176,0.15), inset 0 1px 0 rgba(0,229,176,0.1);
     }
     .auth-title {
         font-family: 'IBM Plex Mono', monospace;
         font-size: 1.75rem;
         font-weight: 700;
-        color: #f1f5f9;
+        color: #eef2f7;
         letter-spacing: 0.04em;
         line-height: 1;
     }
-    .auth-title span { color: #22c55e; }
+    .auth-title span { color: #00e5b0; text-shadow: 0 0 20px rgba(0,229,176,0.4); }
     .auth-subtitle {
-        font-size: 0.875rem;
-        color: #64748b;
-        margin-top: 0.4rem;
+        font-size: 0.84rem;
+        color: #3d5068;
+        margin-top: 0.45rem;
         font-weight: 400;
+        letter-spacing: 0.02em;
     }
 
     /* Tab bar */
@@ -850,10 +951,10 @@ if st.session_state.user is None:
         border: none; background: transparent;
     }
     .auth-tab.active {
-        background: rgba(34,197,94,0.12);
-        color: #22c55e;
-        border: 1px solid rgba(34,197,94,0.25);
-        box-shadow: 0 2px 8px rgba(34,197,94,0.08);
+        background: rgba(0,229,176,0.12);
+        color: #00e5b0;
+        border: 1px solid rgba(0,229,176,0.25);
+        box-shadow: 0 2px 8px rgba(0,229,176,0.08);
     }
 
     /* Input group */
@@ -891,8 +992,8 @@ if st.session_state.user is None:
         outline: none !important;
     }
     [data-testid="stTextInput"] input:focus {
-        border: 1px solid #22c55e !important;
-        box-shadow: 0 0 0 2px rgba(34,197,94,0.2) !important;
+        border: 1px solid #00e5b0 !important;
+        box-shadow: 0 0 0 2px rgba(0,229,176,0.2) !important;
         background: rgba(15, 23, 42, 0.9) !important;
     }
     [data-testid="stTextInput"] input::placeholder { color: #64748b !important; }
@@ -912,36 +1013,37 @@ if st.session_state.user is None:
 
     /* Upgrade 2: Premium button */
     div.stButton > button {
-        background: linear-gradient(135deg, #22c55e, #16a34a) !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-        border-radius: 12px !important;
+        background: linear-gradient(135deg, #00e5b0, #00b88d) !important;
+        color: #050d0a !important;
+        font-weight: 700 !important;
+        border-radius: 10px !important;
         height: 48px !important;
         border: none !important;
         font-family: 'Inter', sans-serif !important;
-        font-size: 0.9rem !important;
-        letter-spacing: 0.04em !important;
+        font-size: 0.88rem !important;
+        letter-spacing: 0.06em !important;
+        text-transform: uppercase !important;
         width: 100% !important;
         margin-top: 0.4rem !important;
-        transition: all 0.2s ease !important;
-        box-shadow: 0 4px 20px rgba(34,197,94,0.28) !important;
+        transition: all 0.2s cubic-bezier(0.4,0,0.2,1) !important;
+        box-shadow: 0 4px 24px rgba(0,229,176,0.3), inset 0 1px 0 rgba(255,255,255,0.15) !important;
         position: relative !important;
         overflow: hidden !important;
     }
     div.stButton > button::after {
         content: '';
         position: absolute; inset: 0;
-        background: linear-gradient(180deg, rgba(255,255,255,0.08), transparent);
+        background: linear-gradient(180deg, rgba(255,255,255,0.12), transparent);
         pointer-events: none;
     }
     div.stButton > button:hover {
         transform: translateY(-2px) !important;
-        box-shadow: 0 10px 25px rgba(34,197,94,0.35) !important;
-        background: linear-gradient(135deg, #4ade80, #22c55e) !important;
+        box-shadow: 0 12px 32px rgba(0,229,176,0.4) !important;
+        background: linear-gradient(135deg, #1aebbb, #00e5b0) !important;
     }
     div.stButton > button:active {
         transform: scale(0.98) !important;
-        box-shadow: 0 2px 10px rgba(34,197,94,0.2) !important;
+        box-shadow: 0 2px 12px rgba(0,229,176,0.25) !important;
     }
 
     /* Divider */
@@ -963,7 +1065,7 @@ if st.session_state.user is None:
     }
     .auth-forgot a {
         font-size: 0.75rem;
-        color: #22c55e;
+        color: #00e5b0;
         text-decoration: none;
         opacity: 0.8;
         transition: opacity 0.15s;
@@ -980,7 +1082,7 @@ if st.session_state.user is None:
         font-size: 0.7rem; color: #334155;
         display: flex; align-items: center; gap: 0.3rem;
     }
-    .auth-trust-item span { color: #22c55e; }
+    .auth-trust-item span { color: #00e5b0; }
 
     /* Streamlit alert overrides */
     [data-testid="stAlert"] {
@@ -1003,13 +1105,13 @@ if st.session_state.user is None:
         <div style="text-align:center;padding:2.5rem 0 0;animation:cardIn 0.4s ease both;">
             <div style="display:inline-flex;align-items:center;justify-content:center;
                  width:54px;height:54px;
-                 background:linear-gradient(135deg,rgba(34,197,94,0.18),rgba(34,197,94,0.04));
-                 border:1px solid rgba(34,197,94,0.28);border-radius:14px;
+                 background:linear-gradient(135deg,rgba(0,229,176,0.18),rgba(0,229,176,0.04));
+                 border:1px solid rgba(0,229,176,0.28);border-radius:14px;
                  font-size:1.5rem;margin-bottom:.9rem;
-                 box-shadow:0 0 24px rgba(34,197,94,0.12);">📈</div>
+                 box-shadow:0 0 24px rgba(0,229,176,0.12);">📈</div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:1.8rem;font-weight:700;
                  color:#f1f5f9;letter-spacing:.04em;line-height:1;">
-                STOCK<span style="color:#22c55e;">CAST</span>
+                STOCK<span style="color:#00e5b0;">CAST</span>
             </div>
             <div style="font-size:.85rem;color:#64748b;margin-top:.4rem;font-family:'Inter',sans-serif;">
                 AI-powered stock intelligence platform
@@ -1053,7 +1155,7 @@ if st.session_state.user is None:
                                            label_visibility="collapsed")
 
             st.markdown('<div style="text-align:right;margin-top:-.4rem;margin-bottom:.8rem;">'
-                        '<a href="#" style="font-size:.75rem;color:#22c55e;text-decoration:none;opacity:.8;">'
+                        '<a href="#" style="font-size:.75rem;color:#00e5b0;text-decoration:none;opacity:.8;">'
                         'Forgot password?</a></div>', unsafe_allow_html=True)
 
             if st.button("Login →", use_container_width=True, key="login_btn"):
@@ -1078,11 +1180,11 @@ if st.session_state.user is None:
             st.markdown("""
             <div style="display:flex;justify-content:center;gap:1.4rem;margin-top:1.2rem;flex-wrap:wrap;">
               <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
-                <span style="color:#22c55e;">✓</span> 256-bit encryption</span>
+                <span style="color:#00e5b0;">✓</span> 256-bit encryption</span>
               <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
-                <span style="color:#22c55e;">✓</span> No data stored</span>
+                <span style="color:#00e5b0;">✓</span> No data stored</span>
               <span style="font-size:.7rem;color:#334155;display:flex;align-items:center;gap:.3rem;">
-                <span style="color:#22c55e;">✓</span> Free to use</span>
+                <span style="color:#00e5b0;">✓</span> Free to use</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1125,8 +1227,8 @@ if st.session_state.user is None:
             st.markdown("""
             <div style="text-align:center;margin-top:1rem;font-size:.75rem;color:#334155;font-family:'Inter',sans-serif;">
               By signing up you agree to our
-              <a href="#" style="color:#22c55e;text-decoration:none;">Terms</a> &
-              <a href="#" style="color:#22c55e;text-decoration:none;">Privacy Policy</a>
+              <a href="#" style="color:#00e5b0;text-decoration:none;">Terms</a> &
+              <a href="#" style="color:#00e5b0;text-decoration:none;">Privacy Policy</a>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1146,9 +1248,9 @@ if st.session_state.user is None:
 with st.sidebar:
     # ── User info + Logout ─────────────────────────────────────────────────────
     st.markdown(
-        f'<div style="background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.2);'
-        f'border-left:3px solid #00d4a0;padding:.6rem 1rem;font-family:IBM Plex Mono,monospace;'
-        f'font-size:.68rem;color:#00d4a0;letter-spacing:.06em;margin-bottom:.6rem;">'
+        f'<div style="background:rgba(0,229,176,0.06);border:1px solid rgba(0,229,176,0.2);'
+        f'border-left:3px solid #00e5b0;padding:.6rem 1rem;font-family:IBM Plex Mono,monospace;'
+        f'font-size:.68rem;color:#00e5b0;letter-spacing:.06em;margin-bottom:.6rem;">'
         f'👤 {st.session_state.user.email}</div>',
         unsafe_allow_html=True
     )
@@ -1171,18 +1273,18 @@ with st.sidebar:
             selected = st.selectbox("Select", search_results, label_visibility="collapsed")
             ticker = selected.split(" — ")[0].strip()
             st.markdown(
-                f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
-                f'border-left:3px solid #00d4a0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
-                f'font-size:.72rem;color:#00d4a0;letter-spacing:.06em;margin:.3rem 0;">'
+                f'<div style="background:rgba(0,229,176,0.07);border:1px solid rgba(0,229,176,0.3);'
+                f'border-left:3px solid #00e5b0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+                f'font-size:.72rem;color:#00e5b0;letter-spacing:.06em;margin:.3rem 0;">'
                 f'✓ {ticker}</div>',
                 unsafe_allow_html=True)
         else:
             # Treat the query itself as a direct ticker entry
             ticker = search_query.strip().upper()
             st.markdown(
-                f'<div style="background:rgba(255,211,42,0.07);border:1px solid rgba(255,211,42,0.3);'
-                f'border-left:3px solid #ffd32a;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
-                f'font-size:.72rem;color:#ffd32a;letter-spacing:.06em;margin:.3rem 0;">'
+                f'<div style="background:rgba(255,221,45,0.07);border:1px solid rgba(255,221,45,0.3);'
+                f'border-left:3px solid #ffdd2d;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+                f'font-size:.72rem;color:#ffdd2d;letter-spacing:.06em;margin:.3rem 0;">'
                 f'Using: {ticker} — verify symbol is correct</div>',
                 unsafe_allow_html=True)
     else:
@@ -1191,9 +1293,9 @@ with st.sidebar:
                                placeholder="AAPL, TSLA, MSFT…",
                                label_visibility="collapsed", key="direct_ticker").strip().upper() or "AAPL"
         st.markdown(
-            f'<div style="background:rgba(0,212,160,0.07);border:1px solid rgba(0,212,160,0.3);'
-            f'border-left:3px solid #00d4a0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
-            f'font-size:.75rem;color:#00d4a0;letter-spacing:.08em;margin:.3rem 0;">'
+            f'<div style="background:rgba(0,229,176,0.07);border:1px solid rgba(0,229,176,0.3);'
+            f'border-left:3px solid #00e5b0;padding:.4rem 1rem;font-family:IBM Plex Mono,monospace;'
+            f'font-size:.75rem;color:#00e5b0;letter-spacing:.08em;margin:.3rem 0;">'
             f'● ACTIVE: {ticker}</div>',
             unsafe_allow_html=True)
 
@@ -1212,9 +1314,9 @@ with st.sidebar:
     st.markdown("---")
     # ── Mode Switch ────────────────────────────────────────────────────────────
     st.markdown("""
-    <div style="background:rgba(0,212,160,0.04);border:1px solid rgba(0,212,160,0.2);
+    <div style="background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.2);
          padding:.65rem 1rem;font-family:'IBM Plex Mono',monospace;font-size:.6rem;
-         letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;margin-bottom:.3rem;">
+         letter-spacing:.14em;text-transform:uppercase;color:#3d5068;margin-bottom:.3rem;">
       Experience Level
     </div>""", unsafe_allow_html=True)
 
@@ -1229,14 +1331,14 @@ with st.sidebar:
     is_beginner = (ui_mode == "🟢 Beginner")
 
     if is_beginner:
-        st.markdown("""<div style="background:rgba(0,212,160,0.06);border-left:3px solid #00d4a0;
+        st.markdown("""<div style="background:rgba(0,229,176,0.06);border-left:3px solid #00e5b0;
              padding:.45rem .9rem;font-family:'IBM Plex Mono',monospace;font-size:.63rem;
-             color:#00d4a0;letter-spacing:.05em;margin-bottom:.2rem;">
+             color:#00e5b0;letter-spacing:.05em;margin-bottom:.2rem;">
         ✓ Simple view active — just pick a ticker and run</div>""", unsafe_allow_html=True)
     else:
-        st.markdown("""<div style="background:rgba(255,71,87,0.06);border-left:3px solid #ff4757;
+        st.markdown("""<div style="background:rgba(255,61,87,0.06);border-left:3px solid #ff3d57;
              padding:.45rem .9rem;font-family:'IBM Plex Mono',monospace;font-size:.63rem;
-             color:#ff4757;letter-spacing:.05em;margin-bottom:.2rem;">
+             color:#ff3d57;letter-spacing:.05em;margin-bottom:.2rem;">
         ⚡ Pro view — all parameters unlocked</div>""", unsafe_allow_html=True)
 
     st.markdown("---")
@@ -1334,19 +1436,19 @@ with st.sidebar:
                     _qt = yf.Ticker(wl_sym).fast_info
                     _px = _qt.get("last_price") or _qt.get("regularMarketPrice") or 0
                     _chg = _qt.get("regularMarketChangePercent") or 0
-                    _color = "#00d4a0" if _chg >= 0 else "#ff4757"
+                    _color = "#00e5b0" if _chg >= 0 else "#ff3d57"
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(
                         f'<div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;'
-                        f'color:#e8edf2;padding:.25rem 0;">'
-                        f'<span style="color:#4a5a6a;">{wl_sym}</span>  '
+                        f'color:#eef2f7;padding:.25rem 0;">'
+                        f'<span style="color:#3d5068;">{wl_sym}</span>  '
                         f'<span style="color:{_color};">{_sign} ${_px:.2f} ({_chg:+.1f}%)</span></div>',
                         unsafe_allow_html=True
                     )
                 except Exception:
                     st.markdown(
                         f'<div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;'
-                        f'color:#4a5a6a;padding:.25rem 0;">{wl_sym}</div>',
+                        f'color:#3d5068;padding:.25rem 0;">{wl_sym}</div>',
                         unsafe_allow_html=True
                     )
             with wc2:
@@ -1357,7 +1459,7 @@ with st.sidebar:
                     st.rerun()
     else:
         st.markdown(
-            '<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#2a3a4e;'
+            '<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#243346;'
             'padding:.4rem 0;">No stocks saved yet.</div>',
             unsafe_allow_html=True
         )
@@ -1374,23 +1476,23 @@ with st.sidebar:
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
 PLOTLY_LAYOUT = dict(
-    paper_bgcolor="#0f1318",
-    plot_bgcolor="#0f1318",
-    font=dict(family="IBM Plex Mono", color="#8a9bb0", size=10),
-    xaxis=dict(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color="#4a5a6a", size=10), showgrid=True, zeroline=False),
-    yaxis=dict(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color="#4a5a6a", size=10), showgrid=True, zeroline=False),
-    legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="#1e2a38", borderwidth=1, font=dict(size=10)),
+    paper_bgcolor="#0d1117",
+    plot_bgcolor="#0d1117",
+    font=dict(family="IBM Plex Mono", color="#7a8fa8", size=10),
+    xaxis=dict(gridcolor="#182030", linecolor="#182030", tickfont=dict(color="#3d5068", size=10), showgrid=True, zeroline=False),
+    yaxis=dict(gridcolor="#182030", linecolor="#182030", tickfont=dict(color="#3d5068", size=10), showgrid=True, zeroline=False),
+    legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="#182030", borderwidth=1, font=dict(size=10)),
     margin=dict(l=10, r=10, t=40, b=10),
     hovermode="x unified",
-    hoverlabel=dict(bgcolor="#131920", bordercolor="#2a3a4e", font=dict(family="IBM Plex Mono", size=11, color="#e8edf2")),
+    hoverlabel=dict(bgcolor="#111820", bordercolor="#243346", font=dict(family="IBM Plex Mono", size=11, color="#eef2f7")),
 )
 
 # Colour constants
-C_GREEN  = "#00d4a0"
-C_RED    = "#ff4757"
-C_BLUE   = "#3d9eff"
-C_YELLOW = "#ffd32a"
-C_GREY   = "#4a5a6a"
+C_GREEN  = "#00e5b0"
+C_RED    = "#ff3d57"
+C_BLUE   = "#4da6ff"
+C_YELLOW = "#ffdd2d"
+C_GREY   = "#3d5068"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 @st.cache_data
@@ -1833,42 +1935,42 @@ def check_shariah_compliance(ticker_sym, data):
 def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
     st.markdown("""
     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.22em;
-         text-transform:uppercase;color:#4a5a6a;margin-bottom:.4rem;">Technical Documentation</div>
+         text-transform:uppercase;color:#3d5068;margin-bottom:.4rem;">Technical Documentation</div>
     <div style="font-family:'IBM Plex Mono',monospace;font-size:1.1rem;font-weight:700;
-         color:#e8edf2;letter-spacing:.08em;margin-bottom:1.4rem;">
-         STOCK<span style="color:#00d4a0;">CAST</span> · Methodology & Model Architecture
+         color:#eef2f7;letter-spacing:.08em;margin-bottom:1.4rem;">
+         STOCK<span style="color:#00e5b0;">CAST</span> · Methodology & Model Architecture
     </div>
     """, unsafe_allow_html=True)
 
     steps = [
-        ("01", "#00d4a0", "Data Ingestion", "OHLCV via yfinance",
+        ("01", "#00e5b0", "Data Ingestion", "OHLCV via yfinance",
          "Up to 7 years of daily Open/High/Low/Close/Volume data is fetched from Yahoo Finance. "
          "Timezone normalization and MultiIndex flattening are applied for compatibility across yfinance versions."),
-        ("02", "#3d9eff", "Feature Engineering", "20 Technical Indicators",
+        ("02", "#4da6ff", "Feature Engineering", "20 Technical Indicators",
          f"Each trading day is described by 20 derived signals: MA5/10/20/50/200, EMA12/26, RSI(14), "
          f"MACD(12/26/9) with histogram, Bollinger Band width & %B, ATR(14), Volume Ratio, Momentum, "
          f"Returns(1d/5d), Volatility(20d), and High-Low%. Additionally, {seq_len_val} lag closes are appended "
          "as sequential memory, giving the model temporal context."),
-        ("03", "#ffd32a", "Train / Test Split", "80% train · 20% test (chronological)",
+        ("03", "#ffdd2d", "Train / Test Split", "80% train · 20% test (chronological)",
          "Data is split strictly chronologically — no shuffling — to prevent look-ahead bias. "
          "The model never sees future data during training. Evaluation is performed exclusively on the held-out 20%."),
-        ("04", "#00d4a0", "XGBoost Regressor", "Gradient-boosted decision trees",
+        ("04", "#00e5b0", "XGBoost Regressor", "Gradient-boosted decision trees",
          "XGBoost is trained to predict the next day's closing price. Hyperparameters (n_estimators, "
          "max_depth, learning_rate) are configurable via the sidebar. Subsample=0.8 and colsample_bytree=0.8 "
          "provide regularisation. Early stopping uses the test set as an eval set."),
-        ("05", "#3d9eff", "Bootstrap CI", f"{ci_n} resampling iterations" if show_ci else "Disabled",
+        ("05", "#4da6ff", "Bootstrap CI", f"{ci_n} resampling iterations" if show_ci else "Disabled",
          f"Confidence intervals are produced by running the model {ci_n} times on inputs perturbed with "
          "Gaussian noise (σ=1.5%). The 5th and 95th percentiles form the 95% CI ribbon. "
          "A wider band indicates higher forecast uncertainty."),
-        ("06", "#ffd32a", "Forward Forecast", "Iterative multi-step prediction",
+        ("06", "#ffdd2d", "Forward Forecast", "Iterative multi-step prediction",
          "Future prices are predicted by rolling: each day's predicted price feeds back as the next day's lag input. "
          "Error compounds over time — Days 1–3 are most reliable. Days 6+ are directional signals only. "
          "An expanding ±1.5σ uncertainty band visualises this degradation."),
-        ("07", "#ff4757", "Signal Generation", "BUY / SELL / HOLD",
+        ("07", "#ff3d57", "Signal Generation", "BUY / SELL / HOLD",
          "A BUY signal fires when the predicted next-day return exceeds +1% (configurable). "
          "SELL fires below −1%. HOLD covers the neutral zone. The latest signal reflects the model's "
          "view on tomorrow's likely price movement."),
-        ("08", "#00d4a0", "Backtesting Engine", "Walk-forward simulation",
+        ("08", "#00e5b0", "Backtesting Engine", "Walk-forward simulation",
          "The backtest replays XGBoost signals on the test-set prices: when a BUY fires, it buys "
          "as many shares as capital allows (minus commission). When SELL fires, it liquidates. "
          "KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, and equity curve vs Buy-and-Hold."),
@@ -1877,32 +1979,32 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
     for num, color, title, subtitle, body in steps:
         st.markdown(f"""
         <div style="display:flex;gap:1.2rem;margin-bottom:1rem;
-             background:#0f1318;border:1px solid #1e2a38;border-left:3px solid {color};
+             background:#0d1117;border:1px solid #182030;border-left:3px solid {color};
              padding:1.1rem 1.4rem;">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:1.6rem;font-weight:700;
                color:{color};opacity:.6;min-width:2.5rem;line-height:1.1;">{num}</div>
           <div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;font-weight:700;
-                 letter-spacing:.14em;text-transform:uppercase;color:#e8edf2;">{title}</div>
+                 letter-spacing:.14em;text-transform:uppercase;color:#eef2f7;">{title}</div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:.1em;
                  color:{color};margin-bottom:.4rem;">{subtitle}</div>
             <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;
-                 color:#8a9bb0;line-height:1.6;">{body}</div>
+                 color:#7a8fa8;line-height:1.6;">{body}</div>
           </div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div style="background:rgba(255,71,87,0.04);border:1px solid rgba(255,71,87,0.2);
-         border-left:3px solid #ff4757;padding:1rem 1.5rem;margin-top:.5rem;">
+    <div style="background:rgba(255,61,87,0.04);border:1px solid rgba(255,61,87,0.2);
+         border-left:3px solid #ff3d57;padding:1rem 1.5rem;margin-top:.5rem;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.15em;
-           text-transform:uppercase;color:#ff4757;margin-bottom:.4rem;">⚠ Key Limitations</div>
-      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#8a9bb0;line-height:1.7;">
-        This model uses <b style="color:#e8edf2;">price and volume data only</b>. It has no awareness of
+           text-transform:uppercase;color:#ff3d57;margin-bottom:.4rem;">⚠ Key Limitations</div>
+      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;color:#7a8fa8;line-height:1.7;">
+        This model uses <b style="color:#eef2f7;">price and volume data only</b>. It has no awareness of
         earnings releases, macroeconomic events, analyst upgrades, geopolitical news, or central bank decisions.
         A single unexpected event can invalidate any technical forecast.
         Multi-day forecasts degrade rapidly due to compounding prediction error.
-        <b style="color:#ff4757;">This is a research and educational tool — not financial advice.</b>
+        <b style="color:#ff3d57;">This is a research and educational tool — not financial advice.</b>
         Always consult a licensed financial advisor before making investment decisions.
       </div>
     </div>
@@ -1922,22 +2024,22 @@ if run_btn:
 
     # ── Realism Warning Banner ─────────────────────────────────────────────────
     st.markdown(f"""
-    <div style="background:rgba(255,211,42,0.05);border:1px solid rgba(255,211,42,0.35);
-         border-left:4px solid #ffd32a;padding:1rem 1.5rem;margin:.5rem 0 1rem 0;">
+    <div style="background:rgba(255,221,45,0.05);border:1px solid rgba(255,221,45,0.35);
+         border-left:4px solid #ffdd2d;padding:1rem 1.5rem;margin:.5rem 0 1rem 0;">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:.62rem;letter-spacing:.16em;
-           text-transform:uppercase;color:#ffd32a;margin-bottom:.4rem;">
+           text-transform:uppercase;color:#ffdd2d;margin-bottom:.4rem;">
         ⚠ Model Reality Check — Read Before Trading
       </div>
-      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:.8rem;color:#8a9bb0;line-height:1.6;">
-        This model uses <b style="color:#e8edf2;">price &amp; volume data only.</b>
-        It has <b style="color:#ff4757;">zero awareness</b> of:
+      <div style="font-family:'IBM Plex Sans',sans-serif;font-size:.8rem;color:#7a8fa8;line-height:1.6;">
+        This model uses <b style="color:#eef2f7;">price &amp; volume data only.</b>
+        It has <b style="color:#ff3d57;">zero awareness</b> of:
         &nbsp;📰 breaking news &nbsp;·&nbsp;
         📊 earnings releases &nbsp;·&nbsp;
         🏦 Fed/macro events &nbsp;·&nbsp;
         🧠 analyst upgrades &nbsp;·&nbsp;
         🌍 geopolitical events.
         A single unexpected headline can invalidate any technical forecast instantly.
-        <b style="color:#ffd32a;">Use signals as one input — never as sole decision.</b>
+        <b style="color:#ffdd2d;">Use signals as one input — never as sole decision.</b>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1986,7 +2088,7 @@ if run_btn:
             name="BB Upper", line=dict(color=C_GREY, width=0.8, dash='dot')), row=1, col=1)
         fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Lower'].squeeze(),
             name="BB Lower", line=dict(color=C_GREY, width=0.8, dash='dot'),
-            fill='tonexty', fillcolor='rgba(61,158,255,0.04)'), row=1, col=1)
+            fill='tonexty', fillcolor='rgba(77,166,255,0.04)'), row=1, col=1)
         colors_vol = [C_GREEN if c >= o else C_RED
                       for c, o in zip(close_series, df['Open'].squeeze())]
         fig_candle.add_trace(go.Bar(x=df.index, y=df['Volume'].squeeze(),
@@ -1998,8 +2100,8 @@ if run_btn:
                        font=dict(color=C_GREEN, size=12)),
             xaxis_rangeslider_visible=False, height=560,
         )
-        fig_candle.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-        fig_candle.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+        fig_candle.update_xaxes(gridcolor="#182030", linecolor="#182030", tickfont=dict(color=C_GREY))
+        fig_candle.update_yaxes(gridcolor="#182030", linecolor="#182030", tickfont=dict(color=C_GREY))
         st.plotly_chart(fig_candle, use_container_width=True)
 
         # ── RSI + MACD ─────────────────────────────────────────────────────────────
@@ -2011,8 +2113,8 @@ if run_btn:
             name="RSI", line=dict(color=C_GREEN, width=1.5)), row=1, col=1)
         fig_tech.add_hline(y=70, line_dash="dash", line_color=C_RED,  row=1, col=1)
         fig_tech.add_hline(y=30, line_dash="dash", line_color=C_GREEN, row=1, col=1)
-        fig_tech.add_hrect(y0=70, y1=100, fillcolor="rgba(255,71,87,0.04)",   line_width=0, row=1, col=1)
-        fig_tech.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,212,160,0.04)",   line_width=0, row=1, col=1)
+        fig_tech.add_hrect(y0=70, y1=100, fillcolor="rgba(255,61,87,0.04)",   line_width=0, row=1, col=1)
+        fig_tech.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,229,176,0.04)",   line_width=0, row=1, col=1)
         fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD'].squeeze(),
             name="MACD",   line=dict(color=C_GREEN, width=1.2)), row=2, col=1)
         fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD_Signal'].squeeze(),
@@ -2023,8 +2125,8 @@ if run_btn:
             name="Histogram", marker_color=hist_colors, opacity=0.65), row=2, col=1)
         subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis', 'yaxis')}
         fig_tech.update_layout(**subplot_layout, height=450)
-        fig_tech.update_xaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
-        fig_tech.update_yaxes(gridcolor="#1e2a38", linecolor="#1e2a38", tickfont=dict(color=C_GREY))
+        fig_tech.update_xaxes(gridcolor="#182030", linecolor="#182030", tickfont=dict(color=C_GREY))
+        fig_tech.update_yaxes(gridcolor="#182030", linecolor="#182030", tickfont=dict(color=C_GREY))
         fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
         st.plotly_chart(fig_tech, use_container_width=True)
 
@@ -2034,42 +2136,42 @@ if run_btn:
 
         with st.expander("📖  How this model works — methodology & limitations", expanded=False):
             st.markdown(f"""
-            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;color:#8a9bb0;line-height:1.7;">
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;color:#7a8fa8;line-height:1.7;">
 
-            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            <b style="color:#eef2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
             Feature Engineering</b><br>
-            Each trading day is represented by <b style="color:#00d4a0;">20 technical indicators</b> computed from raw OHLCV data —
+            Each trading day is represented by <b style="color:#00e5b0;">20 technical indicators</b> computed from raw OHLCV data —
             moving averages (MA5–200, EMA12/26), RSI, MACD with histogram, Bollinger Bands width &amp; position,
-            ATR, volume ratio, and momentum — plus <b style="color:#00d4a0;">{seq_len} lag closes</b> as sequential context.
+            ATR, volume ratio, and momentum — plus <b style="color:#00e5b0;">{seq_len} lag closes</b> as sequential context.
             This gives the model both market-state awareness and short-term price memory.
             <br><br>
 
-            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            <b style="color:#eef2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
             Training &amp; Evaluation</b><br>
-            Data is split <b style="color:#00d4a0;">80% train / 20% test</b> chronologically (no data leakage).
+            Data is split <b style="color:#00e5b0;">80% train / 20% test</b> chronologically (no data leakage).
             XGBoost is trained to predict the <em>next day's closing price</em> given today's features.
             Model quality is measured on the held-out test set using RMSE, MAE, MAPE and R².
             <br><br>
 
-            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            <b style="color:#eef2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
             Confidence Intervals</b><br>
-            The 95% CI ribbon is produced via <b style="color:#00d4a0;">bootstrap resampling</b>: the model is run
+            The 95% CI ribbon is produced via <b style="color:#00e5b0;">bootstrap resampling</b>: the model is run
             {ci_bootstrap_n if show_conf_interval else 100}x on inputs with small Gaussian noise added (sigma=1.5%), and the 5th-95th percentile
             range across all runs forms the band. A <em>wider band = higher uncertainty</em>.
             <br><br>
 
-            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            <b style="color:#eef2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
             Forward Forecast Reliability</b><br>
             Multi-day forecasts roll predictions iteratively — each day's output feeds the next day's lag input.
-            <b style="color:#ffd32a;">Prediction errors compound.</b> Day 1–3 forecasts are most reliable.
+            <b style="color:#ffdd2d;">Prediction errors compound.</b> Day 1–3 forecasts are most reliable.
             Days 7+ should be treated as directional trend signals only, not price targets.
             <br><br>
 
-            <b style="color:#e8edf2;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
+            <b style="color:#eef2f7;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:.12em;text-transform:uppercase;">
             Key Limitations</b><br>
             This model uses <em>only price and volume data</em>. It has no awareness of earnings releases,
             macroeconomic events, analyst upgrades, or breaking news. A single unexpected event
-            can invalidate any technical forecast. <b style="color:#ff4757;">This is a research tool, not financial advice.</b>
+            can invalidate any technical forecast. <b style="color:#ff3d57;">This is a research tool, not financial advice.</b>
 
             </div>
             """, unsafe_allow_html=True)
@@ -2119,12 +2221,12 @@ if run_btn:
         mape_label  = ("🟢 Excellent" if mape < 2 else "🟡 Good" if mape < 5 else "🟠 Fair" if mape < 10 else "🔴 Poor")
         r2_label    = ("🟢 Excellent" if r2 > 0.95 else "🟡 Good" if r2 > 0.85 else "🟠 Fair" if r2 > 0.70 else "🔴 Poor")
         st.markdown(
-            f'<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.3rem;'
-            f'font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#4a5a6a;'
+            f'<div style="background:#0d1117;border:1px solid #182030;padding:.7rem 1.3rem;'
+            f'font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#3d5068;'
             f'display:flex;gap:2rem;flex-wrap:wrap;margin-top:-.3rem;">'
             f'<span>MAPE: {mape_label} &nbsp;·&nbsp; &lt;2% excellent · &lt;5% good · &lt;10% fair</span>'
             f'<span>R²: {r2_label} &nbsp;·&nbsp; &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span>'
-            f'<span style="color:#2a3a4e;">RMSE/MAE are in $ — lower is better</span>'
+            f'<span style="color:#243346;">RMSE/MAE are in $ — lower is better</span>'
             f'</div>', unsafe_allow_html=True)
 
         # ── Confidence Score ──────────────────────────────────────────────────────
@@ -2147,11 +2249,11 @@ if run_btn:
         confidence_score = max(0, min(100, confidence_score))
 
         if confidence_score >= 80:
-            conf_color = "#00d4a0"; conf_label = "HIGH CONFIDENCE"; conf_bar_bg = "rgba(0,212,160,0.15)"
+            conf_color = "#00e5b0"; conf_label = "HIGH CONFIDENCE"; conf_bar_bg = "rgba(0,229,176,0.15)"
         elif confidence_score >= 60:
-            conf_color = "#ffd32a"; conf_label = "MODERATE CONFIDENCE"; conf_bar_bg = "rgba(255,211,42,0.15)"
+            conf_color = "#ffdd2d"; conf_label = "MODERATE CONFIDENCE"; conf_bar_bg = "rgba(255,221,45,0.15)"
         else:
-            conf_color = "#ff4757"; conf_label = "LOW CONFIDENCE"; conf_bar_bg = "rgba(255,71,87,0.15)"
+            conf_color = "#ff3d57"; conf_label = "LOW CONFIDENCE"; conf_bar_bg = "rgba(255,61,87,0.15)"
 
         filled_blocks = int(confidence_score / 5)   # 20 blocks total
         bar_html = "".join(
@@ -2161,25 +2263,25 @@ if run_btn:
         )
 
         st.markdown(f"""
-        <div style="background:#0f1318;border:1px solid #1e2a38;border-left:3px solid {conf_color};
+        <div style="background:#0d1117;border:1px solid #182030;border-left:3px solid {conf_color};
              padding:1.2rem 1.6rem;margin:1rem 0;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
             <div>
               <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:.18em;
-                   text-transform:uppercase;color:#4a5a6a;margin-bottom:.3rem;">MODEL CONFIDENCE SCORE</div>
+                   text-transform:uppercase;color:#3d5068;margin-bottom:.3rem;">MODEL CONFIDENCE SCORE</div>
               <div style="font-family:'IBM Plex Mono',monospace;font-size:2.2rem;font-weight:700;
-                   color:{conf_color};line-height:1;">{confidence_score:.0f}<span style="font-size:1rem;color:#4a5a6a;">/100</span></div>
+                   color:{conf_color};line-height:1;">{confidence_score:.0f}<span style="font-size:1rem;color:#3d5068;">/100</span></div>
               <div style="font-family:'IBM Plex Mono',monospace;font-size:0.68rem;letter-spacing:.14em;
                    color:{conf_color};margin-top:.3rem;">{conf_label}</div>
             </div>
             <div style="flex:1;min-width:220px;">
               <div style="margin-bottom:.6rem;">{bar_html}</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;
-                   font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:#4a5a6a;">
-                <span>R² fit &nbsp;<b style="color:#8a9bb0;">{r2_score_norm:.0f}/100</b> <span style="color:#2a3a4e;">(×0.40)</span></span>
-                <span>MAPE accuracy &nbsp;<b style="color:#8a9bb0;">{mape_score_norm:.0f}/100</b> <span style="color:#2a3a4e;">(×0.30)</span></span>
-                <span>Directional accuracy &nbsp;<b style="color:#8a9bb0;">{dir_acc:.0f}/100</b> <span style="color:#2a3a4e;">(×0.20)</span></span>
-                <span>Data volume &nbsp;<b style="color:#8a9bb0;">{data_score:.0f}/100</b> <span style="color:#2a3a4e;">(×0.10)</span></span>
+                   font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:#3d5068;">
+                <span>R² fit &nbsp;<b style="color:#7a8fa8;">{r2_score_norm:.0f}/100</b> <span style="color:#243346;">(×0.40)</span></span>
+                <span>MAPE accuracy &nbsp;<b style="color:#7a8fa8;">{mape_score_norm:.0f}/100</b> <span style="color:#243346;">(×0.30)</span></span>
+                <span>Directional accuracy &nbsp;<b style="color:#7a8fa8;">{dir_acc:.0f}/100</b> <span style="color:#243346;">(×0.20)</span></span>
+                <span>Data volume &nbsp;<b style="color:#7a8fa8;">{data_score:.0f}/100</b> <span style="color:#243346;">(×0.10)</span></span>
               </div>
             </div>
           </div>
@@ -2204,7 +2306,7 @@ if run_btn:
         fig_imp = go.Figure(go.Bar(
             x=imp_df['importance'], y=imp_df['feature'], orientation='h',
             marker=dict(color=imp_df['importance'],
-                        colorscale=[[0, "#0f1318"], [0.5, "#0d3d2e"], [1, C_GREEN]],
+                        colorscale=[[0, "#0d1117"], [0.5, "#0d3d2e"], [1, C_GREEN]],
                         showscale=False)
         ))
         fig_imp.update_layout(**PLOTLY_LAYOUT,
@@ -2217,7 +2319,7 @@ if run_btn:
         fig1 = go.Figure()
         fig1.add_trace(go.Scatter(y=actual, name="Actual",
             line=dict(color=C_BLUE, width=1.5),
-            fill='tozeroy', fillcolor='rgba(61,158,255,0.04)'))
+            fill='tozeroy', fillcolor='rgba(77,166,255,0.04)'))
         fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted",
             line=dict(color=C_GREEN, width=1.5, dash='dot')))
         fig1.update_layout(**PLOTLY_LAYOUT,
@@ -2246,7 +2348,7 @@ if run_btn:
         if alert_on_signal_change:
             prev_verdict = st.session_state.alert_signals.get(ticker)
             if prev_verdict is not None and prev_verdict != verdict_short:
-                _alert_color = {"BUY": "#00d4a0", "SELL": "#ff4757"}.get(verdict_short, "#ffd32a")
+                _alert_color = {"BUY": "#00e5b0", "SELL": "#ff3d57"}.get(verdict_short, "#ffdd2d")
                 _alert_icon  = {"BUY": "⬆", "SELL": "⬇"}.get(verdict_short, "◆")
                 st.markdown(
                     f'<div style="background:rgba({",".join(str(int(_alert_color.lstrip("#")[i:i+2],16)) for i in (0,2,4))},0.12);'
@@ -2268,7 +2370,7 @@ if run_btn:
         rr_color    = 'positive' if risk_reward >= 1.5 else 'negative' if risk_reward < 1 else 'neutral'
         sl_color    = 'negative'
         tp_color    = 'positive'
-        score_color = '#00d4a0' if total_score > 0 else '#ff4757' if total_score < 0 else '#ffd32a'
+        score_color = '#00e5b0' if total_score > 0 else '#ff3d57' if total_score < 0 else '#ffdd2d'
 
         st.markdown(f"""
         <div class="signal-panel-v2">
@@ -2326,9 +2428,9 @@ if run_btn:
         for ind_name, (ind_sig, ind_score, ind_val, ind_class) in sigs.items():
             if ind_sig == 'BUY':
                 if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🟢 XGBoost model predicts <b style='color:#00d4a0;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                    reason_lines.append(f"🟢 XGBoost model predicts <b style='color:#00e5b0;'>{xgb_pct:+.2f}%</b> move tomorrow")
                 elif ind_name == 'RSI (14)':
-                    reason_lines.append(f"🟢 RSI is <b style='color:#00d4a0;'>{ind_val:.1f}</b> — {'oversold territory' if ind_val < 30 else 'leaning oversold'}")
+                    reason_lines.append(f"🟢 RSI is <b style='color:#00e5b0;'>{ind_val:.1f}</b> — {'oversold territory' if ind_val < 30 else 'leaning oversold'}")
                 elif ind_name == 'MACD Cross':
                     reason_lines.append(f"🟢 MACD shows {'fresh bullish crossover' if abs(ind_score) >= 20 else 'bullish momentum'}")
                 elif ind_name == 'Bollinger %B':
@@ -2339,9 +2441,9 @@ if run_btn:
                     reason_lines.append(f"🟢 Volume {ind_val:.1f}× average confirms buying pressure")
             elif ind_sig == 'SELL':
                 if ind_name == 'XGBoost Forecast':
-                    reason_lines.append(f"🔴 XGBoost model predicts <b style='color:#ff4757;'>{xgb_pct:+.2f}%</b> move tomorrow")
+                    reason_lines.append(f"🔴 XGBoost model predicts <b style='color:#ff3d57;'>{xgb_pct:+.2f}%</b> move tomorrow")
                 elif ind_name == 'RSI (14)':
-                    reason_lines.append(f"🔴 RSI is <b style='color:#ff4757;'>{ind_val:.1f}</b> — {'overbought territory' if ind_val > 70 else 'leaning overbought'}")
+                    reason_lines.append(f"🔴 RSI is <b style='color:#ff3d57;'>{ind_val:.1f}</b> — {'overbought territory' if ind_val > 70 else 'leaning overbought'}")
                 elif ind_name == 'MACD Cross':
                     reason_lines.append(f"🔴 MACD shows {'fresh bearish crossover' if abs(ind_score) >= 20 else 'bearish momentum'}")
                 elif ind_name == 'Bollinger %B':
@@ -2354,23 +2456,23 @@ if run_btn:
                 if ind_name == 'XGBoost Forecast':
                     reason_lines.append(f"🟡 XGBoost predicts only {xgb_pct:+.2f}% — not enough directional conviction")
 
-        border_color = '#00d4a0' if verdict_short == 'BUY' else '#ff4757' if verdict_short == 'SELL' else '#ffd32a'
+        border_color = '#00e5b0' if verdict_short == 'BUY' else '#ff3d57' if verdict_short == 'SELL' else '#ffdd2d'
         reasons_html = "".join(
-            f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#8a9bb0;">{r}</div>'
+            f'<div style="margin-bottom:.4rem;font-size:.8rem;color:#7a8fa8;">{r}</div>'
             for r in reason_lines
         )
         st.markdown(f"""
         <div style="background:var(--bg2);border:1px solid var(--border);border-left:4px solid {border_color};
              padding:1.1rem 1.5rem;margin:.8rem 0;">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.18em;
-               text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
+               text-transform:uppercase;color:#3d5068;margin-bottom:.7rem;">
             💡 Why This Signal? — <span style="color:{border_color};">{verdict}</span>
           </div>
           <div style="font-family:'IBM Plex Sans',sans-serif;line-height:1.7;">
-            {reasons_html if reasons_html else '<span style="color:#4a5a6a;font-size:.8rem;">All indicators neutral — no strong directional edge detected.</span>'}
+            {reasons_html if reasons_html else '<span style="color:#3d5068;font-size:.8rem;">All indicators neutral — no strong directional edge detected.</span>'}
           </div>
           <div style="margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border);
-               font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#4a5a6a;">
+               font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#3d5068;">
             ⚠ Technical signals use price & volume only. See News Sentiment section below for headline analysis.
           </div>
         </div>
@@ -2396,11 +2498,11 @@ if run_btn:
         fig2.add_trace(go.Scatter(x=buy_idx,  y=[actual[i] for i in buy_idx],
             mode='markers', name='BUY',
             marker=dict(color=C_GREEN, symbol='triangle-up', size=10,
-                        line=dict(width=1, color='#0a0c0f'))))
+                        line=dict(width=1, color='#080b0f'))))
         fig2.add_trace(go.Scatter(x=sell_idx, y=[actual[i] for i in sell_idx],
             mode='markers', name='SELL',
             marker=dict(color=C_RED, symbol='triangle-down', size=10,
-                        line=dict(width=1, color='#0a0c0f'))))
+                        line=dict(width=1, color='#080b0f'))))
         # Add stop-loss and take-profit reference lines
         fig2.add_hline(y=stop_loss,   line_dash="dot", line_color=C_RED,    line_width=1,
                        annotation_text=f"Stop ${stop_loss:.2f}", annotation_font=dict(color=C_RED,   size=9))
@@ -2465,15 +2567,15 @@ if run_btn:
 
         def sentiment_label(avg_pol):
             if avg_pol >= 0.15:
-                return "VERY POSITIVE", "#00d4a0", "🟢"
+                return "VERY POSITIVE", "#00e5b0", "🟢"
             elif avg_pol >= 0.03:
-                return "POSITIVE",      "#00d4a0", "🟢"
+                return "POSITIVE",      "#00e5b0", "🟢"
             elif avg_pol <= -0.15:
-                return "VERY NEGATIVE", "#ff4757", "🔴"
+                return "VERY NEGATIVE", "#ff3d57", "🔴"
             elif avg_pol <= -0.03:
-                return "NEGATIVE",      "#ff4757", "🔴"
+                return "NEGATIVE",      "#ff3d57", "🔴"
             else:
-                return "NEUTRAL",       "#ffd32a", "⚪"
+                return "NEUTRAL",       "#ffdd2d", "⚪"
 
         with st.spinner("Fetching latest news…"):
             headlines = fetch_news_headlines(ticker)
@@ -2488,7 +2590,7 @@ if run_btn:
                 st.warning("Install `textblob` in requirements.txt for sentiment scoring. Showing headlines only.")
                 for h in headlines:
                     st.markdown(f"🔹 [{h['title']}]({h['link']})  \n"
-                                f"<span style='font-size:.72rem;color:#4a5a6a;'>"
+                                f"<span style='font-size:.72rem;color:#3d5068;'>"
                                 f"{h['publisher']} · {h['age_h']}h ago</span>",
                                 unsafe_allow_html=True)
             else:
@@ -2519,19 +2621,19 @@ if run_btn:
 
                 if _tech_bull and _news_bull:
                     combo_label = "⬆ STRONG CONFLUENCE — Technical BUY + Positive News"
-                    combo_color = "#00d4a0"
+                    combo_color = "#00e5b0"
                 elif _tech_bear and _news_bear:
                     combo_label = "⬇ STRONG CONFLUENCE — Technical SELL + Negative News"
-                    combo_color = "#ff4757"
+                    combo_color = "#ff3d57"
                 elif _tech_bull and _news_bear:
                     combo_label = "⚠ DIVERGENCE — Technical BUY but Negative News sentiment"
-                    combo_color = "#ffd32a"
+                    combo_color = "#ffdd2d"
                 elif _tech_bear and _news_bull:
                     combo_label = "⚠ DIVERGENCE — Technical SELL but Positive News sentiment"
-                    combo_color = "#ffd32a"
+                    combo_color = "#ffdd2d"
                 else:
                     combo_label = "◆ MIXED — No strong confluence between technicals and news"
-                    combo_color = "#4a5a6a"
+                    combo_color = "#3d5068"
 
                 st.markdown(
                     f'<div style="background:rgba(255,255,255,0.02);border:1px solid {combo_color};'
@@ -2545,23 +2647,23 @@ if run_btn:
                 with st.expander(f"📋 {len(scored)} Recent Headlines — click to expand", expanded=True):
                     for h in scored:
                         pol   = h["polarity"]
-                        _hcol = "#00d4a0" if pol > 0.03 else "#ff4757" if pol < -0.03 else "#ffd32a"
+                        _hcol = "#00e5b0" if pol > 0.03 else "#ff3d57" if pol < -0.03 else "#ffdd2d"
                         _hico = "🟢" if pol > 0.03 else "🔴" if pol < -0.03 else "⚪"
                         _bar_pct = min(100, int(abs(pol) * 300))   # scale to visible width
 
                         st.markdown(
-                            f'<div style="padding:.55rem 0;border-bottom:1px solid #1e2a38;">'
+                            f'<div style="padding:.55rem 0;border-bottom:1px solid #182030;">'
                             f'  <div style="display:flex;align-items:flex-start;gap:.6rem;">'
                             f'    <span style="font-size:.9rem;margin-top:.05rem;">{_hico}</span>'
                             f'    <div style="flex:1;">'
-                            f'      <a href="{h["link"]}" target="_blank" style="color:#e8edf2;'
+                            f'      <a href="{h["link"]}" target="_blank" style="color:#eef2f7;'
                             f'         font-family:IBM Plex Sans,sans-serif;font-size:.82rem;'
                             f'         text-decoration:none;line-height:1.4;">{h["title"]}</a>'
                             f'      <div style="display:flex;align-items:center;gap:.8rem;margin-top:.3rem;">'
                             f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
-                            f'               color:#4a5a6a;">{h["publisher"]} · {h["age_h"]}h ago</span>'
+                            f'               color:#3d5068;">{h["publisher"]} · {h["age_h"]}h ago</span>'
                             f'        <div style="flex:1;max-width:120px;height:3px;'
-                            f'             background:#1e2a38;border-radius:2px;">'
+                            f'             background:#182030;border-radius:2px;">'
                             f'          <div style="width:{_bar_pct}%;height:100%;'
                             f'               background:{_hcol};border-radius:2px;"></div></div>'
                             f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
@@ -2586,9 +2688,9 @@ if run_btn:
                         marker_color=bar_colors,
                         text=[f"{p:+.3f}" for p in polarities],
                         textposition="outside",
-                        textfont=dict(family="IBM Plex Mono", size=9, color="#8a9bb0"),
+                        textfont=dict(family="IBM Plex Mono", size=9, color="#7a8fa8"),
                     ))
-                    fig_sent.add_vline(x=0, line_color="#2a3a4e", line_width=1)
+                    fig_sent.add_vline(x=0, line_color="#243346", line_width=1)
                     fig_sent.add_vline(x=avg_polarity, line_color=sent_color,
                                        line_dash="dot", line_width=1.5,
                                        annotation_text=f"avg {avg_polarity:+.3f}",
@@ -2600,9 +2702,9 @@ if run_btn:
                                    font=dict(color=C_GREEN, size=11)),
                         height=max(220, len(scored) * 32),
                         xaxis_title="Polarity (negative ← 0 → positive)",
-                        xaxis=dict(range=[-1, 1], gridcolor="#1e2a38",
-                                   linecolor="#1e2a38", zeroline=False,
-                                   tickfont=dict(color="#4a5a6a", size=9)),
+                        xaxis=dict(range=[-1, 1], gridcolor="#182030",
+                                   linecolor="#182030", zeroline=False,
+                                   tickfont=dict(color="#3d5068", size=9)),
                     )
                     st.plotly_chart(fig_sent, use_container_width=True)
 
@@ -2638,11 +2740,11 @@ if run_btn:
         # Expanding uncertainty shading
         fig3.add_trace(go.Scatter(
             x=list(range(future_days)), y=decay_upper,
-            line=dict(color="rgba(0,212,160,0)"), showlegend=False, hoverinfo="skip"))
+            line=dict(color="rgba(0,229,176,0)"), showlegend=False, hoverinfo="skip"))
         fig3.add_trace(go.Scatter(
             x=list(range(future_days)), y=decay_lower,
             name="Uncertainty band", fill="tonexty",
-            fillcolor="rgba(0,212,160,0.07)", line=dict(color="rgba(0,212,160,0)"), hoverinfo="skip"))
+            fillcolor="rgba(0,229,176,0.07)", line=dict(color="rgba(0,229,176,0)"), hoverinfo="skip"))
 
         fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY,
                        annotation_text=f"Last close ${last_close:.2f}",
@@ -2655,13 +2757,13 @@ if run_btn:
             x=list(range(future_days)), y=future_prices,
             mode='lines+markers', name='XGBoost Forecast',
             line=dict(color=trend_color, width=2),
-            marker=dict(size=7, color=trend_color, line=dict(width=1, color="#0a0c0f"))
+            marker=dict(size=7, color=trend_color, line=dict(width=1, color="#080b0f"))
         ))
         # Vertical reliability boundary at day 5
         if future_days > 5:
-            fig3.add_vline(x=4.5, line_dash="dot", line_color="#2a3a4e",
+            fig3.add_vline(x=4.5, line_dash="dot", line_color="#243346",
                            annotation_text="↑ Higher confidence  |  Lower confidence ↓",
-                           annotation_font=dict(color="#4a5a6a", size=9),
+                           annotation_font=dict(color="#3d5068", size=9),
                            annotation_position="top")
 
         fig3.update_layout(**PLOTLY_LAYOUT,
@@ -2672,9 +2774,9 @@ if run_btn:
 
         if future_days > 5:
             st.markdown(
-                '<div style="background:rgba(255,211,42,0.04);border:1px solid rgba(255,211,42,0.2);'
-                'border-left:3px solid #ffd32a;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
-                'font-size:0.7rem;color:#ffd32a;letter-spacing:.05em;margin-top:-.5rem;">'
+                '<div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.2);'
+                'border-left:3px solid #ffdd2d;padding:.6rem 1.2rem;font-family:IBM Plex Mono,monospace;'
+                'font-size:0.7rem;color:#ffdd2d;letter-spacing:.05em;margin-top:-.5rem;">'
                 '⚠ Forecast reliability decreases significantly beyond Day 5. '
                 'Errors compound in iterative multi-step prediction. Use Days 6+ as directional signals only.'
                 '</div>', unsafe_allow_html=True)
@@ -2731,7 +2833,7 @@ if run_btn:
             fig_eq = go.Figure()
             fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy",
                 line=dict(color=C_GREEN, width=2),
-                fill="tozeroy", fillcolor="rgba(0,212,160,0.05)"))
+                fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
             fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold",
                 line=dict(color=C_BLUE, width=1.5, dash="dot")))
             fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY,
@@ -2747,7 +2849,7 @@ if run_btn:
             fig_dd = go.Figure()
             fig_dd.add_trace(go.Scatter(y=[d * 100 for d in bt["drawdown_series"]],
                 name="Drawdown", line=dict(color=C_RED, width=1.5),
-                fill="tozeroy", fillcolor="rgba(255,71,87,0.07)"))
+                fill="tozeroy", fillcolor="rgba(255,61,87,0.07)"))
             fig_dd.update_layout(**PLOTLY_LAYOUT,
                 title=dict(text=f"{ticker} · Strategy Drawdown (%)", font=dict(color=C_RED, size=12)),
                 yaxis_title="Drawdown (%)", xaxis_title="Trading Day (test set)", height=250)
@@ -2777,11 +2879,11 @@ if run_btn:
                     model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
 
             fig_ci = go.Figure()
-            fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,212,160,0)"),
+            fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,229,176,0)"),
                 showlegend=False))
             fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band",
-                fill="tonexty", fillcolor="rgba(0,212,160,0.10)",
-                line=dict(color="rgba(0,212,160,0)")))
+                fill="tonexty", fillcolor="rgba(0,229,176,0.10)",
+                line=dict(color="rgba(0,229,176,0)")))
             fig_ci.add_trace(go.Scatter(y=actual, name="Actual",
                 line=dict(color=C_BLUE, width=1.5)))
             fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median",
@@ -2808,10 +2910,10 @@ if run_btn:
 
             fig_fci = go.Figure()
             fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_u,
-                line=dict(color="rgba(0,212,160,0)"), showlegend=False))
+                line=dict(color="rgba(0,229,176,0)"), showlegend=False))
             fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_l,
-                name="95% CI", fill="tonexty", fillcolor="rgba(0,212,160,0.12)",
-                line=dict(color="rgba(0,212,160,0)")))
+                name="95% CI", fill="tonexty", fillcolor="rgba(0,229,176,0.12)",
+                line=dict(color="rgba(0,229,176,0)")))
             fig_fci.add_trace(go.Scatter(x=list(range(future_days)), y=fut_m,
                 name="Forecast", mode="lines+markers",
                 line=dict(color=C_GREEN, width=2), marker=dict(size=7)))
@@ -2893,14 +2995,14 @@ if run_btn:
         # ── Halal / Shariah ────────────────────────────────────────────────────────
         if run_halal_check:
             st.markdown("""
-            <div style="background:rgba(0,212,160,0.03);border:1px solid rgba(0,212,160,0.15);
-                 border-left:4px solid #00d4a0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
+            <div style="background:rgba(0,229,176,0.03);border:1px solid rgba(0,229,176,0.15);
+                 border-left:4px solid #00e5b0;padding:.8rem 1.4rem;margin:1.5rem 0 .5rem 0;
                  display:flex;align-items:center;gap:1rem;">
                 <div style="font-size:1.4rem;">☪</div>
                 <div>
                     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:.18em;
-                         text-transform:uppercase;color:#00d4a0;">Halal / Shariah Compliance Screen</div>
-                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#4a5a6a;margin-top:2px;">
+                         text-transform:uppercase;color:#00e5b0;">Halal / Shariah Compliance Screen</div>
+                    <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;color:#3d5068;margin-top:2px;">
                         Automated screening based on AAOIFI Standard No.21 — a unique feature not found in mainstream platforms
                     </div>
                 </div>
@@ -2928,18 +3030,18 @@ if run_btn:
                 cr      = check_shariah_compliance(ticker, sd)
                 verdict = cr["verdict"]
                 v_color = {"COMPLIANT": C_GREEN, "NON-COMPLIANT": C_RED, "QUESTIONABLE": C_YELLOW}[verdict]
-                v_bg    = {"COMPLIANT": "rgba(0,212,160,0.05)", "NON-COMPLIANT": "rgba(255,71,87,0.05)",
-                           "QUESTIONABLE": "rgba(255,211,42,0.05)"}[verdict]
+                v_bg    = {"COMPLIANT": "rgba(0,229,176,0.05)", "NON-COMPLIANT": "rgba(255,61,87,0.05)",
+                           "QUESTIONABLE": "rgba(255,221,45,0.05)"}[verdict]
                 v_icon  = {"COMPLIANT": "✅", "NON-COMPLIANT": "❌", "QUESTIONABLE": "⚠️"}[verdict]
 
                 st.markdown(
                     f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};'
                     f'padding:1.2rem 2rem;margin:1rem 0;text-align:center;">'
-                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#4a5a6a;'
+                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:0.65rem;color:#3d5068;'
                     f'letter-spacing:.15em;text-transform:uppercase;">{sd["company_name"]} ({ticker})</div>'
                     f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;'
                     f'color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{verdict}</div>'
-                    f'<div style="font-size:.78rem;color:#8a9bb0;margin-top:.3rem;">'
+                    f'<div style="font-size:.78rem;color:#7a8fa8;margin-top:.3rem;">'
                     f'Sector: {sd["sector"]} | Industry: {sd["industry"]}</div>'
                     f'</div>', unsafe_allow_html=True)
 
@@ -2951,13 +3053,13 @@ if run_btn:
                         st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>'
                                     f'Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
                     elif bs["questionable"]:
-                        st.markdown('<div class="halal-card" style="border-left-color:#ffd32a">'
+                        st.markdown('<div class="halal-card" style="border-left-color:#ffdd2d">'
                                     '<b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>',
                                     unsafe_allow_html=True)
                     else:
                         st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>'
                                     f'No Haram core business detected<br>'
-                                    f'<small style="color:#4a5a6a">Sector: {sd["sector"]}</small></div>',
+                                    f'<small style="color:#3d5068">Sector: {sd["sector"]}</small></div>',
                                     unsafe_allow_html=True)
                     dm = cr["debt_mktcap"]
                     cc = "halal-card" if dm["pass"] else "halal-card-fail"
@@ -2981,8 +3083,8 @@ if run_btn:
                 f4.metric("Cash",         f'${sd["total_cash"]/1e9:.2f}B')
 
                 st.markdown(
-                    '<div style="background:#0f1318;border:1px solid #1e2a38;padding:.7rem 1.2rem;'
-                    'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#4a5a6a;margin-top:1rem;">'
+                    '<div style="background:#0d1117;border:1px solid #182030;padding:.7rem 1.2rem;'
+                    'font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3d5068;margin-top:1rem;">'
                     '⚠ Automated screen based on AAOIFI Standard No.21. '
                     'Does not constitute a fatwa. Consult a qualified Islamic finance scholar for binding rulings.</div>',
                     unsafe_allow_html=True)
@@ -3056,59 +3158,59 @@ if run_btn:
 
                 # Colour-coded signal column
                 def signal_color_html(row):
-                    sc = {'STRONG BUY': '#00d4a0', 'BUY': '#00d4a0',
-                          'STRONG SELL': '#ff4757', 'SELL': '#ff4757'}.get(row['Signal'], '#ffd32a')
+                    sc = {'STRONG BUY': '#00e5b0', 'BUY': '#00e5b0',
+                          'STRONG SELL': '#ff3d57', 'SELL': '#ff3d57'}.get(row['Signal'], '#ffdd2d')
                     return (f'<span style="color:{sc};font-weight:700;font-family:IBM Plex Mono,'
                             f'monospace;font-size:.75rem;">{row["Signal"]}</span>')
 
                 rows_html = ""
                 for _, row in comp_df.iterrows():
-                    sc = '#00d4a0' if row['Score'] > 0 else '#ff4757' if row['Score'] < 0 else '#ffd32a'
-                    sig_html = {'STRONG BUY': '<span style="color:#00d4a0;font-weight:800;">⬆ STRONG BUY</span>',
-                                'BUY':        '<span style="color:#00d4a0;font-weight:700;">▲ BUY</span>',
-                                'STRONG SELL':'<span style="color:#ff4757;font-weight:800;">⬇ STRONG SELL</span>',
-                                'SELL':       '<span style="color:#ff4757;font-weight:700;">▼ SELL</span>',
-                                'HOLD':       '<span style="color:#ffd32a;font-weight:700;">◆ HOLD</span>'}.get(row['Signal'], row['Signal'])
+                    sc = '#00e5b0' if row['Score'] > 0 else '#ff3d57' if row['Score'] < 0 else '#ffdd2d'
+                    sig_html = {'STRONG BUY': '<span style="color:#00e5b0;font-weight:800;">⬆ STRONG BUY</span>',
+                                'BUY':        '<span style="color:#00e5b0;font-weight:700;">▲ BUY</span>',
+                                'STRONG SELL':'<span style="color:#ff3d57;font-weight:800;">⬇ STRONG SELL</span>',
+                                'SELL':       '<span style="color:#ff3d57;font-weight:700;">▼ SELL</span>',
+                                'HOLD':       '<span style="color:#ffdd2d;font-weight:700;">◆ HOLD</span>'}.get(row['Signal'], row['Signal'])
                     rows_html += f"""
-                    <tr style="border-bottom:1px solid #1e2a38;">
+                    <tr style="border-bottom:1px solid #182030;">
                       <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;font-weight:700;
-                          color:#e8edf2;font-size:.85rem;">{row['Ticker']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#8a9bb0;">{row['Last Price']}</td>
+                          color:#eef2f7;font-size:.85rem;">{row['Ticker']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['Last Price']}</td>
                       <td style="padding:.55rem .8rem;">{sig_html}</td>
                       <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
                           color:{sc};font-weight:700;">{row['Score']:+.0f}</td>
                       <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;
-                          color:{'#00d4a0' if '+' in row['Forecast Δ%'] else '#ff4757'};">{row['Forecast Δ%']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#8a9bb0;">{row['RSI']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#ff4757;">{row['Stop Loss']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#00d4a0;">{row['Take Profit']}</td>
-                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#8a9bb0;">{row['Risk:Reward']}</td>
+                          color:{'#00e5b0' if '+' in row['Forecast Δ%'] else '#ff3d57'};">{row['Forecast Δ%']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['RSI']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#ff3d57;">{row['Stop Loss']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#00e5b0;">{row['Take Profit']}</td>
+                      <td style="padding:.55rem .8rem;font-family:IBM Plex Mono,monospace;color:#7a8fa8;">{row['Risk:Reward']}</td>
                     </tr>"""
 
                 st.markdown(f"""
                 <div style="overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;background:#0f1318;
-                       border:1px solid #1e2a38;font-size:.8rem;">
+                <table style="width:100%;border-collapse:collapse;background:#0d1117;
+                       border:1px solid #182030;font-size:.8rem;">
                   <thead>
-                    <tr style="border-bottom:2px solid #2a3a4e;">
+                    <tr style="border-bottom:2px solid #243346;">
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Ticker</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Ticker</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Price</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Price</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Signal</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Signal</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Score</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Score</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Forecast Δ</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Forecast Δ</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">RSI</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">RSI</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Stop Loss</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Stop Loss</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">Take Profit</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">Take Profit</th>
                       <th style="padding:.5rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.6rem;
-                          letter-spacing:.14em;text-transform:uppercase;color:#4a5a6a;text-align:left;">R:R</th>
+                          letter-spacing:.14em;text-transform:uppercase;color:#3d5068;text-align:left;">R:R</th>
                     </tr>
                   </thead>
                   <tbody>{rows_html}</tbody>
@@ -3133,36 +3235,36 @@ else:
         st.markdown("""
         <div style="text-align:center;padding:3rem 1rem 1.5rem 1rem;">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.3em;
-                 text-transform:uppercase;color:#4a5a6a;margin-bottom:.7rem;">
+                 text-transform:uppercase;color:#3d5068;margin-bottom:.7rem;">
                 Free · Open-source · No login required
             </div>
             <div style="font-family:'IBM Plex Mono',monospace;font-size:2.8rem;font-weight:700;
-                 color:#e8edf2;letter-spacing:.05em;line-height:1.15;margin-bottom:.8rem;">
-                STOCK<span style="color:#00d4a0;">CAST</span>
+                 color:#eef2f7;letter-spacing:.05em;line-height:1.15;margin-bottom:.8rem;">
+                STOCK<span style="color:#00e5b0;">CAST</span>
             </div>
-            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:1.1rem;color:#8a9bb0;
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:1.1rem;color:#7a8fa8;
                  max-width:580px;margin:0 auto 1.5rem auto;line-height:1.7;">
-                AI-powered stock intelligence with <span style="color:#e8edf2;">explainable signals</span> —
-                not just a prediction, but <span style="color:#00d4a0;">why</span> the model thinks it.
+                AI-powered stock intelligence with <span style="color:#eef2f7;">explainable signals</span> —
+                not just a prediction, but <span style="color:#00e5b0;">why</span> the model thinks it.
             </div>
             <div style="display:flex;justify-content:center;gap:.8rem;flex-wrap:wrap;margin-bottom:2.5rem;">
-                <span style="background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);
-                      color:#00d4a0;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                <span style="background:rgba(0,229,176,0.1);border:1px solid rgba(0,229,176,0.3);
+                      color:#00e5b0;font-family:IBM Plex Mono,monospace;font-size:.65rem;
                       letter-spacing:.1em;padding:.3rem .9rem;">✓ XGBoost ML</span>
-                <span style="background:rgba(61,158,255,0.1);border:1px solid rgba(61,158,255,0.3);
-                      color:#3d9eff;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                <span style="background:rgba(77,166,255,0.1);border:1px solid rgba(77,166,255,0.3);
+                      color:#4da6ff;font-family:IBM Plex Mono,monospace;font-size:.65rem;
                       letter-spacing:.1em;padding:.3rem .9rem;">✓ 6-Factor Signals</span>
-                <span style="background:rgba(255,211,42,0.1);border:1px solid rgba(255,211,42,0.3);
-                      color:#ffd32a;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                <span style="background:rgba(255,221,45,0.1);border:1px solid rgba(255,221,45,0.3);
+                      color:#ffdd2d;font-family:IBM Plex Mono,monospace;font-size:.65rem;
                       letter-spacing:.1em;padding:.3rem .9rem;">✓ Backtesting Engine</span>
-                <span style="background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);
-                      color:#00d4a0;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                <span style="background:rgba(0,229,176,0.1);border:1px solid rgba(0,229,176,0.3);
+                      color:#00e5b0;font-family:IBM Plex Mono,monospace;font-size:.65rem;
                       letter-spacing:.1em;padding:.3rem .9rem;">✓ Watchlist + Alerts</span>
-                <span style="background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);
-                      color:#ff4757;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                <span style="background:rgba(255,61,87,0.1);border:1px solid rgba(255,61,87,0.3);
+                      color:#ff3d57;font-family:IBM Plex Mono,monospace;font-size:.65rem;
                       letter-spacing:.1em;padding:.3rem .9rem;">✓ Shariah Screening</span>
-                <span style="background:rgba(255,211,42,0.1);border:1px solid rgba(255,211,42,0.3);
-                      color:#ffd32a;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                <span style="background:rgba(255,221,45,0.1);border:1px solid rgba(255,221,45,0.3);
+                      color:#ffdd2d;font-family:IBM Plex Mono,monospace;font-size:.65rem;
                       letter-spacing:.1em;padding:.3rem .9rem;">✓ News Sentiment NLP</span>
             </div>
         </div>
@@ -3178,24 +3280,24 @@ else:
                         _fi   = yf.Ticker(wl_sym).fast_info
                         _px   = _fi.get("last_price") or _fi.get("regularMarketPrice") or 0
                         _chg  = _fi.get("regularMarketChangePercent") or 0
-                        _col  = "#00d4a0" if _chg >= 0 else "#ff4757"
+                        _col  = "#00e5b0" if _chg >= 0 else "#ff3d57"
                         _sign = "▲" if _chg >= 0 else "▼"
                         st.markdown(
-                            f'<div style="background:#0f1318;border:1px solid #1e2a38;'
+                            f'<div style="background:#0d1117;border:1px solid #182030;'
                             f'border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;">'
                             f'<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;'
-                            f'letter-spacing:.15em;color:#4a5a6a;text-transform:uppercase;">{wl_sym}</div>'
+                            f'letter-spacing:.15em;color:#3d5068;text-transform:uppercase;">{wl_sym}</div>'
                             f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;'
-                            f'font-weight:700;color:#e8edf2;margin:.3rem 0;">${_px:.2f}</div>'
+                            f'font-weight:700;color:#eef2f7;margin:.3rem 0;">${_px:.2f}</div>'
                             f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;'
                             f'color:{_col};">{_sign} {_chg:+.2f}%</div></div>',
                             unsafe_allow_html=True
                         )
                     except Exception:
                         st.markdown(
-                            f'<div style="background:#0f1318;border:1px solid #1e2a38;'
+                            f'<div style="background:#0d1117;border:1px solid #182030;'
                             f'padding:1rem 1.2rem;text-align:center;font-family:IBM Plex Mono,monospace;'
-                            f'font-size:.7rem;color:#4a5a6a;">{wl_sym}<br>—</div>',
+                            f'font-size:.7rem;color:#3d5068;">{wl_sym}<br>—</div>',
                             unsafe_allow_html=True
                         )
             st.markdown("---")
@@ -3205,37 +3307,37 @@ else:
         hw1, hw2, hw3 = st.columns(3)
         with hw1:
             st.markdown("""
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #00d4a0;
+            <div style="background:#0d1117;border:1px solid #182030;border-top:2px solid #00e5b0;
                  padding:1.4rem 1.5rem;height:100%;">
                 <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;
-                     color:#00d4a0;margin-bottom:.5rem;">01</div>
+                     color:#00e5b0;margin-bottom:.5rem;">01</div>
                 <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
-                     text-transform:uppercase;color:#e8edf2;margin-bottom:.5rem;">Enter a Ticker</div>
-                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#8a9bb0;line-height:1.6;">
+                     text-transform:uppercase;color:#eef2f7;margin-bottom:.5rem;">Enter a Ticker</div>
+                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#7a8fa8;line-height:1.6;">
                     Search by company name or symbol. Add it to your watchlist to track it persistently.
                 </div>
             </div>""", unsafe_allow_html=True)
         with hw2:
             st.markdown("""
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #3d9eff;
+            <div style="background:#0d1117;border:1px solid #182030;border-top:2px solid #4da6ff;
                  padding:1.4rem 1.5rem;height:100%;">
                 <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;
-                     color:#3d9eff;margin-bottom:.5rem;">02</div>
+                     color:#4da6ff;margin-bottom:.5rem;">02</div>
                 <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
-                     text-transform:uppercase;color:#e8edf2;margin-bottom:.5rem;">Run the Model</div>
-                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#8a9bb0;line-height:1.6;">
+                     text-transform:uppercase;color:#eef2f7;margin-bottom:.5rem;">Run the Model</div>
+                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#7a8fa8;line-height:1.6;">
                     XGBoost trains on 7 years of OHLCV data with 20 engineered features. Results in seconds.
                 </div>
             </div>""", unsafe_allow_html=True)
         with hw3:
             st.markdown("""
-            <div style="background:#0f1318;border:1px solid #1e2a38;border-top:2px solid #ffd32a;
+            <div style="background:#0d1117;border:1px solid #182030;border-top:2px solid #ffdd2d;
                  padding:1.4rem 1.5rem;height:100%;">
                 <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;
-                     color:#ffd32a;margin-bottom:.5rem;">03</div>
+                     color:#ffdd2d;margin-bottom:.5rem;">03</div>
                 <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.15em;
-                     text-transform:uppercase;color:#e8edf2;margin-bottom:.5rem;">Read the Signal</div>
-                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#8a9bb0;line-height:1.6;">
+                     text-transform:uppercase;color:#eef2f7;margin-bottom:.5rem;">Read the Signal</div>
+                <div style="font-family:IBM Plex Sans,sans-serif;font-size:.82rem;color:#7a8fa8;line-height:1.6;">
                     Get a BUY / SELL / HOLD verdict with a full explanation of <em>every</em> contributing factor.
                 </div>
             </div>""", unsafe_allow_html=True)
@@ -3251,43 +3353,43 @@ else:
         * { box-sizing:border-box; margin:0; padding:0; }
         body { background:transparent; font-family:'IBM Plex Sans',sans-serif; }
         .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:.9rem; }
-        .card { background:#0f1318; border:1px solid #1e2a38; padding:1.2rem 1.3rem; }
+        .card { background:#0d1117; border:1px solid #182030; padding:1.2rem 1.3rem; }
         .card-title { font-family:'IBM Plex Mono',monospace; font-size:.62rem; letter-spacing:.18em;
                       text-transform:uppercase; margin-bottom:.4rem; }
-        .card-body  { font-family:'IBM Plex Sans',sans-serif; font-size:.8rem; color:#8a9bb0; line-height:1.5; }
+        .card-body  { font-family:'IBM Plex Sans',sans-serif; font-size:.8rem; color:#7a8fa8; line-height:1.5; }
         </style>
         <div class="grid">
-            <div class="card" style="border-top:2px solid #00d4a0;">
-                <div class="card-title" style="color:#00d4a0;">📈 XGBoost Forecast</div>
+            <div class="card" style="border-top:2px solid #00e5b0;">
+                <div class="card-title" style="color:#00e5b0;">📈 XGBoost Forecast</div>
                 <div class="card-body">ML trained on 20 technical features. N-day forecast with 95% bootstrap CI.</div>
             </div>
-            <div class="card" style="border-top:2px solid #3d9eff;">
-                <div class="card-title" style="color:#3d9eff;">⚙ Explainable Signals</div>
+            <div class="card" style="border-top:2px solid #4da6ff;">
+                <div class="card-title" style="color:#4da6ff;">⚙ Explainable Signals</div>
                 <div class="card-body">RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain English.</div>
             </div>
-            <div class="card" style="border-top:2px solid #ffd32a;">
-                <div class="card-title" style="color:#ffd32a;">📊 Backtesting Engine</div>
+            <div class="card" style="border-top:2px solid #ffdd2d;">
+                <div class="card-title" style="color:#ffdd2d;">📊 Backtesting Engine</div>
                 <div class="card-body">Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold.</div>
             </div>
-            <div class="card" style="border-top:2px solid #ff4757;">
-                <div class="card-title" style="color:#ff4757;">⭐ Watchlist + 🔔 Alerts</div>
+            <div class="card" style="border-top:2px solid #ff3d57;">
+                <div class="card-title" style="color:#ff3d57;">⭐ Watchlist + 🔔 Alerts</div>
                 <div class="card-body">Save stocks, see live prices on the dashboard, get banners when signals flip.</div>
             </div>
-            <div class="card" style="border-top:2px solid #00d4a0;">
-                <div class="card-title" style="color:#00d4a0;">☪ Shariah Screening</div>
+            <div class="card" style="border-top:2px solid #00e5b0;">
+                <div class="card-title" style="color:#00e5b0;">☪ Shariah Screening</div>
                 <div class="card-body">AAOIFI Standard No.21 — screens business activity, debt & cash ratios automatically.</div>
             </div>
-            <div class="card" style="border-top:2px solid #3d9eff;">
-                <div class="card-title" style="color:#3d9eff;">🔬 Model Comparison</div>
+            <div class="card" style="border-top:2px solid #4da6ff;">
+                <div class="card-title" style="color:#4da6ff;">🔬 Model Comparison</div>
                 <div class="card-body">Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
             </div>
-            <div class="card" style="border-top:2px solid #ffd32a;">
-                <div class="card-title" style="color:#ffd32a;">📰 News Sentiment NLP</div>
+            <div class="card" style="border-top:2px solid #ffdd2d;">
+                <div class="card-title" style="color:#ffdd2d;">📰 News Sentiment NLP</div>
                 <div class="card-body">Live Yahoo Finance headlines scored with TextBlob. Detects confluence or divergence with technical signals.</div>
             </div>
         </div>
         <div style="text-align:center;margin-top:1.6rem;font-family:'IBM Plex Mono',monospace;
-             font-size:.6rem;color:#1e2a38;letter-spacing:.08em;">
+             font-size:.6rem;color:#182030;letter-spacing:.08em;">
             ⚠ For educational purposes only. Not financial advice.
         </div>
         """, height=310, scrolling=False)
