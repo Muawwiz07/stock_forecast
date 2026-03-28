@@ -10,6 +10,8 @@ from xgboost import XGBRegressor
 from supabase import create_client
 import warnings
 warnings.filterwarnings('ignore')
+import nltk
+nltk.download('punkt')
 
 # ── Supabase config ────────────────────────────────────────────────────────────
 SUPABASE_URL = "https://tpaqlfjszguinigygxcq.supabase.co"
