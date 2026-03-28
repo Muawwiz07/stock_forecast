@@ -1838,13 +1838,13 @@ if run_btn:
                 textfont=dict(family="IBM Plex Mono", size=10, color="#8a9bb0"),
             ))
             fig_bar.add_vline(x=0, line_color="#2a3a4e", line_width=1)
+            _bar_layout = {**PLOTLY_LAYOUT, "margin": dict(l=10, r=120, t=40, b=10)}
             fig_bar.update_layout(
-                **PLOTLY_LAYOUT,
+                **_bar_layout,
                 title=dict(text=f"{ticker} · Signal Score Impact (positive = bullish, negative = bearish)",
                            font=dict(color=C_GREEN, size=12)),
                 height=320,
                 xaxis_title="Score contribution (pts)",
-                margin=dict(l=10, r=120, t=40, b=10),
             )
             st.plotly_chart(fig_bar, use_container_width=True)
 
