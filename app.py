@@ -1428,10 +1428,10 @@ with st.sidebar:
     st.markdown(f"""
     <div style="padding:1.4rem 1rem 0.8rem;">
       <div style="font-family:Manrope,sans-serif;font-size:1.4rem;font-weight:800;color:#dae2fd;letter-spacing:-.01em;">
-        Wealth<span style="color:#4d8eff;">Intel</span>
+        Stock<span style="color:#4d8eff;">cast</span>
       </div>
       <div style="font-size:.55rem;color:#424754;letter-spacing:.1em;text-transform:uppercase;font-weight:700;margin-top:2px;">
-        Institutional Grade
+        Developed by Muawwiz Ghani
       </div>
     </div>
     <div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);
@@ -2354,7 +2354,7 @@ else:
 st.markdown("""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
-    ⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · v3.0 INSTITUTIONAL
+    ⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI
   </div>
 </div>
 """, unsafe_allow_html=True)
