@@ -1928,7 +1928,7 @@ if run_btn:
           </div>
           <div style="margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--border);
                font-family:'IBM Plex Mono',monospace;font-size:.62rem;color:#4a5a6a;">
-            ⚠ This is model output only — no awareness of earnings, news, or macro events.
+            ⚠ Technical signals use price & volume only. See News Sentiment section below for headline analysis.
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1977,6 +1977,196 @@ if run_btn:
             "Δ%":                [f"{(preds[i]-actual[i])/actual[i]*100:+.2f}%" for i in range(len(preds))],
         })
         st.dataframe(signal_df.tail(10), use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        # ══════════════════════════════════════════════════════════════════════
+        # ── 📰 NEWS SENTIMENT ANALYSIS ────────────────────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        st.subheader("📰 News Sentiment")
+        st.caption("Live headlines fetched from Yahoo Finance · Sentiment scored via TextBlob NLP")
+
+        @st.cache_data(ttl=900)   # cache 15 min so reruns don't re-fetch
+        def fetch_news_headlines(sym):
+            """Fetch recent news headlines for a ticker via yfinance (no API key needed)."""
+            try:
+                tk   = yf.Ticker(sym)
+                news = tk.news or []
+                out  = []
+                for item in news[:10]:
+                    title     = item.get("title", "")
+                    publisher = item.get("publisher", "")
+                    link      = item.get("link", "")
+                    ts        = item.get("providerPublishTime", 0)
+                    age_h     = int((pd.Timestamp.now().timestamp() - ts) / 3600) if ts else 0
+                    if title:
+                        out.append({"title": title, "publisher": publisher,
+                                    "link": link, "age_h": age_h})
+                return out
+            except Exception:
+                return []
+
+        def analyze_sentiment_textblob(headlines):
+            """Score each headline with TextBlob polarity (-1 → +1)."""
+            try:
+                from textblob import TextBlob
+            except ImportError:
+                return None, []          # TextBlob not installed — handled below
+
+            scored = []
+            for h in headlines:
+                pol = TextBlob(h["title"]).sentiment.polarity
+                sub = TextBlob(h["title"]).sentiment.subjectivity
+                scored.append({**h, "polarity": pol, "subjectivity": sub})
+            return scored
+
+        def sentiment_label(avg_pol):
+            if avg_pol >= 0.15:
+                return "VERY POSITIVE", "#00d4a0", "🟢"
+            elif avg_pol >= 0.03:
+                return "POSITIVE",      "#00d4a0", "🟢"
+            elif avg_pol <= -0.15:
+                return "VERY NEGATIVE", "#ff4757", "🔴"
+            elif avg_pol <= -0.03:
+                return "NEGATIVE",      "#ff4757", "🔴"
+            else:
+                return "NEUTRAL",       "#ffd32a", "⚪"
+
+        with st.spinner("Fetching latest news…"):
+            headlines = fetch_news_headlines(ticker)
+
+        if not headlines:
+            st.info("No recent news found for this ticker. Try a major index stock like AAPL, TSLA, MSFT.")
+        else:
+            scored = analyze_sentiment_textblob(headlines)
+
+            if scored is None:
+                # TextBlob missing — show headlines only, no scores
+                st.warning("Install `textblob` in requirements.txt for sentiment scoring. Showing headlines only.")
+                for h in headlines:
+                    st.markdown(f"🔹 [{h['title']}]({h['link']})  \n"
+                                f"<span style='font-size:.72rem;color:#4a5a6a;'>"
+                                f"{h['publisher']} · {h['age_h']}h ago</span>",
+                                unsafe_allow_html=True)
+            else:
+                polarities  = [s["polarity"] for s in scored]
+                avg_polarity = sum(polarities) / len(polarities) if polarities else 0
+                label, sent_color, sent_icon = sentiment_label(avg_polarity)
+
+                # ── Overall Sentiment Banner ───────────────────────────────────
+                bullish_count  = sum(1 for p in polarities if p >  0.03)
+                bearish_count  = sum(1 for p in polarities if p < -0.03)
+                neutral_count  = len(polarities) - bullish_count - bearish_count
+
+                ns1, ns2, ns3, ns4 = st.columns(4)
+                ns1.metric("📰 News Sentiment", f"{sent_icon} {label}")
+                ns2.metric("Avg Polarity Score", f"{avg_polarity:+.3f}",
+                           delta="Bullish lean" if avg_polarity > 0.03
+                                 else "Bearish lean" if avg_polarity < -0.03 else "Neutral",
+                           delta_color="normal" if avg_polarity > 0.03
+                                       else "inverse" if avg_polarity < -0.03 else "off")
+                ns3.metric("🟢 Positive Headlines", bullish_count)
+                ns4.metric("🔴 Negative Headlines", bearish_count)
+
+                # ── Combined Signal Banner (AI + News) ────────────────────────
+                _tech_bull = verdict_short == "BUY"
+                _tech_bear = verdict_short == "SELL"
+                _news_bull = avg_polarity > 0.03
+                _news_bear = avg_polarity < -0.03
+
+                if _tech_bull and _news_bull:
+                    combo_label = "⬆ STRONG CONFLUENCE — Technical BUY + Positive News"
+                    combo_color = "#00d4a0"
+                elif _tech_bear and _news_bear:
+                    combo_label = "⬇ STRONG CONFLUENCE — Technical SELL + Negative News"
+                    combo_color = "#ff4757"
+                elif _tech_bull and _news_bear:
+                    combo_label = "⚠ DIVERGENCE — Technical BUY but Negative News sentiment"
+                    combo_color = "#ffd32a"
+                elif _tech_bear and _news_bull:
+                    combo_label = "⚠ DIVERGENCE — Technical SELL but Positive News sentiment"
+                    combo_color = "#ffd32a"
+                else:
+                    combo_label = "◆ MIXED — No strong confluence between technicals and news"
+                    combo_color = "#4a5a6a"
+
+                st.markdown(
+                    f'<div style="background:rgba(255,255,255,0.02);border:1px solid {combo_color};'
+                    f'border-left:4px solid {combo_color};padding:.8rem 1.4rem;margin:.6rem 0 1rem 0;'
+                    f'font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{combo_color};'
+                    f'letter-spacing:.04em;">🧠 Combined Intelligence: {combo_label}</div>',
+                    unsafe_allow_html=True
+                )
+
+                # ── Headlines with per-article sentiment bars ──────────────────
+                with st.expander(f"📋 {len(scored)} Recent Headlines — click to expand", expanded=True):
+                    for h in scored:
+                        pol   = h["polarity"]
+                        _hcol = "#00d4a0" if pol > 0.03 else "#ff4757" if pol < -0.03 else "#ffd32a"
+                        _hico = "🟢" if pol > 0.03 else "🔴" if pol < -0.03 else "⚪"
+                        _bar_pct = min(100, int(abs(pol) * 300))   # scale to visible width
+
+                        st.markdown(
+                            f'<div style="padding:.55rem 0;border-bottom:1px solid #1e2a38;">'
+                            f'  <div style="display:flex;align-items:flex-start;gap:.6rem;">'
+                            f'    <span style="font-size:.9rem;margin-top:.05rem;">{_hico}</span>'
+                            f'    <div style="flex:1;">'
+                            f'      <a href="{h["link"]}" target="_blank" style="color:#e8edf2;'
+                            f'         font-family:IBM Plex Sans,sans-serif;font-size:.82rem;'
+                            f'         text-decoration:none;line-height:1.4;">{h["title"]}</a>'
+                            f'      <div style="display:flex;align-items:center;gap:.8rem;margin-top:.3rem;">'
+                            f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
+                            f'               color:#4a5a6a;">{h["publisher"]} · {h["age_h"]}h ago</span>'
+                            f'        <div style="flex:1;max-width:120px;height:3px;'
+                            f'             background:#1e2a38;border-radius:2px;">'
+                            f'          <div style="width:{_bar_pct}%;height:100%;'
+                            f'               background:{_hcol};border-radius:2px;"></div></div>'
+                            f'        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;'
+                            f'               color:{_hcol};">{pol:+.3f}</span>'
+                            f'      </div>'
+                            f'    </div>'
+                            f'  </div>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+
+                # ── Polarity distribution mini chart ──────────────────────────
+                if len(scored) >= 3:
+                    fig_sent = go.Figure()
+                    titles_short = [s["title"][:40] + "…" if len(s["title"]) > 40
+                                    else s["title"] for s in scored]
+                    bar_colors   = [C_GREEN if p > 0.03 else C_RED if p < -0.03 else C_YELLOW
+                                    for p in polarities]
+                    fig_sent.add_trace(go.Bar(
+                        x=polarities, y=titles_short,
+                        orientation="h",
+                        marker_color=bar_colors,
+                        text=[f"{p:+.3f}" for p in polarities],
+                        textposition="outside",
+                        textfont=dict(family="IBM Plex Mono", size=9, color="#8a9bb0"),
+                    ))
+                    fig_sent.add_vline(x=0, line_color="#2a3a4e", line_width=1)
+                    fig_sent.add_vline(x=avg_polarity, line_color=sent_color,
+                                       line_dash="dot", line_width=1.5,
+                                       annotation_text=f"avg {avg_polarity:+.3f}",
+                                       annotation_font=dict(color=sent_color, size=9))
+                    _sent_layout = {**PLOTLY_LAYOUT, "margin": dict(l=10, r=80, t=30, b=10)}
+                    fig_sent.update_layout(
+                        **_sent_layout,
+                        title=dict(text=f"{ticker} · Headline Sentiment Polarity (TextBlob)",
+                                   font=dict(color=C_GREEN, size=11)),
+                        height=max(220, len(scored) * 32),
+                        xaxis_title="Polarity (negative ← 0 → positive)",
+                        xaxis=dict(range=[-1, 1], gridcolor="#1e2a38",
+                                   linecolor="#1e2a38", zeroline=False,
+                                   tickfont=dict(color="#4a5a6a", size=9)),
+                    )
+                    st.plotly_chart(fig_sent, use_container_width=True)
+
+                st.caption("⚠ Sentiment is based on headline text only — not article content. "
+                           "Use as a supplementary signal, not a sole decision factor.")
+
+        st.divider()
 
         # ── Future Forecast ────────────────────────────────────────────────────────
         st.subheader(f"Forecast — Next {future_days} Days")
@@ -2528,6 +2718,9 @@ else:
                 <span style="background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);
                       color:#ff4757;font-family:IBM Plex Mono,monospace;font-size:.65rem;
                       letter-spacing:.1em;padding:.3rem .9rem;">✓ Shariah Screening</span>
+                <span style="background:rgba(255,211,42,0.1);border:1px solid rgba(255,211,42,0.3);
+                      color:#ffd32a;font-family:IBM Plex Mono,monospace;font-size:.65rem;
+                      letter-spacing:.1em;padding:.3rem .9rem;">✓ News Sentiment NLP</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2644,6 +2837,10 @@ else:
             <div class="card" style="border-top:2px solid #3d9eff;">
                 <div class="card-title" style="color:#3d9eff;">🔬 Model Comparison</div>
                 <div class="card-body">Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
+            </div>
+            <div class="card" style="border-top:2px solid #ffd32a;">
+                <div class="card-title" style="color:#ffd32a;">📰 News Sentiment NLP</div>
+                <div class="card-body">Live Yahoo Finance headlines scored with TextBlob. Detects confluence or divergence with technical signals.</div>
             </div>
         </div>
         <div style="text-align:center;margin-top:1.6rem;font-family:'IBM Plex Mono',monospace;
