@@ -7,11 +7,18 @@ from plotly.subplots import make_subplots
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
+from supabase import create_client
 import warnings
-import supabase
 warnings.filterwarnings('ignore')
 
-st.write("Supabase installed successfully!")
+# ── Supabase config ────────────────────────────────────────────────────────────
+SUPABASE_URL = "https://tpaqlfjszguinigygxcq.supabase.co"
+SUPABASE_KEY = "sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV"
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ── Session state: Auth ────────────────────────────────────────────────────────
+if "user" not in st.session_state:
+    st.session_state.user = None
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="StockCast — Market Intelligence", page_icon="📈", layout="wide",
@@ -714,9 +721,86 @@ def validate_ticker(sym):
     except Exception:
         return False
 
+# ── Auth Gate: Login / Signup ──────────────────────────────────────────────────
+if st.session_state.user is None:
+    st.markdown("""
+    <div style="max-width:460px;margin:4rem auto 0 auto;text-align:center;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:2rem;font-weight:700;
+             color:#e8edf2;letter-spacing:.06em;margin-bottom:.4rem;">
+            STOCK<span style="color:#00d4a0;">CAST</span>
+        </div>
+        <div style="font-family:'IBM Plex Sans',sans-serif;font-size:.9rem;color:#8a9bb0;
+             margin-bottom:2rem;">AI-powered stock intelligence platform</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _auth_col = st.columns([1, 2, 1])[1]
+    with _auth_col:
+        auth_tab1, auth_tab2 = st.tabs(["🔑  Login", "📝  Sign Up"])
+
+        # ── LOGIN ──────────────────────────────────────────────────────────────
+        with auth_tab1:
+            login_email    = st.text_input("Email",    key="login_email",
+                                           placeholder="you@example.com")
+            login_password = st.text_input("Password", key="login_password",
+                                           type="password", placeholder="••••••••")
+            if st.button("Login", use_container_width=True, key="login_btn"):
+                if login_email and login_password:
+                    try:
+                        res = supabase.auth.sign_in_with_password({
+                            "email":    login_email,
+                            "password": login_password,
+                        })
+                        if res.user:
+                            st.session_state.user = res.user
+                            st.success("✓ Logged in successfully!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid credentials. Please try again.")
+                    except Exception as e:
+                        st.error(f"Login failed: {e}")
+                else:
+                    st.warning("Please enter both email and password.")
+
+        # ── SIGNUP ─────────────────────────────────────────────────────────────
+        with auth_tab2:
+            signup_email    = st.text_input("Email",    key="signup_email",
+                                            placeholder="you@example.com")
+            signup_password = st.text_input("Password", key="signup_password",
+                                            type="password", placeholder="Min. 6 characters")
+            if st.button("Create Account", use_container_width=True, key="signup_btn"):
+                if signup_email and signup_password:
+                    try:
+                        res = supabase.auth.sign_up({
+                            "email":    signup_email,
+                            "password": signup_password,
+                        })
+                        if res.user:
+                            st.success("✓ Account created! Check your email to confirm.")
+                        else:
+                            st.error("Signup failed. Please try again.")
+                    except Exception as e:
+                        st.error(f"Signup failed: {e}")
+                else:
+                    st.warning("Please enter both email and password.")
+
+    st.stop()  # 🚨 Halt — do not render the app until authenticated
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### ⚙ PARAMETERS")
+    # ── User info + Logout ─────────────────────────────────────────────────────
+    st.markdown(
+        f'<div style="background:rgba(0,212,160,0.06);border:1px solid rgba(0,212,160,0.2);'
+        f'border-left:3px solid #00d4a0;padding:.6rem 1rem;font-family:IBM Plex Mono,monospace;'
+        f'font-size:.68rem;color:#00d4a0;letter-spacing:.06em;margin-bottom:.6rem;">'
+        f'👤 {st.session_state.user.email}</div>',
+        unsafe_allow_html=True
+    )
+    if st.button("⏏  Logout", use_container_width=True, key="logout_btn"):
+        supabase.auth.sign_out()
+        st.session_state.user = None
+        st.rerun()
+    st.markdown("---")
 
     # ── Ticker Search ──────────────────────────────────────────────────────────
     st.markdown('<div class="stat-row">🔍 Search Company / Ticker</div>', unsafe_allow_html=True)
