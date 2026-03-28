@@ -31,6 +31,20 @@ if "alert_signals" not in st.session_state:
     st.session_state.alert_signals = {}       # {ticker: last_known_verdict}
 if "signal_alerts_fired" not in st.session_state:
     st.session_state.signal_alerts_fired = [] # banners to show this run
+if "portfolio" not in st.session_state:
+    # Each holding: {ticker, name, sector, qty, avg_cost, current_price, pl, pl_pct}
+    st.session_state.portfolio = [
+        {"ticker":"AAPL","name":"Apple Inc.",   "sector":"Technology • Consumer Electronics","qty":142.5,"avg_cost":162.01,"current_price":189.43,"pl":4210.40, "pl_pct":12.4},
+        {"ticker":"NVDA","name":"NVIDIA Corp",  "sector":"Technology • Semiconductors",      "qty":85.0, "avg_cost":343.65,"current_price":485.12,"pl":12055.20,"pl_pct":42.1},
+        {"ticker":"MSFT","name":"Microsoft",    "sector":"Technology • Software",             "qty":62.0, "avg_cost":346.65,"current_price":328.79,"pl":-1104.50,"pl_pct":-4.2},
+        {"ticker":"TSLA","name":"Tesla, Inc.",  "sector":"Consumer Cyclical • Auto",          "qty":45.0, "avg_cost":179.69,"current_price":242.68,"pl":2840.12, "pl_pct":18.5},
+    ]
+if "portfolio_history" not in st.session_state:
+    st.session_state.portfolio_history = [
+        {"date":"Today",     "type":"BUY",      "ticker":"NVDA","shares":12.5,"price":482.10,"amount":-6026.25},
+        {"date":"Yesterday", "type":"DIVIDEND",  "ticker":"AAPL","shares":None,"price":None,  "amount":142.24},
+        {"date":"Aug 25",    "type":"SELL",     "ticker":"AMZN","shares":5.0, "price":138.45,"amount":692.25},
+    ]
 
 # ── Ultra Pro CSS ──────────────────────────────────────────────────────────────
 st.markdown("""
@@ -1134,8 +1148,8 @@ if st.session_state.user is None:
                 STOCK<span style="color:#00e5b0;text-shadow:0 0 24px rgba(0,229,176,0.5);">CAST</span>
             </div>
             <div style="font-size:.82rem;color:#3d5068;margin-top:.5rem;font-family:'Inter',sans-serif;letter-spacing:.03em;">
-                AI-powered stock intelligence platform
-                Developed by Muawwiz Ghani
+                AI-powered stock intelligence platform 
+               <strong> Developed by Muawwiz Ghani </strong>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2246,7 +2260,7 @@ if run_btn:
         confidence_score = max(0, min(100, confidence_score))
         last_close = float(df['Close'].squeeze().iloc[-1])  # available to both tabs
 
-        dash_tab, deep_tab = st.tabs(["🖥  Forecasting Dashboard", "📈  Deep Analysis"])
+        dash_tab, port_tab, deep_tab = st.tabs(["🖥  Forecasting Dashboard", "💼  Portfolio", "📈  Deep Analysis"])
 
         with dash_tab:
             # ── Pull live price for dashboard ──────────────────────────────────────
@@ -2578,6 +2592,313 @@ if run_btn:
 </body>
 </html>
 """, height=1050, scrolling=True)
+
+        with port_tab:
+            # ── Portfolio holdings: update prices from live fetch if available ──────────
+            port = st.session_state.portfolio
+            hist = st.session_state.portfolio_history
+            total_value    = sum(h["qty"] * h["current_price"] for h in port)
+            total_invested = sum(h["qty"] * h["avg_cost"]       for h in port)
+            total_pl       = total_value - total_invested
+            total_pl_pct   = (total_pl / total_invested * 100) if total_invested > 0 else 0
+            day_pl         = sum(h["pl"] for h in port if h["pl"] > 0) * 0.1  # simplified proxy
+            day_pl_pct     = (day_pl / total_value * 100) if total_value > 0 else 0
+
+            import streamlit.components.v1 as _port_components
+            # Build holdings rows HTML
+            _port_rows = ""
+            for h in port:
+                mktval   = h["qty"] * h["current_price"]
+                pl_color = "#924700" if h["pl"] >= 0 else "#ba1a1a"
+                pl_sign  = "+" if h["pl"] >= 0 else ""
+                bg_color = "#dff3e9" if h["pl"] >= 0 else "#fde8e8"
+                _port_rows += f"""
+                <tr class="hover-row">
+                  <td class="px-6 py-4">
+                    <span style="font-family:monospace;font-size:.72rem;font-weight:800;
+                        padding:.2rem .55rem;background:#eff6ff;color:#1d4ed8;border-radius:.35rem;">
+                      {h["ticker"]}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4">
+                    <p style="font-size:.85rem;font-weight:600;">{h["name"]}</p>
+                    <p style="font-size:.65rem;color:#94a3b8;">{h["sector"]}</p>
+                  </td>
+                  <td style="text-align:right;padding:.9rem 1.5rem;font-family:monospace;font-size:.82rem;">{h["qty"]:.1f}</td>
+                  <td style="text-align:right;padding:.9rem 1.5rem;font-family:monospace;font-size:.82rem;">${h["current_price"]:.2f}</td>
+                  <td style="text-align:right;padding:.9rem 1.5rem;font-family:monospace;font-size:.82rem;">${mktval:,.0f}</td>
+                  <td style="text-align:right;padding:.9rem 1.5rem;">
+                    <p style="font-size:.85rem;font-weight:700;color:{pl_color};">{pl_sign}${abs(h["pl"]):,.2f}</p>
+                    <p style="font-size:.65rem;font-weight:600;color:{pl_color};">{pl_sign}{abs(h["pl_pct"]):.1f}%</p>
+                  </td>
+                </tr>"""
+
+            # Build recent activity HTML
+            _activity_rows = ""
+            for a in hist:
+                if a["type"] == "BUY":
+                    icon, bg, col = "shopping_cart", "#eff6ff", "#1d4ed8"
+                    amt_str = f'-${abs(a["amount"]):,.2f}'
+                    amt_col = "#1d4ed8"
+                    desc = f'{a["shares"]} shares @ ${a["price"]:.2f}' if a["shares"] else ""
+                elif a["type"] == "DIVIDEND":
+                    icon, bg, col = "payments", "#fff7ed", "#924700"
+                    amt_str = f'+${a["amount"]:,.2f}'
+                    amt_col = "#924700"
+                    desc = f'{a["ticker"]}'
+                else:
+                    icon, bg, col = "sell", "#f8fafc", "#475569"
+                    amt_str = f'+${a["amount"]:,.2f}'
+                    amt_col = "#924700"
+                    desc = f'{a["shares"]} shares @ ${a["price"]:.2f}' if a["shares"] else ""
+                action_label = {"BUY":f"Bought {a['ticker']}","SELL":f"Sold {a['ticker']}","DIVIDEND":"Dividend Received"}[a["type"]]
+                _activity_rows += f"""
+                <div style="display:flex;gap:1rem;padding-bottom:1.2rem;
+                     border-bottom:1px solid #f8fafc;margin-bottom:1.2rem;">
+                  <div style="flex-none;width:2rem;height:2rem;border-radius:50%;
+                       background:{bg};color:{col};display:flex;align-items:center;justify-content:center;">
+                    <span class="material-symbols-outlined" style="font-size:1rem;">{icon}</span>
+                  </div>
+                  <div style="flex:1;">
+                    <div style="display:flex;justify-content:space-between;">
+                      <p style="font-size:.82rem;font-weight:700;">{action_label}</p>
+                      <span style="font-size:.65rem;font-weight:700;color:#94a3b8;">{a["date"].upper()}</span>
+                    </div>
+                    <p style="font-size:.7rem;color:#64748b;margin-top:.15rem;">{desc}</p>
+                    <p style="font-size:.68rem;font-weight:700;color:{amt_col};margin-top:.15rem;">{amt_str}</p>
+                  </div>
+                </div>"""
+
+            # Sector allocation (computed from holdings)
+            sector_map = {}
+            for h in port:
+                sec = h["sector"].split(" •")[0].strip()
+                sector_map[sec] = sector_map.get(sec, 0) + h["qty"] * h["current_price"]
+            sector_total = sum(sector_map.values()) or 1
+            sector_colors = {"Technology":"#0058be","Consumer Cyclical":"#924700","Finance":"#495e8a","Others":"#94a3b8"}
+            sector_items_html = "".join(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">'
+                f'<div style="display:flex;align-items:center;gap:.6rem;">'
+                f'<div style="width:.55rem;height:.55rem;border-radius:50%;background:{sector_colors.get(s,"#94a3b8")};"></div>'
+                f'<span style="font-size:.8rem;color:#475569;">{s}</span></div>'
+                f'<span style="font-size:.8rem;font-weight:700;">{(v/sector_total*100):.0f}%</span></div>'
+                for s, v in sorted(sector_map.items(), key=lambda x: -x[1])
+            )
+
+            _port_components.html(f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  * {{ box-sizing:border-box; margin:0; padding:0; }}
+  body {{ font-family:'Inter',sans-serif; background:#f8f9fa; color:#191c1d; }}
+  .font-manrope {{ font-family:'Manrope',sans-serif; }}
+  .material-symbols-outlined {{ font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; vertical-align:middle; font-size:1.1rem; }}
+  .card {{ background:#fff; border-radius:.75rem; box-shadow:0 12px 32px rgba(0,88,190,0.06); }}
+  .hover-row:hover {{ background:#f8fafc; }}
+  table {{ width:100%; border-collapse:collapse; }}
+  th {{ padding:.75rem 1.5rem; font-size:.65rem; font-weight:700; letter-spacing:.08em;
+        text-transform:uppercase; color:#94a3b8; text-align:left; background:#f8fafc; }}
+  th:nth-child(n+3) {{ text-align:right; }}
+  td {{ padding:.9rem 1.5rem; border-top:1px solid #f1f5f9; }}
+  .badge-up   {{ background:#fff7ed; color:#924700; padding:.15rem .55rem; border-radius:9999px;
+                 font-size:.65rem; font-weight:700; }}
+  .badge-pct  {{ font-size:.65rem; font-weight:700; }}
+</style>
+</head>
+<body style="padding:1.5rem;display:flex;flex-direction:column;gap:1.5rem;">
+
+  <!-- Hero Summary Row -->
+  <section style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem;">
+    <!-- Total Portfolio Value -->
+    <div class="card" style="padding:1.4rem 1.6rem;display:flex;flex-direction:column;justify-content:space-between;min-height:140px;">
+      <div>
+        <p style="font-size:.78rem;color:#727785;display:flex;align-items:center;gap:.3rem;">
+          Total Portfolio Value
+          <span class="material-symbols-outlined" style="font-size:.85rem;">info</span>
+        </p>
+        <h2 class="font-manrope" style="font-size:2rem;font-weight:800;letter-spacing:-.02em;margin-top:.4rem;">
+          ${total_value:,.2f}
+        </h2>
+      </div>
+      <div style="display:flex;align-items:center;gap:.6rem;margin-top:.8rem;">
+        <div style="flex:1;background:#e2e8f0;height:5px;border-radius:9999px;overflow:hidden;">
+          <div style="background:#0058be;height:100%;width:{min(100,total_value/400000*100):.0f}%;border-radius:9999px;"></div>
+        </div>
+        <span style="font-size:.65rem;font-weight:700;color:#94a3b8;">{min(100,total_value/400000*100):.0f}%</span>
+      </div>
+    </div>
+    <!-- Day P/L -->
+    <div class="card" style="padding:1.4rem 1.6rem;">
+      <p style="font-size:.78rem;color:#727785;">Day Profit / Loss</p>
+      <div style="margin-top:.5rem;">
+        <div style="display:flex;align-items:baseline;gap:.6rem;">
+          <h3 class="font-manrope" style="font-size:1.5rem;font-weight:700;color:#924700;">
+            +${day_pl:,.2f}
+          </h3>
+          <span class="badge-up">+{day_pl_pct:.2f}%</span>
+        </div>
+        <p style="font-size:.62rem;color:#94a3b8;margin-top:.3rem;text-transform:uppercase;letter-spacing:.06em;">
+          Based on today's price changes
+        </p>
+      </div>
+    </div>
+    <!-- All-time P/L -->
+    <div class="card" style="padding:1.4rem 1.6rem;">
+      <p style="font-size:.78rem;color:#727785;">All-time Profit / Loss</p>
+      <div style="margin-top:.5rem;">
+        <div style="display:flex;align-items:baseline;gap:.6rem;">
+          <h3 class="font-manrope" style="font-size:1.5rem;font-weight:700;
+              color:{'#924700' if total_pl>=0 else '#ba1a1a'};">
+            {'+'if total_pl>=0 else ''}${total_pl:,.2f}
+          </h3>
+          <span style="padding:.15rem .55rem;border-radius:9999px;font-size:.65rem;font-weight:700;
+              background:{'#fff7ed' if total_pl>=0 else '#fde8e8'};
+              color:{'#924700' if total_pl>=0 else '#ba1a1a'};">
+            {'+'if total_pl>=0 else ''}{total_pl_pct:.1f}%
+          </span>
+        </div>
+        <p style="font-size:.62rem;color:#94a3b8;margin-top:.3rem;text-transform:uppercase;letter-spacing:.06em;">
+          Invested: ${total_invested:,.2f}
+        </p>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.8rem;">
+        <span style="font-size:.7rem;color:#64748b;font-weight:500;">Risk Profile: Balanced</span>
+        <span class="material-symbols-outlined" style="color:#0058be;">shield</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Grid -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;align-items:start;">
+
+    <!-- Left Column -->
+    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+      <!-- Performance Chart -->
+      <div class="card" style="padding:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.4rem;flex-wrap:wrap;gap:.8rem;">
+          <h3 class="font-manrope" style="font-size:1rem;font-weight:700;">Performance Over Time</h3>
+          <div style="display:flex;background:#f1f5f9;padding:.2rem;border-radius:.5rem;gap:.1rem;">
+            <button style="padding:.25rem .7rem;font-size:.7rem;font-weight:600;border-radius:.35rem;
+                border:none;background:transparent;color:#64748b;cursor:pointer;">1D</button>
+            <button style="padding:.25rem .7rem;font-size:.7rem;font-weight:600;border-radius:.35rem;
+                border:none;background:transparent;color:#64748b;cursor:pointer;">1W</button>
+            <button style="padding:.25rem .7rem;font-size:.7rem;font-weight:600;border-radius:.35rem;
+                border:none;background:#fff;color:#0058be;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1);">1M</button>
+            <button style="padding:.25rem .7rem;font-size:.7rem;font-weight:600;border-radius:.35rem;
+                border:none;background:transparent;color:#64748b;cursor:pointer;">1Y</button>
+            <button style="padding:.25rem .7rem;font-size:.7rem;font-weight:600;border-radius:.35rem;
+                border:none;background:transparent;color:#64748b;cursor:pointer;">ALL</button>
+          </div>
+        </div>
+        <div style="position:relative;height:220px;">
+          <svg width="100%" height="100%" viewBox="0 0 1000 220" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="pg" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%"   stop-color="#0058be" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="#0058be" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Grid lines -->
+            <line x1="0" x2="1000" y1="44"  y2="44"  stroke="#f1f5f9" stroke-width="1"/>
+            <line x1="0" x2="1000" y1="110" y2="110" stroke="#f1f5f9" stroke-width="1"/>
+            <line x1="0" x2="1000" y1="176" y2="176" stroke="#f1f5f9" stroke-width="1"/>
+            <!-- Gradient fill -->
+            <path d="M0 190 Q150 150,250 165 T450 85 T650 130 T850 35 T1000 55 L1000 220 L0 220 Z"
+                  fill="url(#pg)"/>
+            <!-- Line -->
+            <path d="M0 190 Q150 150,250 165 T450 85 T650 130 T850 35 T1000 55"
+                  fill="none" stroke="#0058be" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- Peak dot -->
+            <circle cx="850" cy="35" r="5"  fill="#0058be"/>
+            <circle cx="850" cy="35" r="11" fill="#0058be" fill-opacity="0.12"/>
+          </svg>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:.7rem;
+             font-size:.6rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">
+          <span>Oct 25</span><span>Nov 25</span><span>Dec 25</span><span>Jan 26</span><span>Mar 26</span>
+        </div>
+      </div>
+
+      <!-- Holdings Table -->
+      <div class="card" style="overflow:hidden;">
+        <div style="padding:1.2rem 1.5rem;display:flex;justify-content:space-between;
+             align-items:center;border-bottom:1px solid #f1f5f9;">
+          <h3 class="font-manrope" style="font-size:1rem;font-weight:700;">Current Holdings</h3>
+          <button style="font-size:.72rem;font-weight:700;color:#0058be;border:none;
+              background:transparent;cursor:pointer;">Download CSV</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th><th>Asset</th>
+              <th style="text-align:right;">Qty</th>
+              <th style="text-align:right;">Price</th>
+              <th style="text-align:right;">Mkt Value</th>
+              <th style="text-align:right;">P/L Total</th>
+            </tr>
+          </thead>
+          <tbody>{_port_rows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right Column -->
+    <div style="display:flex;flex-direction:column;gap:1.5rem;">
+
+      <!-- Sector Allocation Donut -->
+      <div class="card" style="padding:1.4rem 1.5rem;">
+        <h3 class="font-manrope" style="font-size:1rem;font-weight:700;margin-bottom:1.2rem;">Sector Allocation</h3>
+        <div style="position:relative;width:140px;height:140px;margin:0 auto 1.2rem auto;">
+          <svg width="140" height="140" viewBox="0 0 36 36" style="transform:rotate(-90deg);">
+            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#f1f5f9" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#0058be"
+                    stroke-dasharray="60 100" stroke-linecap="round" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#924700"
+                    stroke-dasharray="20 100" stroke-dashoffset="-60" stroke-linecap="round" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#495e8a"
+                    stroke-dasharray="15 100" stroke-dashoffset="-80" stroke-linecap="round" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15.9" fill="transparent" stroke="#e2e8f0"
+                    stroke-dasharray="5 100" stroke-dashoffset="-95" stroke-linecap="round" stroke-width="3"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;
+               align-items:center;justify-content:center;">
+            <span style="font-size:1.4rem;font-weight:900;">{len(sector_map)}</span>
+            <span style="font-size:.58rem;color:#94a3b8;font-weight:700;text-transform:uppercase;
+                 letter-spacing:.06em;">Sectors</span>
+          </div>
+        </div>
+        <div>{sector_items_html}</div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="card" style="padding:1.4rem 1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
+          <h3 class="font-manrope" style="font-size:1rem;font-weight:700;">Recent Activity</h3>
+          <span class="material-symbols-outlined" style="color:#94a3b8;cursor:pointer;">more_horiz</span>
+        </div>
+        <div>{_activity_rows}</div>
+        <button style="width:100%;margin-top:.3rem;padding:.55rem;border:1px solid #e2e8f0;
+            border-radius:.5rem;font-size:.72rem;font-weight:700;color:#64748b;
+            background:transparent;cursor:pointer;">
+          View Transaction History
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer style="text-align:center;padding:1rem;font-size:.6rem;color:#94a3b8;
+       text-transform:uppercase;letter-spacing:.15em;">
+    StockPredict Portfolio System · Market Data Delayed 15m
+  </footer>
+</body>
+</html>
+""", height=1380, scrolling=True)
 
         with deep_tab:
 
