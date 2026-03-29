@@ -9,13 +9,31 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from supabase import create_client
 import warnings
+import os
 warnings.filterwarnings('ignore')
 import nltk
-nltk.download('punkt')
+
+# Download NLTK data only if not already present
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt', quiet=True)
 
 # ── Supabase config ────────────────────────────────────────────────────────────
-SUPABASE_URL = "https://tpaqlfjszguinigygxcq.supabase.co"
-SUPABASE_KEY = "sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV"
+# Credentials are loaded from Streamlit secrets (secrets.toml) or environment variables.
+# Never hardcode credentials in source code.
+# Set up: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management
+try:
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+except (KeyError, FileNotFoundError):
+    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("⚠ Supabase credentials not found. Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets or environment variables.")
+    st.stop()
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Session state ──────────────────────────────────────────────────────────────
@@ -675,7 +693,7 @@ def search_tickers(query):
         pass
     return results[:10]
 
-@st.cache_data
+@st.cache_data(ttl=300)  # refresh every 5 minutes so prices stay current
 def fetch_data(ticker, start, end):
     df = yf.download(ticker, start=str(start), end=str(end), progress=False, auto_adjust=True)
     if isinstance(df.columns, pd.MultiIndex):
@@ -688,7 +706,9 @@ def compute_rsi(series, period=14):
     delta = series.diff()
     gain  = delta.clip(lower=0)
     loss  = -delta.clip(upper=0)
-    return 100 - (100 / (1 + gain.rolling(period).mean() / loss.rolling(period).mean()))
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean().replace(0, 1e-10)  # avoid division by zero
+    return 100 - (100 / (1 + avg_gain / avg_loss))
 
 def compute_macd(series, fast=12, slow=26, signal=9):
     ema_fast = series.ewm(span=fast, adjust=False).mean()
@@ -751,6 +771,10 @@ def build_xgb_dataset(df, seq_len):
     X = np.array(X_rows)
     y = np.array(y_rows)
     mask = ~np.isnan(X).any(axis=1) & ~np.isnan(y)
+    dropped = (~mask).sum()
+    if dropped > 0:
+        import warnings
+        warnings.warn(f"build_xgb_dataset: dropped {dropped} rows containing NaN (out of {len(mask)} total)")
     return X[mask], y[mask]
 
 def compute_composite_signal(df, last_close, forecast_price, preds, actual):
@@ -857,7 +881,14 @@ def run_backtest_engine(actual_prices, predicted_prices, initial_capital, commis
             "equity_curve":equity,"bh_equity":bh_equity,"trades_df":trades_df,"drawdown_series":drawdown.tolist()}
 
 def bootstrap_confidence_intervals(model, X_input, n_bootstrap=100, noise_std=0.02):
-    all_preds = [model.predict(X_input + np.random.normal(0, noise_std, X_input.shape)) for _ in range(n_bootstrap)]
+    # Use relative noise scaled to each feature's std, so a $500 stock
+    # and a $5 stock both get proportionally equivalent perturbations.
+    feature_scale = np.std(X_input, axis=0, keepdims=True)
+    feature_scale = np.where(feature_scale == 0, 1.0, feature_scale)
+    all_preds = [
+        model.predict(X_input + np.random.normal(0, noise_std, X_input.shape) * feature_scale)
+        for _ in range(n_bootstrap)
+    ]
     a = np.array(all_preds)
     return np.percentile(a, 5, axis=0), np.percentile(a, 50, axis=0), np.percentile(a, 95, axis=0)
 
@@ -922,7 +953,7 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
          text-transform:uppercase;color:#8c909f;margin-bottom:.3rem;font-weight:700;">Technical Documentation</div>
     <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800;
          color:#dae2fd;letter-spacing:-.01em;margin-bottom:1.4rem;">
-         WealthIntel <span style="color:#4d8eff;">·</span> Methodology & Model Architecture
+         Stockcast <span style="color:#4d8eff;">·</span> Methodology & Model Architecture
     </div>
     """, unsafe_allow_html=True)
     steps = [
@@ -1037,584 +1068,234 @@ if st.session_state.user is None:
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    # ── FULL IMMERSIVE BACKGROUND (Three.js 3D candles + all overlays) ─────────
-    _ac.html("""
+    # ── FULL AUTH PAGE: Three.js background + login form inside one iframe ───────
+    # FIX: The previous approach rendered the form outside the iframe using a
+    # fragile margin-top:-810px hack which broke on all screen sizes.
+    # Now the form lives INSIDE the iframe (no cross-frame layout hacks),
+    # and submits via URL query params which Streamlit reads above.
+    _is_login   = (st.session_state.auth_view == "login")
+    _err_js     = _auth_error.replace('"', '\\"').replace('\n', ' ')
+    _suc_js     = _auth_success.replace('"', '\\"').replace('\n', ' ')
+    _card_title = "SECURE ACCESS" if _is_login else "INITIALIZE SESSION"
+    _card_sub   = "Encryption: Quantum AES-512" if _is_login else "Create your terminal node"
+
+    _ac.html(f"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-* { box-sizing:border-box; margin:0; padding:0; }
-html,body { width:100%; height:100%; background:#0b0f11; overflow:hidden;
-  font-family:'Space Grotesk',sans-serif; color:#e0e3e6; }
-canvas { display:block; position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
-
-/* ── OVERLAYS ── */
-.radial-bg {
-  position:fixed; inset:0; z-index:1; pointer-events:none;
-  background:
-    radial-gradient(ellipse at 65% 25%, rgba(6,78,59,0.5) 0%, transparent 60%),
-    radial-gradient(ellipse at 10% 80%, rgba(0,241,254,0.04) 0%, transparent 45%),
-    linear-gradient(180deg, rgba(11,15,17,0.3) 0%, rgba(11,15,17,0.0) 40%, rgba(11,15,17,0.6) 100%);
-}
-.scanline {
-  position:fixed; inset:0; z-index:2; pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);
-}
-.holo-lines { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; opacity:0.15; }
-.hline {
-  height:1px; position:absolute; width:160%;
-  background:linear-gradient(90deg,transparent,rgba(74,225,118,0.6),rgba(0,241,254,0.3),transparent);
-  filter:blur(0.5px);
-}
-.dnode { position:absolute; width:5px; height:5px; border-radius:50%;
-  background:#4ae176; box-shadow:0 0 10px #4ae176,0 0 20px rgba(74,225,118,0.4); }
-.scan-sweep {
-  position:fixed; top:0; left:-100%; width:55%; height:100%; z-index:3; pointer-events:none;
-  background:linear-gradient(90deg,transparent,rgba(74,225,118,0.055),rgba(0,241,254,0.025),transparent);
-  animation:sweep 7s linear infinite;
-}
-@keyframes sweep { 0%{left:-100%} 100%{left:210%} }
-.grid-3d {
-  position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0.07;
-  background-image:
-    linear-gradient(rgba(74,225,118,0.4) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(74,225,118,0.4) 1px, transparent 1px);
-  background-size:60px 60px;
-  transform:perspective(600px) rotateX(55deg) scale(2.5);
-  transform-origin:center bottom;
-}
-
-/* ── TICKER ── */
-.ticker-wrap {
-  position:fixed; top:0; left:0; right:0; z-index:20; height:38px;
-  background:rgba(11,15,17,0.7); backdrop-filter:blur(16px);
-  border-bottom:1px solid rgba(74,225,118,0.12);
-  display:flex; align-items:center; overflow:hidden;
-}
-.ticker-inner { display:flex; gap:2.5rem; animation:tick 45s linear infinite; white-space:nowrap; }
-.ticker-inner:hover { animation-play-state:paused; }
-.t-sym { font-size:0.58rem; color:rgba(224,227,230,0.35); letter-spacing:0.12em; margin-right:3px; font-family:'JetBrains Mono',monospace; }
-.t-up { color:#4ae176; font-weight:700; font-size:0.62rem; font-family:'JetBrains Mono',monospace; }
-.t-dn { color:#ef4444; font-weight:700; font-size:0.62rem; font-family:'JetBrains Mono',monospace; }
-.t-sep { color:rgba(74,225,118,0.15); font-size:0.55rem; }
-@keyframes tick { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-
-/* ── TOP NAV BAR ── */
-.top-nav {
-  position:fixed; top:38px; left:0; right:0; z-index:20;
-  display:flex; justify-content:space-between; align-items:center;
-  padding:0.75rem 2.5rem;
-  background:rgba(11,15,17,0.5); backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(74,225,118,0.08);
-}
-.brand { display:flex; align-items:center; gap:0.6rem; }
-.brand-logo { font-size:1.4rem; font-weight:800; color:#4ae176; letter-spacing:-0.03em;
-  text-shadow:0 0 18px rgba(74,225,118,0.5); }
-.brand-sep { width:1px; height:18px; background:rgba(224,227,230,0.1); margin:0 0.4rem; }
-.brand-tag { font-size:0.55rem; font-family:'JetBrains Mono',monospace; color:rgba(74,225,118,0.6); letter-spacing:0.18em; text-transform:uppercase; }
-.sys-status { display:flex; align-items:center; gap:1.5rem; font-family:'JetBrains Mono',monospace; font-size:0.6rem; }
-.status-dot { width:7px; height:7px; border-radius:50%; background:#4ae176; box-shadow:0 0 8px #4ae176; animation:pulse 2s infinite; }
-.status-txt { color:rgba(74,225,118,0.8); letter-spacing:0.12em; text-transform:uppercase; }
-.latency { color:#00f1fe; letter-spacing:0.1em; }
-.sys-icon { color:rgba(224,227,230,0.4); font-size:1.1rem; cursor:pointer; transition:color 0.15s; }
-.sys-icon:hover { color:#4ae176; }
-@keyframes pulse { 50%{opacity:0.5; box-shadow:0 0 0 4px rgba(74,225,118,0)} }
-
-/* ── HERO CONTENT ── */
-.hero {
-  position:fixed; top:0; left:0; width:58%; height:100%;
-  display:flex; flex-direction:column; justify-content:center;
-  padding:7rem 4rem 4rem;
-  z-index:10;
-}
-.hero-pill {
-  display:inline-flex; align-items:center; gap:0.5rem;
-  padding:0.28rem 0.85rem; background:rgba(74,225,118,0.08);
-  border:1px solid rgba(74,225,118,0.2); border-radius:9999px;
-  font-size:0.58rem; letter-spacing:0.18em; text-transform:uppercase;
-  color:#4ae176; margin-bottom:1.4rem;
-}
-.pill-dot { width:6px; height:6px; background:#4ae176; border-radius:50%; box-shadow:0 0 6px #4ae176; animation:pulse 2s infinite; }
-.hero h1 {
-  font-size:3.8rem; font-weight:800; line-height:1.08;
-  letter-spacing:-0.03em; color:#fff; margin-bottom:1.1rem;
-  text-shadow:0 2px 30px rgba(0,0,0,0.5);
-}
-.hero h1 em { font-style:normal; color:#4ae176; text-shadow:0 0 22px rgba(74,225,118,0.5); }
-.hero-sub {
-  font-size:0.85rem; color:rgba(224,227,230,0.55); line-height:1.75; max-width:380px;
-  border-left:2px solid rgba(74,225,118,0.3); padding-left:1rem; margin-bottom:2.5rem;
-}
-.metrics-row { display:flex; gap:3rem; align-items:flex-end; }
-
-/* Confidence Ring */
-.ring-wrap { position:relative; width:108px; height:108px; display:flex; align-items:center; justify-content:center; }
-.ring-outer { position:absolute; inset:0; border-radius:50%; border:1.5px dashed rgba(74,225,118,0.2); animation:rot 12s linear infinite; }
-@keyframes rot { to{transform:rotate(360deg)} }
-.ring-inner { position:absolute; display:flex; flex-direction:column; align-items:center; }
-.ring-val { font-size:1.35rem; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace; }
-.ring-lbl { font-size:0.5rem; color:rgba(224,227,230,0.4); text-transform:uppercase; letter-spacing:0.12em; margin-top:1px; }
-
-/* Neural pulse widget */
-.neural-wrap { display:flex; flex-direction:column; align-items:center; gap:0.5rem; }
-.neural-ring {
-  width:70px; height:70px; border-radius:50%;
-  border:1.5px dashed rgba(74,225,118,0.18); display:flex; align-items:center; justify-content:center;
-  animation:rot 8s linear infinite reverse;
-}
-.neural-core {
-  width:28px; height:28px; border-radius:50%;
-  background:rgba(74,225,118,0.08);
-  border:1px solid rgba(74,225,118,0.3);
-  display:flex; align-items:center; justify-content:center;
-}
-.neural-dot { width:9px; height:9px; border-radius:50%; background:#4ae176; box-shadow:0 0 12px #4ae176; animation:ping 1.2s ease-in-out infinite; }
-@keyframes ping { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:0.5} }
-
-/* Bento metric cards */
-.bento { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; max-width:320px; margin-top:0; }
-.bento-card {
-  background:rgba(15,23,42,0.5); backdrop-filter:blur(12px);
-  border:1px solid rgba(74,225,118,0.1); border-radius:0.5rem;
-  padding:0.75rem 1rem; position:relative; overflow:hidden;
-  transition:border-color 0.2s;
-}
-.bento-card::before { content:''; position:absolute; left:0; top:0; width:2px; height:100%; background:#4ae176; opacity:0.6; }
-.bento-card:nth-child(2)::before { background:#00f1fe; }
-.bento-card:nth-child(3)::before { background:rgba(74,225,118,0.4); }
-.bento-card:nth-child(4)::before { background:#ef4444; opacity:0.5; }
-.bc-label { font-size:0.5rem; font-family:'JetBrains Mono',monospace; color:rgba(224,227,230,0.4); text-transform:uppercase; letter-spacing:0.14em; margin-bottom:4px; }
-.bc-val { font-size:0.95rem; font-weight:700; color:#4ae176; font-family:'JetBrains Mono',monospace; }
-.bc-sub { font-size:0.48rem; color:rgba(224,227,230,0.35); margin-top:2px; font-family:'JetBrains Mono',monospace; }
-
-/* ── BOTTOM FOOTER ── */
-.bottom-bar {
-  position:fixed; bottom:0; left:0; right:0; z-index:20;
-  display:flex; justify-content:space-between; align-items:center;
-  padding:0.65rem 2.5rem;
-  background:rgba(11,15,17,0.6); backdrop-filter:blur(12px);
-  border-top:1px solid rgba(74,225,118,0.07);
-  font-size:0.55rem; font-family:'JetBrains Mono',monospace; color:rgba(224,227,230,0.25);
-  letter-spacing:0.12em; text-transform:uppercase;
-}
-.footer-links { display:flex; gap:1.5rem; }
-.footer-links a { color:rgba(224,227,230,0.25); text-decoration:none; transition:color 0.15s; }
-.footer-links a:hover { color:#4ae176; }
-.footer-live { display:flex; align-items:center; gap:0.5rem; color:rgba(74,225,118,0.6); }
-.flive-dot { width:5px; height:5px; border-radius:50%; background:#4ae176; box-shadow:0 0 6px #4ae176; animation:pulse 2s infinite; }
-#footer-clock { color:rgba(224,227,230,0.5); }
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{width:100%;height:100%;background:#0b0f11;overflow:hidden;font-family:'Space Grotesk',sans-serif;color:#e0e3e6;}}
+canvas{{display:block;position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;}}
+.radial-bg{{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at 65% 25%,rgba(6,78,59,0.5) 0%,transparent 60%),radial-gradient(ellipse at 10% 80%,rgba(0,241,254,0.04) 0%,transparent 45%),linear-gradient(180deg,rgba(11,15,17,0.3) 0%,rgba(11,15,17,0.0) 40%,rgba(11,15,17,0.6) 100%);}}
+.scanline{{position:fixed;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);}}
+.grid-3d{{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0.07;background-image:linear-gradient(rgba(74,225,118,0.4) 1px,transparent 1px),linear-gradient(90deg,rgba(74,225,118,0.4) 1px,transparent 1px);background-size:60px 60px;transform:perspective(600px) rotateX(55deg) scale(2.5);transform-origin:center bottom;}}
+.scan-sweep{{position:fixed;top:0;left:-100%;width:55%;height:100%;z-index:3;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(74,225,118,0.055),rgba(0,241,254,0.025),transparent);animation:sweep 7s linear infinite;}}
+@keyframes sweep{{0%{{left:-100%}}100%{{left:210%}}}}
+.ticker-wrap{{position:fixed;top:0;left:0;right:0;z-index:20;height:36px;background:rgba(11,15,17,0.7);backdrop-filter:blur(16px);border-bottom:1px solid rgba(74,225,118,0.12);display:flex;align-items:center;overflow:hidden;}}
+.ticker-inner{{display:flex;gap:2.5rem;animation:tick 45s linear infinite;white-space:nowrap;}}
+@keyframes tick{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
+.t-sym{{font-size:0.58rem;color:rgba(224,227,230,0.35);letter-spacing:0.12em;margin-right:3px;font-family:'JetBrains Mono',monospace;}}
+.t-up{{color:#4ae176;font-weight:700;font-size:0.62rem;font-family:'JetBrains Mono',monospace;}}
+.t-dn{{color:#ef4444;font-weight:700;font-size:0.62rem;font-family:'JetBrains Mono',monospace;}}
+.top-nav{{position:fixed;top:36px;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:0.6rem 2rem;background:rgba(11,15,17,0.5);backdrop-filter:blur(20px);border-bottom:1px solid rgba(74,225,118,0.08);}}
+.brand-logo{{font-size:1.3rem;font-weight:800;color:#4ae176;letter-spacing:-0.03em;text-shadow:0 0 18px rgba(74,225,118,0.5);}}
+.brand-tag{{font-size:0.5rem;font-family:'JetBrains Mono',monospace;color:rgba(74,225,118,0.6);letter-spacing:0.18em;text-transform:uppercase;margin-left:0.5rem;}}
+.status-dot{{width:7px;height:7px;border-radius:50%;background:#4ae176;box-shadow:0 0 8px #4ae176;animation:pulse 2s infinite;display:inline-block;margin-right:5px;}}
+.status-txt{{color:rgba(74,225,118,0.8);font-size:0.6rem;font-family:'JetBrains Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;vertical-align:middle;}}
+@keyframes pulse{{50%{{opacity:0.5;box-shadow:0 0 0 4px rgba(74,225,118,0)}}}}
+.hero{{position:fixed;top:0;left:0;width:55%;height:100%;display:flex;flex-direction:column;justify-content:center;padding:7rem 3.5rem 4rem;z-index:10;}}
+.hero-pill{{display:inline-flex;align-items:center;gap:0.5rem;padding:0.28rem 0.85rem;background:rgba(74,225,118,0.08);border:1px solid rgba(74,225,118,0.2);border-radius:9999px;font-size:0.58rem;letter-spacing:0.18em;text-transform:uppercase;color:#4ae176;margin-bottom:1.2rem;}}
+.pill-dot{{width:6px;height:6px;background:#4ae176;border-radius:50%;box-shadow:0 0 6px #4ae176;animation:pulse 2s infinite;}}
+.hero h1{{font-size:3.4rem;font-weight:800;line-height:1.08;letter-spacing:-0.03em;color:#fff;margin-bottom:1rem;text-shadow:0 2px 30px rgba(0,0,0,0.5);}}
+.hero h1 em{{font-style:normal;color:#4ae176;text-shadow:0 0 22px rgba(74,225,118,0.5);}}
+.hero-sub{{font-size:0.82rem;color:rgba(224,227,230,0.55);line-height:1.75;max-width:360px;border-left:2px solid rgba(74,225,118,0.3);padding-left:1rem;margin-bottom:2rem;}}
+.bento{{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;max-width:300px;}}
+.bento-card{{background:rgba(15,23,42,0.5);backdrop-filter:blur(12px);border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;padding:0.7rem 0.9rem;position:relative;overflow:hidden;}}
+.bento-card::before{{content:'';position:absolute;left:0;top:0;width:2px;height:100%;background:#4ae176;opacity:0.6;}}
+.bento-card:nth-child(2)::before{{background:#00f1fe;}}
+.bc-label{{font-size:0.48rem;font-family:'JetBrains Mono',monospace;color:rgba(224,227,230,0.4);text-transform:uppercase;letter-spacing:0.14em;margin-bottom:3px;}}
+.bc-val{{font-size:0.88rem;font-weight:700;color:#4ae176;font-family:'JetBrains Mono',monospace;}}
+/* AUTH CARD — fixed position, no layout hacks needed */
+.auth-panel{{position:fixed;top:50%;right:3.5%;transform:translateY(-50%);width:min(400px,38%);z-index:30;background:rgba(10,15,23,0.88);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border:1px solid rgba(74,225,118,0.18);border-radius:0.75rem;padding:1.8rem 1.6rem 1.4rem;box-shadow:0 25px 60px rgba(0,0,0,0.7),0 0 40px rgba(74,225,118,0.06);animation:breathe 4s ease-in-out infinite;overflow:hidden;}}
+@keyframes breathe{{0%,100%{{box-shadow:0 25px 60px rgba(0,0,0,.7),0 0 20px rgba(74,225,118,.04)}}50%{{box-shadow:0 25px 60px rgba(0,0,0,.7),0 0 45px rgba(74,225,118,.12)}}}}
+.sweep-inner{{position:absolute;top:0;left:-100%;width:55%;height:100%;background:linear-gradient(90deg,transparent,rgba(74,225,118,0.05),transparent);animation:sweep 6s linear infinite;pointer-events:none;}}
+.tab-bar{{display:flex;background:rgba(2,6,23,0.5);border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;padding:3px;margin-bottom:1.2rem;}}
+.tab{{flex:1;padding:0.5rem;border-radius:0.35rem;text-align:center;cursor:pointer;font-family:'Space Grotesk',sans-serif;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;transition:all 0.2s;color:rgba(224,227,230,0.4);}}
+.tab.active{{background:linear-gradient(90deg,#064e3b,#22c55e);color:#000;font-weight:800;box-shadow:0 0 15px rgba(74,225,118,0.25);}}
+.card-title{{text-align:center;margin-bottom:1.2rem;}}
+.card-title h2{{font-size:0.9rem;font-weight:700;letter-spacing:0.12em;color:#e0e3e6;text-transform:uppercase;}}
+.card-title p{{font-size:0.5rem;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'JetBrains Mono',monospace;}}
+.field-label{{font-family:'JetBrains Mono',monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-bottom:4px;margin-top:0.8rem;display:flex;justify-content:space-between;align-items:center;}}
+.field-label:first-child{{margin-top:0;}}
+input[type=email],input[type=password],input[type=text]{{width:100%;background:rgba(2,6,23,0.55);border:1px solid rgba(74,225,118,0.15);border-radius:0.375rem;color:#e0e3e6;font-family:'JetBrains Mono',monospace;font-size:0.78rem;padding:10px 12px;outline:none;transition:all 0.2s;}}
+input:focus{{border-color:rgba(74,225,118,0.5)!important;box-shadow:0 0 0 1px rgba(74,225,118,0.3),0 0 12px rgba(74,225,118,0.1)!important;}}
+input::placeholder{{color:rgba(224,227,230,0.2);}}
+.submit-btn{{width:100%;margin-top:1rem;padding:0.8rem;cursor:pointer;background:linear-gradient(90deg,#064e3b,#22c55e,#4ae176,#22c55e,#064e3b);background-size:300% auto;animation:gflow 3.5s linear infinite;color:#000;font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:0.68rem;border:none;border-radius:0.25rem;letter-spacing:0.2em;text-transform:uppercase;box-shadow:0 0 20px rgba(74,225,118,0.2);transition:filter 0.15s,transform 0.15s;}}
+.submit-btn:hover{{filter:brightness(1.12);transform:translateY(-1px);}}
+.submit-btn:active{{transform:scale(0.98);}}
+@keyframes gflow{{0%{{background-position:0% 50%}}50%{{background-position:100% 50%}}100%{{background-position:0% 50%}}}}
+.switch-link{{text-align:center;margin-top:0.7rem;font-size:0.62rem;color:rgba(224,227,230,0.4);font-family:'JetBrains Mono',monospace;}}
+.switch-link a{{color:rgba(74,225,118,0.7);text-decoration:none;}}
+.switch-link a:hover{{color:#4ae176;}}
+.msg-box{{border-radius:0.25rem;padding:0.6rem 0.85rem;font-size:0.7rem;font-family:'JetBrains Mono',monospace;margin-top:0.7rem;}}
+.msg-error{{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#fca5a5;}}
+.msg-success{{background:rgba(74,225,118,0.08);border:1px solid rgba(74,225,118,0.3);color:#4ae176;}}
+.beta-box{{border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;background:rgba(74,225,118,0.04);padding:0.7rem 1rem;text-align:center;margin-top:0.8rem;}}
+.beta-tag{{font-family:'JetBrains Mono',monospace;font-size:0.55rem;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#4ae176;}}
+.beta-sub{{font-size:0.48rem;color:rgba(224,227,230,0.3);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:'JetBrains Mono',monospace;}}
+.bottom-bar{{position:fixed;bottom:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:0.55rem 2rem;background:rgba(11,15,17,0.6);backdrop-filter:blur(12px);border-top:1px solid rgba(74,225,118,0.07);font-size:0.52rem;font-family:'JetBrains Mono',monospace;color:rgba(224,227,230,0.25);letter-spacing:0.1em;text-transform:uppercase;}}
+.footer-live{{display:flex;align-items:center;gap:0.5rem;color:rgba(74,225,118,0.6);}}
+.flive-dot{{width:5px;height:5px;border-radius:50%;background:#4ae176;box-shadow:0 0 6px #4ae176;animation:pulse 2s infinite;display:inline-block;}}
+@media (max-width:700px){{.hero{{display:none;}}.auth-panel{{width:90%;right:5%;left:5%;transform:translateY(-50%);}}}}
 </style>
 </head><body>
-
-<!-- THREE.JS 3D CANDLE BACKGROUND -->
 <canvas id="three-c"></canvas>
-
-<!-- OVERLAYS -->
-<div class="radial-bg"></div>
-<div class="grid-3d"></div>
-<div class="scanline"></div>
-<div class="holo-lines">
-  <div class="hline" style="top:18%;left:-10%;transform:rotate(-8deg)"></div>
-  <div class="hline" style="top:47%;left:-5%;transform:rotate(-6deg)"></div>
-  <div class="hline" style="top:78%;left:0%;transform:rotate(-10deg)"></div>
-  <div class="dnode" style="top:20%;left:28%"></div>
-  <div class="dnode" style="top:49%;left:57%;background:#00f1fe;box-shadow:0 0 10px #00f1fe"></div>
-  <div class="dnode" style="top:80%;left:82%"></div>
-</div>
-<div class="scan-sweep"></div>
-
-<!-- LIVE TICKER -->
-<div class="ticker-wrap">
-  <div class="ticker-inner" id="ticker">
-    <span><span class="t-sym">AAPL</span><span class="t-up">▲ $189.42 +1.2%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">TSLA</span><span class="t-dn">▼ $248.11 -0.8%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">MSFT</span><span class="t-up">▲ $421.05 +0.5%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">GOOGL</span><span class="t-dn">▼ $168.22 -0.3%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">META</span><span class="t-up">▲ $512.88 +1.7%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">AMZN</span><span class="t-up">▲ $186.44 +0.9%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">AMD</span><span class="t-up">▲ $167.55 +3.2%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">JPM</span><span class="t-dn">▼ $198.30 -0.4%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">SPY</span><span class="t-up">▲ $521.67 +0.6%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">BTC</span><span class="t-up">▲ $67,422 +2.1%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">AAPL</span><span class="t-up">▲ $189.42 +1.2%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">TSLA</span><span class="t-dn">▼ $248.11 -0.8%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">MSFT</span><span class="t-up">▲ $421.05 +0.5%</span></span><span class="t-sep">·</span>
-    <span><span class="t-sym">META</span><span class="t-up">▲ $512.88 +1.7%</span></span><span class="t-sep">·</span>
-  </div>
-</div>
-
-<!-- TOP NAV -->
+<div class="radial-bg"></div><div class="grid-3d"></div><div class="scanline"></div><div class="scan-sweep"></div>
+<div class="ticker-wrap"><div class="ticker-inner">
+  <span><span class="t-sym">AAPL</span><span class="t-up">▲ $189.42 +1.2%</span></span>&nbsp;·&nbsp;
+  <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span>&nbsp;·&nbsp;
+  <span><span class="t-sym">TSLA</span><span class="t-dn">▼ $248.11 -0.8%</span></span>&nbsp;·&nbsp;
+  <span><span class="t-sym">MSFT</span><span class="t-up">▲ $421.05 +0.5%</span></span>&nbsp;·&nbsp;
+  <span><span class="t-sym">META</span><span class="t-up">▲ $512.88 +1.7%</span></span>&nbsp;·&nbsp;
+  <span><span class="t-sym">AMZN</span><span class="t-up">▲ $186.44 +0.9%</span></span>&nbsp;·&nbsp;
+  <span><span class="t-sym">AAPL</span><span class="t-up">▲ $189.42 +1.2%</span></span>&nbsp;·&nbsp;
+  <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span>
+</div></div>
 <div class="top-nav">
-  <div class="brand">
-    <svg width="18" height="18" fill="none" stroke="#4ae176" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-    </svg>
-    <span class="brand-logo">Stockcast</span>
-    <div class="brand-sep"></div>
-    <span class="brand-tag">AUTH_GATEWAY_v4.02</span>
-  </div>
-  <div class="sys-status">
-    <span style="display:flex;align-items:center;gap:0.4rem;">
-      <span class="status-dot"></span>
-      <span class="status-txt">System_Operational</span>
-    </span>
-    <span class="brand-sep"></span>
-    <span class="latency">Latency: <span id="lat">14</span>ms</span>
-    <span class="material-symbols-outlined sys-icon">settings_input_component</span>
-    <span class="material-symbols-outlined sys-icon">terminal</span>
-  </div>
+  <div><span class="brand-logo">Stockcast</span><span class="brand-tag">AUTH_GATEWAY_v4.02</span></div>
+  <div><span class="status-dot"></span><span class="status-txt">Neural Engine Active · Live Alpha Stream</span></div>
 </div>
-
-<!-- HERO LEFT PANEL -->
 <div class="hero">
-  <div class="hero-pill"><div class="pill-dot"></div>Neural Engine Active · Live Alpha Stream</div>
+  <div class="hero-pill"><div class="pill-dot"></div> Neural Engine Active</div>
   <h1>Predicting the<br>pulse of <em>global markets.</em></h1>
-  <p class="hero-sub">Experience institutional-grade XGBoost forecasting, 6-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment — all in one unified terminal.</p>
-
-  <div class="metrics-row" style="margin-bottom:2rem;">
-    <!-- Confidence Ring -->
-    <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;">
-      <span style="font-size:0.5rem;font-family:'JetBrains Mono',monospace;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;">AI Accuracy</span>
-      <div class="ring-wrap">
-        <div class="ring-outer"></div>
-        <svg width="108" height="108" style="position:absolute;top:0;left:0;transform:rotate(-90deg)">
-          <circle cx="54" cy="54" r="48" fill="none" stroke="#101416" stroke-width="3"/>
-          <circle cx="54" cy="54" r="48" fill="none" stroke="#4ae176" stroke-width="4"
-            stroke-dasharray="301" stroke-dashoffset="5"
-            style="filter:drop-shadow(0 0 6px rgba(74,225,118,0.6))"/>
-        </svg>
-        <div class="ring-inner">
-          <span class="ring-val" id="conf-val">98.4%</span>
-          <span class="ring-lbl">Confidence</span>
-        </div>
-      </div>
-    </div>
-    <!-- Neural Pulse -->
-    <div class="neural-wrap">
-      <span style="font-size:0.5rem;font-family:'JetBrains Mono',monospace;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;">Neural Stream</span>
-      <div class="neural-ring">
-        <div class="neural-core"><div class="neural-dot"></div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bento Cards (from cyber_terminal + confidence_breakdown designs) -->
+  <p class="hero-sub">Institutional-grade XGBoost forecasting, 6-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment — all in one unified terminal.</p>
   <div class="bento">
-    <div class="bento-card">
-      <div class="bc-label">XGBoost RMSE</div>
-      <div class="bc-val">$2.14</div>
-      <div class="bc-sub">Test set accuracy</div>
-    </div>
-    <div class="bento-card">
-      <div class="bc-label">Latency</div>
-      <div class="bc-val" id="lat2">14ms</div>
-      <div class="bc-sub">Node sync speed</div>
-    </div>
-    <div class="bento-card">
-      <div class="bc-label">Data Integrity</div>
-      <div class="bc-val" style="color:#4ae176;font-size:0.75rem;">AES-512</div>
-      <div class="bc-sub">Quantum vault</div>
-    </div>
-    <div class="bento-card">
-      <div class="bc-label">Signal Strength</div>
-      <div class="bc-val" style="color:#00f1fe;">STRONG</div>
-      <div class="bc-sub">6-factor composite</div>
-    </div>
+    <div class="bento-card"><div class="bc-label">XGBoost RMSE</div><div class="bc-val">$2.14</div></div>
+    <div class="bento-card"><div class="bc-label">Latency</div><div class="bc-val" id="lat2">14ms</div></div>
+    <div class="bento-card"><div class="bc-label">Data Integrity</div><div class="bc-val" style="font-size:0.75rem;">AES-512</div></div>
+    <div class="bento-card"><div class="bc-label">Signal Strength</div><div class="bc-val" style="color:#00f1fe;">STRONG</div></div>
   </div>
 </div>
-
-<!-- BOTTOM BAR -->
+<div class="auth-panel">
+  <div class="sweep-inner"></div>
+  <div class="tab-bar">
+    <div class="tab {'active' if _is_login else ''}" id="tab-login" onclick="switchTab('login')">Terminal Access</div>
+    <div class="tab {'active' if not _is_login else ''}" id="tab-signup" onclick="switchTab('signup')">Create Account</div>
+  </div>
+  <div class="card-title"><h2>{_card_title}</h2><p>{_card_sub}</p></div>
+  <div id="form-login" style="display:{'block' if _is_login else 'none'}">
+    <div class="field-label">Identity Token (Email)</div>
+    <input type="email" id="login-email" placeholder="name@firm.com" autocomplete="email">
+    <div class="field-label">
+      <span>Access Key</span>
+      <a href="#" style="color:rgba(74,225,118,0.5);font-size:0.5rem;text-decoration:none;font-weight:normal;">Forgot Key?</a>
+    </div>
+    <input type="password" id="login-password" placeholder="••••••••••" autocomplete="current-password">
+    <button class="submit-btn" onclick="submitLogin()">⚡  AUTHORIZE TERMINAL</button>
+    <div class="beta-box"><div class="beta-tag">BETA ALPHA</div><div class="beta-sub">Early access protocols active</div></div>
+    <div class="switch-link"><a href="#" onclick="switchTab('signup');return false;">Request Alpha Access →</a></div>
+  </div>
+  <div id="form-signup" style="display:{'block' if not _is_login else 'none'}">
+    <div class="field-label">Identity_Full_Name</div>
+    <input type="text" id="signup-name" placeholder="GORDON_GEKKO" autocomplete="name">
+    <div class="field-label">Corporate_Comm_Link (Email)</div>
+    <input type="email" id="signup-email" placeholder="SECURE@NODE.CAST" autocomplete="email">
+    <div class="field-label">Access_Key</div>
+    <input type="password" id="signup-password" placeholder="••••••••••" autocomplete="new-password">
+    <div class="field-label">Confirm_Key</div>
+    <input type="password" id="signup-confirm" placeholder="••••••••••" autocomplete="new-password">
+    <button class="submit-btn" onclick="submitSignup()">⚡  INITIALIZE TERMINAL</button>
+    <div class="switch-link"><a href="#" onclick="switchTab('login');return false;">Already an active node? Sign in →</a></div>
+  </div>
+  <div id="msg-area"></div>
+</div>
 <div class="bottom-bar">
-  <nav class="footer-links">
-    <a href="#">System Status</a>
-    <a href="#">Compliance</a>
-    <a href="#">Privacy Hub</a>
-    <a href="#">Protocols</a>
-    <a href="#">Support</a>
-  </nav>
-  <div class="footer-live">
-    <div class="flive-dot"></div>
-    <span>Live Grid</span>
-    <span id="footer-clock">00:00:00</span>
-  </div>
   <span>⚠ For Educational Purposes Only · Not Financial Advice</span>
+  <div class="footer-live"><div class="flive-dot"></div><span>Live Grid <span id="footer-clock">00:00:00</span></span></div>
+  <span>Developed by Muawwiz Ghani</span>
 </div>
-
-<!-- THREE.JS ENGINE -->
 <script>
-const canvas = document.getElementById("three-c");
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-camera.position.set(0, 10, 80);
-
-const greenMat = () => new THREE.MeshPhongMaterial({
-  color:0x4ae176, emissive:0x4ae176, emissiveIntensity:0.55,
-  transparent:true, opacity:0.78
-});
-const redMat = () => new THREE.MeshPhongMaterial({
-  color:0xef4444, emissive:0xef4444, emissiveIntensity:0.35,
-  transparent:true, opacity:0.65
-});
-const cyanMat = () => new THREE.MeshPhongMaterial({
-  color:0x00f1fe, emissive:0x00f1fe, emissiveIntensity:0.4,
-  transparent:true, opacity:0.3
-});
-const wickMat = new THREE.MeshBasicMaterial({ color:0x475569, transparent:true, opacity:0.35 });
-
-const candles = [];
-let curPrice = -15;
-const spacing = 4.5;
-
-function mkCandle(xPos, basePrice) {
-  const isUp = Math.random() > 0.34;
-  const change = isUp ? (Math.random()*13+2) : -(Math.random()*10+1);
-  const h = Math.abs(change) + 1.5;
-  const g = new THREE.Group();
-  // Body
-  const mat = Math.random() > 0.92 ? cyanMat() : (isUp ? greenMat() : redMat());
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 2.4), mat));
-  // Wick
-  const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,h+Math.random()*11+5,6), wickMat);
-  g.add(wick);
-  const depth = (Math.random()-0.5) * 90;
-  const nd = (depth+45)/90;
-  g.scale.setScalar(0.45 + nd*0.85);
-  g.position.set(xPos, basePrice + change/2, depth);
-  g.children[0].material.opacity = 0.25 + nd*0.65;
-  scene.add(g);
-  return { mesh:g, priceAt: basePrice+change };
-}
-
-for (let i = 0; i < 65; i++) {
-  const c = mkCandle(130-(i*spacing), curPrice);
-  curPrice = c.priceAt;
-  if (curPrice > 42) curPrice -= 18;
-  if (curPrice < -42) curPrice += 18;
-  candles.unshift(c);
-}
-
-scene.add(new THREE.AmbientLight(0xffffff, 0.18));
-const pl = new THREE.PointLight(0x4ae176, 1.3, 320);
-pl.position.set(60, 60, 110); scene.add(pl);
-const pl2 = new THREE.PointLight(0x00f1fe, 0.4, 200);
-pl2.position.set(-60, -20, 80); scene.add(pl2);
-
-let frame = 0, mx = 0, my = 0;
-addEventListener("mousemove", e => {
-  mx = (e.clientX/innerWidth)*2 - 1;
-  my = -(e.clientY/innerHeight)*2 + 1;
-});
-addEventListener("resize", () => {
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-
-(function animate() {
-  requestAnimationFrame(animate); frame++;
-  candles.forEach(c => {
-    c.mesh.position.x -= 0.055;
-    c.mesh.position.y += Math.sin(frame*0.018 + c.mesh.position.x*0.04) * 0.018;
-    c.mesh.rotation.y += 0.004;
-  });
-  if (candles[0] && candles[0].mesh.position.x < -130) {
-    scene.remove(candles.shift().mesh);
-    const last = candles[candles.length-1];
-    const nc = mkCandle(last.mesh.position.x + spacing, last.priceAt);
-    candles.push(nc);
-  }
-  scene.rotation.x += (my*0.12 - scene.rotation.x) * 0.04;
-  scene.rotation.y += (mx*0.12 - scene.rotation.y) * 0.04;
-  renderer.render(scene, camera);
-})();
+const canvas=document.getElementById("three-c");
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,1000);
+const renderer=new THREE.WebGLRenderer({{canvas,antialias:true,alpha:true}});
+renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+camera.position.set(0,10,80);
+const greenMat=()=>new THREE.MeshPhongMaterial({{color:0x4ae176,emissive:0x4ae176,emissiveIntensity:0.55,transparent:true,opacity:0.78}});
+const redMat=()=>new THREE.MeshPhongMaterial({{color:0xef4444,emissive:0xef4444,emissiveIntensity:0.35,transparent:true,opacity:0.65}});
+const cyanMat=()=>new THREE.MeshPhongMaterial({{color:0x00f1fe,emissive:0x00f1fe,emissiveIntensity:0.4,transparent:true,opacity:0.3}});
+const wickMat=new THREE.MeshBasicMaterial({{color:0x475569,transparent:true,opacity:0.35}});
+const candles=[];let curPrice=-15;const spacing=4.5;
+function mkCandle(xPos,basePrice){{
+  const isUp=Math.random()>0.34;const change=isUp?(Math.random()*13+2):-(Math.random()*10+1);
+  const h=Math.abs(change)+1.5;const g=new THREE.Group();
+  const mat=Math.random()>0.92?cyanMat():(isUp?greenMat():redMat());
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(2.4,h,2.4),mat));
+  const wick=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,h+Math.random()*11+5,6),wickMat);
+  g.add(wick);const depth=(Math.random()-0.5)*90;const nd=(depth+45)/90;
+  g.scale.setScalar(0.45+nd*0.85);g.position.set(xPos,basePrice+change/2,depth);
+  g.children[0].material.opacity=0.25+nd*0.65;scene.add(g);return{{mesh:g,priceAt:basePrice+change}};
+}}
+for(let i=0;i<65;i++){{const c=mkCandle(130-(i*spacing),curPrice);curPrice=c.priceAt;if(curPrice>42)curPrice-=18;if(curPrice<-42)curPrice+=18;candles.unshift(c);}}
+scene.add(new THREE.AmbientLight(0xffffff,0.18));
+const pl=new THREE.PointLight(0x4ae176,1.3,320);pl.position.set(60,60,110);scene.add(pl);
+const pl2=new THREE.PointLight(0x00f1fe,0.4,200);pl2.position.set(-60,-20,80);scene.add(pl2);
+let frame=0,mx=0,my=0;
+addEventListener("mousemove",e=>{{mx=(e.clientX/innerWidth)*2-1;my=-(e.clientY/innerHeight)*2+1;}});
+addEventListener("resize",()=>{{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}});
+(function animate(){{
+  requestAnimationFrame(animate);frame++;
+  candles.forEach(c=>{{c.mesh.position.x-=0.055;c.mesh.position.y+=Math.sin(frame*0.018+c.mesh.position.x*0.04)*0.018;c.mesh.rotation.y+=0.004;}});
+  if(candles[0]&&candles[0].mesh.position.x<-130){{scene.remove(candles.shift().mesh);const last=candles[candles.length-1];candles.push(mkCandle(last.mesh.position.x+spacing,last.priceAt));}}
+  scene.rotation.x+=(my*0.12-scene.rotation.x)*0.04;scene.rotation.y+=(mx*0.12-scene.rotation.y)*0.04;
+  renderer.render(scene,camera);
+}})();
 </script>
-
-<!-- UI SCRIPTS -->
 <script>
-// Clock
-function updateClock() {
-  const now = new Date();
-  const t = [now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
-  const el = document.getElementById('footer-clock');
-  if (el) el.textContent = t;
-}
-setInterval(updateClock,1000); updateClock();
+setInterval(()=>{{const now=new Date();const t=[now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');const el=document.getElementById('footer-clock');if(el)el.textContent=t;}},1000);
+setInterval(()=>{{const v=12+Math.floor(Math.random()*6);const l2=document.getElementById('lat2');if(l2)l2.textContent=v+'ms';}},2400);
 
-// Confidence jitter
-const cv = document.getElementById('conf-val');
-setInterval(() => {
-  if (!cv) return;
-  cv.style.opacity = '0.3';
-  setTimeout(() => {
-    cv.textContent = (98.4+(Math.random()-0.5)*0.09).toFixed(1)+'%';
-    cv.style.opacity = '1';
-  }, 110);
-}, 3200);
-
-// Latency flicker
-setInterval(() => {
-  const v = 12+Math.floor(Math.random()*6);
-  const l = document.getElementById('lat');
-  const l2 = document.getElementById('lat2');
-  if (l) l.textContent = v;
-  if (l2) l2.textContent = v+'ms';
-}, 2400);
+function switchTab(tab){{
+  window.parent.location.href=window.parent.location.pathname+'?auth_switch='+tab;
+}}
+function submitLogin(){{
+  const email=document.getElementById('login-email').value.trim();
+  const password=document.getElementById('login-password').value;
+  const msg=document.getElementById('msg-area');
+  if(!email||!password){{msg.innerHTML='<div class="msg-box msg-error">⚠ Please enter your email and access key.</div>';return;}}
+  msg.innerHTML='<div class="msg-box msg-success">◎ Authenticating…</div>';
+  const params=new URLSearchParams({{auth_action:'login',auth_email:email,auth_password:password}});
+  window.parent.location.href=window.parent.location.pathname+'?'+params.toString();
+}}
+function submitSignup(){{
+  const email=document.getElementById('signup-email').value.trim();
+  const password=document.getElementById('signup-password').value;
+  const confirm=document.getElementById('signup-confirm').value;
+  const msg=document.getElementById('msg-area');
+  if(!email||!password||!confirm){{msg.innerHTML='<div class="msg-box msg-error">⚠ Please fill in all fields.</div>';return;}}
+  if(password!==confirm){{msg.innerHTML='<div class="msg-box msg-error">⚠ Passwords do not match.</div>';return;}}
+  if(password.length<6){{msg.innerHTML='<div class="msg-box msg-error">⚠ Password must be at least 6 characters.</div>';return;}}
+  msg.innerHTML='<div class="msg-box msg-success">◎ Initializing terminal…</div>';
+  const params=new URLSearchParams({{auth_action:'signup',auth_email:email,auth_password:password}});
+  window.parent.location.href=window.parent.location.pathname+'?'+params.toString();
+}}
+document.addEventListener('keydown',function(e){{
+  if(e.key!=='Enter')return;
+  const lf=document.getElementById('form-login');const sf=document.getElementById('form-signup');
+  if(lf&&lf.style.display!=='none')submitLogin();
+  if(sf&&sf.style.display!=='none')submitSignup();
+}});
+const errMsg="{_err_js}";const sucMsg="{_suc_js}";
+if(errMsg){{const m=document.getElementById('msg-area');if(m)m.innerHTML='<div class="msg-box msg-error">⚠ '+errMsg+'</div>';}}
+if(sucMsg){{const m=document.getElementById('msg-area');if(m)m.innerHTML='<div class="msg-box msg-success">✓ '+sucMsg+'</div>';}}
 </script>
 </body></html>
 """, height=820, scrolling=False)
 
-    # ── RIGHT SIDE: Streamlit form overlaid ───────────────────────────────────
-    _, right_col = st.columns([6, 4])
-
-    with right_col:
-        is_login = (st.session_state.auth_view == "login")
-        card_title = "SECURE ACCESS" if is_login else "INITIALIZE SESSION"
-        card_sub   = "Encryption: Quantum AES-512" if is_login else "Awaiting user parameter input"
-
-        st.markdown(f"""
-        <div style="
-          margin-top:-810px;
-          background:rgba(10,15,23,0.82);
-          backdrop-filter:blur(28px);
-          -webkit-backdrop-filter:blur(28px);
-          border:1px solid rgba(74,225,118,0.18);
-          border-radius:0.75rem;
-          padding:2rem 1.8rem 1.2rem;
-          position:relative; overflow:hidden;
-          box-shadow:0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(74,225,118,0.06);
-          animation:breathe 4s ease-in-out infinite;
-        ">
-        <!-- scanning sweep inside card -->
-        <div style="position:absolute;top:0;left:-100%;width:55%;height:100%;
-          background:linear-gradient(90deg,transparent,rgba(74,225,118,0.05),transparent);
-          animation:sweep 6s linear infinite;pointer-events:none;"></div>
-        <style>
-          @keyframes breathe {{
-            0%,100%{{box-shadow:0 25px 60px rgba(0,0,0,.7),0 0 20px rgba(74,225,118,.04)}}
-            50%{{box-shadow:0 25px 60px rgba(0,0,0,.7),0 0 45px rgba(74,225,118,.12)}}
-          }}
-          @keyframes sweep {{ 0%{{left:-100%}} 100%{{left:210%}} }}
-        </style>
-        <!-- Segmented toggle -->
-        <div style="display:flex;background:rgba(2,6,23,0.5);border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;padding:3px;margin-bottom:1.5rem;">
-          <div style="flex:1;padding:0.55rem;border-radius:0.35rem;text-align:center;
-            {'background:linear-gradient(90deg,#064e3b,#22c55e);color:#000;font-weight:800;box-shadow:0 0 15px rgba(74,225,118,0.25)' if is_login else 'color:rgba(224,227,230,0.4)'};
-            font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">
-            Terminal Access
-          </div>
-          <div style="flex:1;padding:0.55rem;border-radius:0.35rem;text-align:center;
-            {'background:linear-gradient(90deg,#064e3b,#22c55e);color:#000;font-weight:800;box-shadow:0 0 15px rgba(74,225,118,0.25)' if not is_login else 'color:rgba(224,227,230,0.4)'};
-            font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">
-            Create Account
-          </div>
-        </div>
-        <div style="text-align:center;margin-bottom:1.5rem;">
-          <h2 style="font-family:Space Grotesk,sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.12em;color:#e0e3e6;text-transform:uppercase;">{card_title}</h2>
-          <p style="font-family:JetBrains Mono,monospace;font-size:0.52rem;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;">{card_sub}</p>
-        </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if is_login:
-            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-bottom:3px;margin-left:2px;">Identity Token (Email)</p>', unsafe_allow_html=True)
-            login_email = st.text_input("Email", key="login_email", placeholder="name@firm.com")
-
-            st.markdown('<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.8rem;margin-bottom:3px;"><p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin:0;">Access Key</p><a href="#" style="font-family:JetBrains Mono,monospace;font-size:0.54rem;color:rgba(74,225,118,0.5);text-decoration:none;letter-spacing:0.1em;text-transform:uppercase;">Forgot Key?</a></div>', unsafe_allow_html=True)
-            login_password = st.text_input("Password", key="login_password", type="password", placeholder="••••••••••")
-
-            if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn"):
-                if login_email and login_password:
-                    with st.spinner("Securing session..."):
-                        try:
-                            res = supabase.auth.sign_in_with_password({"email": login_email, "password": login_password})
-                            if res.user:
-                                st.session_state.user = res.user
-                                st.success("✓ Access granted. Loading dashboard...")
-                                st.rerun()
-                            else:
-                                st.error("⚠ Invalid credentials.")
-                        except Exception as e:
-                            st.error(f"⚠ Authorization failed: {e}")
-                else:
-                    st.warning("Please enter identity token and access key.")
-
-            st.markdown("""
-            <div style="position:relative;padding:0.9rem 0;display:flex;align-items:center;gap:0.75rem;">
-              <div style="flex:1;height:1px;background:rgba(74,225,118,0.07);"></div>
-              <span style="font-family:JetBrains Mono,monospace;font-size:0.52rem;letter-spacing:0.18em;text-transform:uppercase;color:rgba(224,227,230,0.25);white-space:nowrap;">External Gateways</span>
-              <div style="flex:1;height:1px;background:rgba(74,225,118,0.07);"></div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1.2rem;">
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.45rem;padding:0.65rem;background:rgba(15,23,42,0.5);border:1px solid rgba(74,225,118,0.08);border-radius:0.375rem;color:#e0e3e6;font-family:Space Grotesk,sans-serif;font-size:0.7rem;font-weight:500;cursor:pointer;transition:border-color 0.15s;">
-                <svg width="13" height="13" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.6 14.8 1 12 1 7.7 1 4 3.5 2.1 7.1l3.7 2.8C6.7 7.2 9.2 5 12 5z"/><path fill="#FBBC05" d="M23.5 12.2c0-.8-.1-1.5-.2-2.2H12v4.4h6.5c-.3 1.5-1.1 2.7-2.4 3.5l3.8 3c2.2-2 3.6-5 3.6-8.7z"/><path fill="#4285F4" d="M5.8 14.9c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1l-3.7-2.8C1.3 9.4 1 10.7 1 12s.3 2.6 1.1 4.1l3.7-2.2z"/><path fill="#34A853" d="M12 23c2.8 0 5.2-.9 7-2.5l-3.8-3c-1 .7-2.4 1.1-3.8 1.1-2.8 0-5.3-2.2-6.2-4.9l-3.7 2.8C4 20.5 7.7 23 12 23z"/></svg>
-                Google
-              </button>
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.45rem;padding:0.65rem;background:rgba(15,23,42,0.5);border:1px solid rgba(74,225,118,0.08);border-radius:0.375rem;color:#e0e3e6;font-family:Space Grotesk,sans-serif;font-size:0.7rem;font-weight:500;cursor:pointer;">⌨ Terminal&nbsp;ID</button>
-            </div>
-            <div style="border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;background:rgba(74,225,118,0.04);padding:1rem 1.2rem;text-align:center;margin-bottom:0.6rem;">
-              <div style="font-family:JetBrains Mono,monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#4ae176;margin-bottom:3px;">BETA ALPHA</div>
-              <div style="font-family:JetBrains Mono,monospace;font-size:0.52rem;color:rgba(224,227,230,0.35);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.75rem;">Early access protocols active</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if st.button("Request Alpha Access →", key="goto_signup"):
-                st.session_state.auth_view = "signup"
-                st.rerun()
-
-        else:
-            # ── SIGNUP FORM ───────────────────────────────────────────────────
-            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-bottom:3px;">Identity_Full_Name</p>', unsafe_allow_html=True)
-            signup_name = st.text_input("Name", key="signup_name", placeholder="GORDON_GEKKO")
-
-            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-top:0.7rem;margin-bottom:3px;">Corporate_Comm_Link (Email)</p>', unsafe_allow_html=True)
-            signup_email = st.text_input("Email", key="signup_email", placeholder="SECURE@NODE.CAST")
-
-            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-top:0.7rem;margin-bottom:3px;">Access_Key</p>', unsafe_allow_html=True)
-            signup_password = st.text_input("Password", key="signup_password", type="password", placeholder="••••••••••")
-
-            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-top:0.7rem;margin-bottom:3px;">Confirm_Key</p>', unsafe_allow_html=True)
-            signup_confirm = st.text_input("Confirm", key="signup_confirm", type="password", placeholder="••••••••••")
-
-            if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn"):
-                if signup_email and signup_password and signup_confirm:
-                    if signup_password != signup_confirm:
-                        st.error("⚠ Passwords do not match.")
-                    elif len(signup_password) < 6:
-                        st.error("⚠ Password must be at least 6 characters.")
-                    else:
-                        with st.spinner("Initializing your terminal..."):
-                            try:
-                                res = supabase.auth.sign_up({"email": signup_email, "password": signup_password})
-                                if res.user:
-                                    st.success("✓ Account created! Confirm your email, then sign in.")
-                                else:
-                                    st.error("⚠ Sign-up failed. Please try again.")
-                            except Exception as e:
-                                st.error(f"⚠ Failed: {e}")
-                else:
-                    st.warning("Please fill in all fields.")
-
-            if st.button("Already an active node? Sign in →", key="goto_login"):
-                st.session_state.auth_view = "login"
-                st.rerun()
-
-            st.markdown("""
-            <div style="margin-top:1rem;padding:0.9rem 1.1rem;background:rgba(74,225,118,0.04);border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
-                <div><div style="font-family:JetBrains Mono,monospace;font-size:0.5rem;color:rgba(74,225,118,0.4);letter-spacing:0.14em;text-transform:uppercase;border-bottom:1px solid rgba(74,225,118,0.08);padding-bottom:4px;margin-bottom:4px;">Data Integrity</div><div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(224,227,230,0.7);">AES-256 Quantum</div></div>
-                <div><div style="font-family:JetBrains Mono,monospace;font-size:0.5rem;color:rgba(74,225,118,0.4);letter-spacing:0.14em;text-transform:uppercase;border-bottom:1px solid rgba(74,225,118,0.08);padding-bottom:4px;margin-bottom:4px;">Latency</div><div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(224,227,230,0.7);">&lt; 0.04ms Sync</div></div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-
     st.stop()  # 🚨 Halt — do not render the app until authenticated
+
 
 
 
@@ -2542,33 +2223,33 @@ else:
                           "sector":"Unknown","industry":"Unknown","company_name":ticker}
                     st.warning(f"⚠ Could not fetch detailed financial data for {ticker}. Using ticker-list screening only.")
                 if sd is not None:
-                    cr = check_shariah_compliance(ticker, sd)
-                    verdict = cr["verdict"]
+                    compliance_result = check_shariah_compliance(ticker, sd)
+                    verdict = compliance_result["verdict"]
                     v_color = {"COMPLIANT":C_EMERALD,"NON-COMPLIANT":C_RED,"QUESTIONABLE":C_YELLOW}[verdict]
                     v_bg    = {"COMPLIANT":"rgba(0,229,176,0.05)","NON-COMPLIANT":"rgba(255,107,107,0.05)","QUESTIONABLE":"rgba(255,221,45,0.05)"}[verdict]
                     v_icon  = {"COMPLIANT":"✅","NON-COMPLIANT":"❌","QUESTIONABLE":"⚠️"}[verdict]
                     st.markdown(f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};padding:1.2rem 2rem;margin:1rem 0;text-align:center;border-radius:0 .5rem .5rem 0;"><div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#424754;letter-spacing:.14em;text-transform:uppercase;font-weight:700;">{sd["company_name"]} ({ticker})</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{verdict}</div><div style="font-size:.76rem;color:#8c909f;margin-top:.3rem;">Sector: {sd["sector"]} | Industry: {sd["industry"]}</div></div>', unsafe_allow_html=True)
 
                     st.subheader("Screening Criteria")
-                    cl, cr2 = st.columns(2)
-                    with cl:
-                        bs = cr["business"]
+                    col_left, col_right = st.columns(2)
+                    with col_left:
+                        bs = compliance_result["business"]
                         if bs["haram_hit"]:
                             st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
                         elif bs["questionable"]:
                             st.markdown('<div class="halal-card" style="border-left-color:#ffdd2d;"><b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>', unsafe_allow_html=True)
                         else:
                             st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>No Haram core business detected<br><small style="color:#424754;">Sector: {sd["sector"]}</small></div>', unsafe_allow_html=True)
-                        dm = cr["debt_mktcap"]
+                        dm = compliance_result["debt_mktcap"]
                         cls = "halal-card" if dm["pass"] else "halal-card-fail"
                         icon = "✅" if dm["pass"] else "❌"
                         st.markdown(f'<div class="{cls}"><b>{icon} {dm["label"]}</b></div>', unsafe_allow_html=True)
-                    with cr2:
-                        da = cr["debt_assets"]
+                    with col_right:
+                        da = compliance_result["debt_assets"]
                         cls = "halal-card" if da["pass"] else "halal-card-fail"
                         icon = "✅" if da["pass"] else "❌"
                         st.markdown(f'<div class="{cls}"><b>{icon} {da["label"]}</b></div>', unsafe_allow_html=True)
-                        ca = cr["cash_assets"]
+                        ca = compliance_result["cash_assets"]
                         cls = "halal-card" if ca["pass"] else "halal-card-fail"
                         icon = "✅" if ca["pass"] else "❌"
                         st.markdown(f'<div class="{cls}"><b>{icon} {ca["label"]}</b></div>', unsafe_allow_html=True)
