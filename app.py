@@ -1211,7 +1211,7 @@ input::placeholder{{color:rgba(224,227,230,0.2);}}
   <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span>
 </div></div>
 <div class="top-nav">
-  <div><span class="brand-logo">Stockcast</span><span class="brand-tag">Developed by MUAWWIZ GHANI.02</span></div>
+  <div><span class="brand-logo">Stockcast</span><span class="brand-tag">Developed by MUAWWIZ GHANI</span></div>
   <div><span class="status-dot"></span><span class="status-txt">Neural Engine Active · Live Alpha Stream</span></div>
 </div>
 <div class="hero">
