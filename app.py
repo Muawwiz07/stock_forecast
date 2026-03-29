@@ -1012,6 +1012,41 @@ if st.session_state.user is None:
 
     import streamlit.components.v1 as _ac
 
+    # ── Process query params submitted by the iframe form ─────────────────────
+    _auth_error   = ""
+    _auth_success = ""
+    _qp = st.query_params
+    _action = _qp.get("auth_action", "")
+
+    if _action == "login":
+        _email    = _qp.get("auth_email", "")
+        _password = _qp.get("auth_password", "")
+        try:
+            res = supabase.auth.sign_in_with_password({"email": _email, "password": _password})
+            if res.user:
+                st.session_state.user = res.user
+                st.query_params.clear()
+                st.rerun()
+            else:
+                _auth_error = "Invalid credentials. Please try again."
+        except Exception as e:
+            _auth_error = str(e)
+        st.query_params.clear()
+
+    elif _action == "signup":
+        _email    = _qp.get("auth_email", "")
+        _password = _qp.get("auth_password", "")
+        try:
+            res = supabase.auth.sign_up({"email": _email, "password": _password})
+            if res.user:
+                _auth_success = "Account created! Check your email to confirm, then log in."
+                st.session_state.auth_view = "login"
+            else:
+                _auth_error = "Sign up failed. Please try again."
+        except Exception as e:
+            _auth_error = str(e)
+        st.query_params.clear()
+
     # ── Override CSS for auth page ─────────────────────────────────────────────
     st.markdown("""
     <style>
@@ -1073,12 +1108,9 @@ if st.session_state.user is None:
     # fragile margin-top:-810px hack which broke on all screen sizes.
     # Now the form lives INSIDE the iframe (no cross-frame layout hacks),
     # and submits via URL query params which Streamlit reads above.
-  
     _is_login    = (st.session_state.auth_view == "login")
-    _auth_error  = st.session_state.get("auth_error", "")
-    _auth_success = st.session_state.get("auth_success", "")
-    _err_js     = _auth_error.replace('"', '\\"').replace('\n', ' ')
-    _suc_js     = _auth_success.replace('"', '\\"').replace('\n', ' ')
+    _err_js      = _auth_error.replace('"', '\\"').replace('\n', ' ')
+    _suc_js      = _auth_success.replace('"', '\\"').replace('\n', ' ')
     _card_title = "SECURE ACCESS" if _is_login else "INITIALIZE SESSION"
     _card_sub   = "Encryption: Quantum AES-512" if _is_login else "Create your terminal node"
 
