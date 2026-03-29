@@ -24,11 +24,11 @@ except LookupError:
 # Never hardcode credentials in source code.
 # Set up: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management
 try:
-    SUPABASE_URL = st.secrets["SUPABASE URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE URL"]
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 except (KeyError, FileNotFoundError):
-    SUPABASE_URL = os.environ.get("https://tpaqlfjszguinigygxcq.supabase.co", "")
-    SUPABASE_KEY = os.environ.get("", "")
+    SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+    SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("⚠ Supabase credentials not found. Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets or environment variables.")
