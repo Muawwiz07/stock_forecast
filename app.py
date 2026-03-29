@@ -981,317 +981,555 @@ if st.session_state.user is None:
 
     import streamlit.components.v1 as _ac
 
-    # ── Global CSS override for auth page ─────────────────────────────────────
+    # ── Override CSS for auth page ─────────────────────────────────────────────
     st.markdown("""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;600;700&display=swap');
     html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
-        background: #020617 !important;
+        background: #0b0f11 !important;
         font-family: 'Space Grotesk', sans-serif !important;
-        color: #ffffff !important;
+        color: #e0e3e6 !important;
         overflow: hidden !important;
     }
     .block-container { padding: 0 !important; max-width: 100% !important; }
     header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
-
     [data-testid="stTextInput"] input {
-        background: rgba(2, 6, 23, 0.6) !important;
-        border: 1px solid #1e293b !important;
-        border-radius: 0.5rem !important;
-        color: #ffffff !important;
-        font-family: 'Space Grotesk', sans-serif !important;
-        font-size: 0.875rem !important;
-        padding: 12px 16px !important;
+        background: rgba(2,6,23,0.55) !important;
+        border: 1px solid rgba(74,225,118,0.15) !important;
+        border-radius: 0.375rem !important;
+        color: #e0e3e6 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 0.8rem !important;
+        padding: 11px 14px 11px 36px !important;
         transition: all 0.2s !important;
     }
     [data-testid="stTextInput"] input:focus {
-        border-color: rgba(74, 222, 128, 0.5) !important;
-        box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.5) !important;
-        outline: none !important;
+        border-color: rgba(74,225,118,0.5) !important;
+        box-shadow: 0 0 0 1px rgba(74,225,118,0.3), 0 0 12px rgba(74,225,118,0.1) !important;
     }
-    [data-testid="stTextInput"] input::placeholder { color: #334155 !important; }
+    [data-testid="stTextInput"] input::placeholder { color: rgba(224,227,230,0.2) !important; }
     [data-testid="stTextInput"] label { display: none !important; }
-
     .stButton > button {
         width: 100% !important;
-        padding: 1rem !important;
-        background: linear-gradient(90deg, #064e3b, #22c55e, #064e3b) !important;
-        background-size: 200% auto !important;
-        animation: gradient-flow 3s linear infinite !important;
-        color: #000000 !important;
+        padding: 0.85rem !important;
+        background: linear-gradient(90deg, #064e3b, #22c55e, #4ae176, #22c55e, #064e3b) !important;
+        background-size: 300% auto !important;
+        animation: gflow 3.5s linear infinite !important;
+        color: #000 !important;
         font-family: 'Space Grotesk', sans-serif !important;
-        font-weight: 700 !important;
-        font-size: 0.75rem !important;
+        font-weight: 800 !important;
+        font-size: 0.7rem !important;
         border: none !important;
-        border-radius: 0.5rem !important;
+        border-radius: 0.25rem !important;
         letter-spacing: 0.2em !important;
         text-transform: uppercase !important;
-        box-shadow: 0 10px 15px -3px rgba(74,222,128,0.1) !important;
+        box-shadow: 0 0 20px rgba(74,225,118,0.2) !important;
         transition: all 0.15s !important;
     }
-    .stButton > button:hover { transform: translateY(-1px) !important; filter: brightness(1.1) !important; }
+    .stButton > button:hover { filter: brightness(1.12) !important; transform: translateY(-1px) !important; box-shadow: 0 0 30px rgba(74,225,118,0.35) !important; }
     .stButton > button:active { transform: scale(0.98) !important; }
-    [data-testid="stAlert"] { border-radius: 0.375rem !important; font-size: 0.82rem !important; }
-
-    @keyframes gradient-flow {
-        0%   { background-position: 0%   50%; }
-        50%  { background-position: 100% 50%; }
-        100% { background-position: 0%   50%; }
-    }
+    [data-testid="stAlert"] { border-radius: 0.25rem !important; font-size: 0.8rem !important; }
+    @keyframes gflow { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
     </style>
     """, unsafe_allow_html=True)
 
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    # ── 3D Animated Background Panel ─────────────────────────────────────────
+    # ── FULL IMMERSIVE BACKGROUND (Three.js 3D candles + all overlays) ─────────
     _ac.html("""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: 'Space Grotesk', sans-serif; }
-  canvas { display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
-  .overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
-    background: radial-gradient(circle at 70% 30%, rgba(6,78,59,0.45) 0%, #020617 70%);
-    pointer-events: none;
-  }
-  .holo-lines { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; opacity: 0.18; }
-  .holo-line {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(74,222,128,0.5), transparent);
-    position: absolute; width: 140%; transform: rotate(-10deg); filter: blur(1px);
-  }
-  .data-node {
-    width: 5px; height: 5px; background: #4ade80; border-radius: 50%;
-    box-shadow: 0 0 10px #4ade80; position: absolute;
-  }
-  .scan-line {
-    position: fixed; top: 0; left: -100%; width: 60%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(74,222,128,0.06), transparent);
-    animation: scan 6s linear infinite; z-index: 3; pointer-events: none;
-  }
-  @keyframes scan { 0% { left: -100%; } 100% { left: 200%; } }
+* { box-sizing:border-box; margin:0; padding:0; }
+html,body { width:100%; height:100%; background:#0b0f11; overflow:hidden;
+  font-family:'Space Grotesk',sans-serif; color:#e0e3e6; }
+canvas { display:block; position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; }
 
-  /* Hero text on left side */
-  .hero {
-    position: fixed; top: 0; left: 0; width: 58%; height: 100%;
-    display: flex; flex-direction: column; justify-content: center;
-    padding: 3rem 4rem; z-index: 10;
-  }
-  .brand { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 2rem; }
-  .brand-icon { color: #4ade80; font-size: 1.5rem; }
-  .brand-name {
-    font-size: 1.2rem; font-weight: 700; color: #4ade80;
-    letter-spacing: 0.06em;
-    text-shadow: 0 0 12px rgba(74,222,128,0.5);
-  }
-  .brand-sub { font-size: 0.55rem; color: #64748b; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 2px; }
-  .pill {
-    display: inline-flex; align-items: center; gap: 0.4rem;
-    padding: 0.25rem 0.75rem; background: rgba(74,222,128,0.08);
-    border: 1px solid rgba(74,222,128,0.2); border-radius: 9999px;
-    font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase;
-    color: #4ade80; margin-bottom: 1.5rem;
-  }
-  .pill-dot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; }
-  @keyframes pulse { 50% { opacity: 0.4; } }
-  .hero h1 {
-    font-size: 3.6rem; font-weight: 700; line-height: 1.1;
-    letter-spacing: -0.02em; color: #fff; margin-bottom: 1.2rem;
-  }
-  .hero h1 span { color: #4ade80; text-shadow: 0 0 18px rgba(74,222,128,0.4); }
-  .hero p {
-    font-size: 0.88rem; color: #94a3b8; line-height: 1.7; max-width: 380px;
-    border-left: 2px solid rgba(74,222,128,0.3); padding-left: 1rem;
-    margin-bottom: 2.5rem;
-  }
-  .stats { display: flex; gap: 3rem; align-items: center; }
-  .stat-ring { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
-  .stat-label { font-size: 0.55rem; letter-spacing: 0.2em; text-transform: uppercase; color: #64748b; }
-  .ring-wrap { position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; }
-  .ring-val { position: absolute; display: flex; flex-direction: column; align-items: center; }
-  .ring-num { font-size: 1.4rem; font-weight: 700; color: #fff; }
-  .ring-sub { font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; }
-  .pulse-ring {
-    width: 80px; height: 80px; border-radius: 50%;
-    border: 2px dashed rgba(74,222,128,0.2);
-    animation: rotate 10s linear infinite; margin: 10px;
-  }
-  @keyframes rotate { to { transform: rotate(360deg); } }
+/* ── OVERLAYS ── */
+.radial-bg {
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:
+    radial-gradient(ellipse at 65% 25%, rgba(6,78,59,0.5) 0%, transparent 60%),
+    radial-gradient(ellipse at 10% 80%, rgba(0,241,254,0.04) 0%, transparent 45%),
+    linear-gradient(180deg, rgba(11,15,17,0.3) 0%, rgba(11,15,17,0.0) 40%, rgba(11,15,17,0.6) 100%);
+}
+.scanline {
+  position:fixed; inset:0; z-index:2; pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);
+}
+.holo-lines { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; opacity:0.15; }
+.hline {
+  height:1px; position:absolute; width:160%;
+  background:linear-gradient(90deg,transparent,rgba(74,225,118,0.6),rgba(0,241,254,0.3),transparent);
+  filter:blur(0.5px);
+}
+.dnode { position:absolute; width:5px; height:5px; border-radius:50%;
+  background:#4ae176; box-shadow:0 0 10px #4ae176,0 0 20px rgba(74,225,118,0.4); }
+.scan-sweep {
+  position:fixed; top:0; left:-100%; width:55%; height:100%; z-index:3; pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(74,225,118,0.055),rgba(0,241,254,0.025),transparent);
+  animation:sweep 7s linear infinite;
+}
+@keyframes sweep { 0%{left:-100%} 100%{left:210%} }
+.grid-3d {
+  position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0.07;
+  background-image:
+    linear-gradient(rgba(74,225,118,0.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,225,118,0.4) 1px, transparent 1px);
+  background-size:60px 60px;
+  transform:perspective(600px) rotateX(55deg) scale(2.5);
+  transform-origin:center bottom;
+}
+
+/* ── TICKER ── */
+.ticker-wrap {
+  position:fixed; top:0; left:0; right:0; z-index:20; height:38px;
+  background:rgba(11,15,17,0.7); backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(74,225,118,0.12);
+  display:flex; align-items:center; overflow:hidden;
+}
+.ticker-inner { display:flex; gap:2.5rem; animation:tick 45s linear infinite; white-space:nowrap; }
+.ticker-inner:hover { animation-play-state:paused; }
+.t-sym { font-size:0.58rem; color:rgba(224,227,230,0.35); letter-spacing:0.12em; margin-right:3px; font-family:'JetBrains Mono',monospace; }
+.t-up { color:#4ae176; font-weight:700; font-size:0.62rem; font-family:'JetBrains Mono',monospace; }
+.t-dn { color:#ef4444; font-weight:700; font-size:0.62rem; font-family:'JetBrains Mono',monospace; }
+.t-sep { color:rgba(74,225,118,0.15); font-size:0.55rem; }
+@keyframes tick { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+/* ── TOP NAV BAR ── */
+.top-nav {
+  position:fixed; top:38px; left:0; right:0; z-index:20;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0.75rem 2.5rem;
+  background:rgba(11,15,17,0.5); backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(74,225,118,0.08);
+}
+.brand { display:flex; align-items:center; gap:0.6rem; }
+.brand-logo { font-size:1.4rem; font-weight:800; color:#4ae176; letter-spacing:-0.03em;
+  text-shadow:0 0 18px rgba(74,225,118,0.5); }
+.brand-sep { width:1px; height:18px; background:rgba(224,227,230,0.1); margin:0 0.4rem; }
+.brand-tag { font-size:0.55rem; font-family:'JetBrains Mono',monospace; color:rgba(74,225,118,0.6); letter-spacing:0.18em; text-transform:uppercase; }
+.sys-status { display:flex; align-items:center; gap:1.5rem; font-family:'JetBrains Mono',monospace; font-size:0.6rem; }
+.status-dot { width:7px; height:7px; border-radius:50%; background:#4ae176; box-shadow:0 0 8px #4ae176; animation:pulse 2s infinite; }
+.status-txt { color:rgba(74,225,118,0.8); letter-spacing:0.12em; text-transform:uppercase; }
+.latency { color:#00f1fe; letter-spacing:0.1em; }
+.sys-icon { color:rgba(224,227,230,0.4); font-size:1.1rem; cursor:pointer; transition:color 0.15s; }
+.sys-icon:hover { color:#4ae176; }
+@keyframes pulse { 50%{opacity:0.5; box-shadow:0 0 0 4px rgba(74,225,118,0)} }
+
+/* ── HERO CONTENT ── */
+.hero {
+  position:fixed; top:0; left:0; width:58%; height:100%;
+  display:flex; flex-direction:column; justify-content:center;
+  padding:7rem 4rem 4rem;
+  z-index:10;
+}
+.hero-pill {
+  display:inline-flex; align-items:center; gap:0.5rem;
+  padding:0.28rem 0.85rem; background:rgba(74,225,118,0.08);
+  border:1px solid rgba(74,225,118,0.2); border-radius:9999px;
+  font-size:0.58rem; letter-spacing:0.18em; text-transform:uppercase;
+  color:#4ae176; margin-bottom:1.4rem;
+}
+.pill-dot { width:6px; height:6px; background:#4ae176; border-radius:50%; box-shadow:0 0 6px #4ae176; animation:pulse 2s infinite; }
+.hero h1 {
+  font-size:3.8rem; font-weight:800; line-height:1.08;
+  letter-spacing:-0.03em; color:#fff; margin-bottom:1.1rem;
+  text-shadow:0 2px 30px rgba(0,0,0,0.5);
+}
+.hero h1 em { font-style:normal; color:#4ae176; text-shadow:0 0 22px rgba(74,225,118,0.5); }
+.hero-sub {
+  font-size:0.85rem; color:rgba(224,227,230,0.55); line-height:1.75; max-width:380px;
+  border-left:2px solid rgba(74,225,118,0.3); padding-left:1rem; margin-bottom:2.5rem;
+}
+.metrics-row { display:flex; gap:3rem; align-items:flex-end; }
+
+/* Confidence Ring */
+.ring-wrap { position:relative; width:108px; height:108px; display:flex; align-items:center; justify-content:center; }
+.ring-outer { position:absolute; inset:0; border-radius:50%; border:1.5px dashed rgba(74,225,118,0.2); animation:rot 12s linear infinite; }
+@keyframes rot { to{transform:rotate(360deg)} }
+.ring-inner { position:absolute; display:flex; flex-direction:column; align-items:center; }
+.ring-val { font-size:1.35rem; font-weight:700; color:#fff; font-family:'JetBrains Mono',monospace; }
+.ring-lbl { font-size:0.5rem; color:rgba(224,227,230,0.4); text-transform:uppercase; letter-spacing:0.12em; margin-top:1px; }
+
+/* Neural pulse widget */
+.neural-wrap { display:flex; flex-direction:column; align-items:center; gap:0.5rem; }
+.neural-ring {
+  width:70px; height:70px; border-radius:50%;
+  border:1.5px dashed rgba(74,225,118,0.18); display:flex; align-items:center; justify-content:center;
+  animation:rot 8s linear infinite reverse;
+}
+.neural-core {
+  width:28px; height:28px; border-radius:50%;
+  background:rgba(74,225,118,0.08);
+  border:1px solid rgba(74,225,118,0.3);
+  display:flex; align-items:center; justify-content:center;
+}
+.neural-dot { width:9px; height:9px; border-radius:50%; background:#4ae176; box-shadow:0 0 12px #4ae176; animation:ping 1.2s ease-in-out infinite; }
+@keyframes ping { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:0.5} }
+
+/* Bento metric cards */
+.bento { display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; max-width:320px; margin-top:0; }
+.bento-card {
+  background:rgba(15,23,42,0.5); backdrop-filter:blur(12px);
+  border:1px solid rgba(74,225,118,0.1); border-radius:0.5rem;
+  padding:0.75rem 1rem; position:relative; overflow:hidden;
+  transition:border-color 0.2s;
+}
+.bento-card::before { content:''; position:absolute; left:0; top:0; width:2px; height:100%; background:#4ae176; opacity:0.6; }
+.bento-card:nth-child(2)::before { background:#00f1fe; }
+.bento-card:nth-child(3)::before { background:rgba(74,225,118,0.4); }
+.bento-card:nth-child(4)::before { background:#ef4444; opacity:0.5; }
+.bc-label { font-size:0.5rem; font-family:'JetBrains Mono',monospace; color:rgba(224,227,230,0.4); text-transform:uppercase; letter-spacing:0.14em; margin-bottom:4px; }
+.bc-val { font-size:0.95rem; font-weight:700; color:#4ae176; font-family:'JetBrains Mono',monospace; }
+.bc-sub { font-size:0.48rem; color:rgba(224,227,230,0.35); margin-top:2px; font-family:'JetBrains Mono',monospace; }
+
+/* ── BOTTOM FOOTER ── */
+.bottom-bar {
+  position:fixed; bottom:0; left:0; right:0; z-index:20;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0.65rem 2.5rem;
+  background:rgba(11,15,17,0.6); backdrop-filter:blur(12px);
+  border-top:1px solid rgba(74,225,118,0.07);
+  font-size:0.55rem; font-family:'JetBrains Mono',monospace; color:rgba(224,227,230,0.25);
+  letter-spacing:0.12em; text-transform:uppercase;
+}
+.footer-links { display:flex; gap:1.5rem; }
+.footer-links a { color:rgba(224,227,230,0.25); text-decoration:none; transition:color 0.15s; }
+.footer-links a:hover { color:#4ae176; }
+.footer-live { display:flex; align-items:center; gap:0.5rem; color:rgba(74,225,118,0.6); }
+.flive-dot { width:5px; height:5px; border-radius:50%; background:#4ae176; box-shadow:0 0 6px #4ae176; animation:pulse 2s infinite; }
+#footer-clock { color:rgba(224,227,230,0.5); }
 </style>
 </head><body>
-<canvas id="three-canvas"></canvas>
-<div class="overlay"></div>
+
+<!-- THREE.JS 3D CANDLE BACKGROUND -->
+<canvas id="three-c"></canvas>
+
+<!-- OVERLAYS -->
+<div class="radial-bg"></div>
+<div class="grid-3d"></div>
+<div class="scanline"></div>
 <div class="holo-lines">
-  <div class="holo-line" style="top:18%;left:-10%;"></div>
-  <div class="holo-line" style="top:50%;left:-5%;"></div>
-  <div class="holo-line" style="top:82%;left:0%;"></div>
-  <div class="data-node" style="top:20%;left:32%;"></div>
-  <div class="data-node" style="top:53%;left:63%;"></div>
-  <div class="data-node" style="top:84%;left:87%;"></div>
+  <div class="hline" style="top:18%;left:-10%;transform:rotate(-8deg)"></div>
+  <div class="hline" style="top:47%;left:-5%;transform:rotate(-6deg)"></div>
+  <div class="hline" style="top:78%;left:0%;transform:rotate(-10deg)"></div>
+  <div class="dnode" style="top:20%;left:28%"></div>
+  <div class="dnode" style="top:49%;left:57%;background:#00f1fe;box-shadow:0 0 10px #00f1fe"></div>
+  <div class="dnode" style="top:80%;left:82%"></div>
 </div>
-<div class="scan-line"></div>
-<div class="hero">
+<div class="scan-sweep"></div>
+
+<!-- LIVE TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-inner" id="ticker">
+    <span><span class="t-sym">AAPL</span><span class="t-up">▲ $189.42 +1.2%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">TSLA</span><span class="t-dn">▼ $248.11 -0.8%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">MSFT</span><span class="t-up">▲ $421.05 +0.5%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">GOOGL</span><span class="t-dn">▼ $168.22 -0.3%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">META</span><span class="t-up">▲ $512.88 +1.7%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">AMZN</span><span class="t-up">▲ $186.44 +0.9%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">AMD</span><span class="t-up">▲ $167.55 +3.2%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">JPM</span><span class="t-dn">▼ $198.30 -0.4%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">SPY</span><span class="t-up">▲ $521.67 +0.6%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">BTC</span><span class="t-up">▲ $67,422 +2.1%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">AAPL</span><span class="t-up">▲ $189.42 +1.2%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">TSLA</span><span class="t-dn">▼ $248.11 -0.8%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">MSFT</span><span class="t-up">▲ $421.05 +0.5%</span></span><span class="t-sep">·</span>
+    <span><span class="t-sym">META</span><span class="t-up">▲ $512.88 +1.7%</span></span><span class="t-sep">·</span>
+  </div>
+</div>
+
+<!-- TOP NAV -->
+<div class="top-nav">
   <div class="brand">
-    <svg class="brand-icon" width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+    <svg width="18" height="18" fill="none" stroke="#4ae176" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
     </svg>
-    <div>
-      <div class="brand-name">Stockcast</div>
-      <div class="brand-sub">Developed by Muawwiz Ghani</div>
+    <span class="brand-logo">Stockcast</span>
+    <div class="brand-sep"></div>
+    <span class="brand-tag">AUTH_GATEWAY_v4.02</span>
+  </div>
+  <div class="sys-status">
+    <span style="display:flex;align-items:center;gap:0.4rem;">
+      <span class="status-dot"></span>
+      <span class="status-txt">System_Operational</span>
+    </span>
+    <span class="brand-sep"></span>
+    <span class="latency">Latency: <span id="lat">14</span>ms</span>
+    <span class="material-symbols-outlined sys-icon">settings_input_component</span>
+    <span class="material-symbols-outlined sys-icon">terminal</span>
+  </div>
+</div>
+
+<!-- HERO LEFT PANEL -->
+<div class="hero">
+  <div class="hero-pill"><div class="pill-dot"></div>Neural Engine Active · Live Alpha Stream</div>
+  <h1>Predicting the<br>pulse of <em>global markets.</em></h1>
+  <p class="hero-sub">Experience institutional-grade XGBoost forecasting, 6-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment — all in one unified terminal.</p>
+
+  <div class="metrics-row" style="margin-bottom:2rem;">
+    <!-- Confidence Ring -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;">
+      <span style="font-size:0.5rem;font-family:'JetBrains Mono',monospace;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;">AI Accuracy</span>
+      <div class="ring-wrap">
+        <div class="ring-outer"></div>
+        <svg width="108" height="108" style="position:absolute;top:0;left:0;transform:rotate(-90deg)">
+          <circle cx="54" cy="54" r="48" fill="none" stroke="#101416" stroke-width="3"/>
+          <circle cx="54" cy="54" r="48" fill="none" stroke="#4ae176" stroke-width="4"
+            stroke-dasharray="301" stroke-dashoffset="5"
+            style="filter:drop-shadow(0 0 6px rgba(74,225,118,0.6))"/>
+        </svg>
+        <div class="ring-inner">
+          <span class="ring-val" id="conf-val">98.4%</span>
+          <span class="ring-lbl">Confidence</span>
+        </div>
+      </div>
+    </div>
+    <!-- Neural Pulse -->
+    <div class="neural-wrap">
+      <span style="font-size:0.5rem;font-family:'JetBrains Mono',monospace;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;">Neural Stream</span>
+      <div class="neural-ring">
+        <div class="neural-core"><div class="neural-dot"></div></div>
+      </div>
     </div>
   </div>
-  <div class="pill"><div class="pill-dot"></div>Neural Engine Active</div>
-  <h1>Predicting the<br><span>pulse of global markets.</span></h1>
-  <p>Experience the next evolution of quantitative analysis. Stockcast decodes complex market signals into actionable alpha using XGBoost neural architecture.</p>
-  <div class="stats">
-    <div class="stat-ring">
-      <span class="stat-label">AI Accuracy</span>
-      <div class="ring-wrap">
-        <div class="ring-val">
-          <span class="ring-num" id="conf-val">98.4%</span>
-          <span class="ring-sub">Confidence</span>
-        </div>
-        <svg width="100" height="100" style="position:absolute;top:0;left:0;transform:rotate(-90deg)">
-          <circle cx="50" cy="50" r="44" fill="none" stroke="#0f172a" stroke-width="2"/>
-          <circle cx="50" cy="50" r="44" fill="none" stroke="#4ade80" stroke-width="3"
-            stroke-dasharray="276" stroke-dashoffset="5"
-            style="filter:drop-shadow(0 0 4px #4ade80);transition:stroke-dashoffset 1s"/>
-        </svg>
-      </div>
+
+  <!-- Bento Cards (from cyber_terminal + confidence_breakdown designs) -->
+  <div class="bento">
+    <div class="bento-card">
+      <div class="bc-label">XGBoost RMSE</div>
+      <div class="bc-val">$2.14</div>
+      <div class="bc-sub">Test set accuracy</div>
     </div>
-    <div class="stat-ring">
-      <span class="stat-label">Neural Stream</span>
-      <div class="ring-wrap" style="width:80px;height:80px;">
-        <div class="pulse-ring"></div>
-        <div class="ring-val">
-          <div style="width:8px;height:8px;background:#4ade80;border-radius:50%;box-shadow:0 0 10px #4ade80;animation:ping 1s infinite;"></div>
-        </div>
-      </div>
+    <div class="bento-card">
+      <div class="bc-label">Latency</div>
+      <div class="bc-val" id="lat2">14ms</div>
+      <div class="bc-sub">Node sync speed</div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-label">Data Integrity</div>
+      <div class="bc-val" style="color:#4ae176;font-size:0.75rem;">AES-512</div>
+      <div class="bc-sub">Quantum vault</div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-label">Signal Strength</div>
+      <div class="bc-val" style="color:#00f1fe;">STRONG</div>
+      <div class="bc-sub">6-factor composite</div>
     </div>
   </div>
 </div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+  <nav class="footer-links">
+    <a href="#">System Status</a>
+    <a href="#">Compliance</a>
+    <a href="#">Privacy Hub</a>
+    <a href="#">Protocols</a>
+    <a href="#">Support</a>
+  </nav>
+  <div class="footer-live">
+    <div class="flive-dot"></div>
+    <span>Live Grid</span>
+    <span id="footer-clock">00:00:00</span>
+  </div>
+  <span>⚠ For Educational Purposes Only · Not Financial Advice</span>
+</div>
+
+<!-- THREE.JS ENGINE -->
 <script>
-  const canvas = document.getElementById("three-canvas");
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(65, window.innerWidth/window.innerHeight, 0.1, 1000);
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  camera.position.set(0, 10, 80);
+const canvas = document.getElementById("three-c");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+camera.position.set(0, 10, 80);
 
-  const greenMat = new THREE.MeshPhongMaterial({ color:0x4ade80, emissive:0x4ade80, emissiveIntensity:0.6, transparent:true, opacity:0.8 });
-  const redMat   = new THREE.MeshPhongMaterial({ color:0xef4444, emissive:0xef4444, emissiveIntensity:0.4, transparent:true, opacity:0.7 });
-  const wickMat  = new THREE.MeshBasicMaterial({ color:0x475569, transparent:true, opacity:0.4 });
+const greenMat = () => new THREE.MeshPhongMaterial({
+  color:0x4ae176, emissive:0x4ae176, emissiveIntensity:0.55,
+  transparent:true, opacity:0.78
+});
+const redMat = () => new THREE.MeshPhongMaterial({
+  color:0xef4444, emissive:0xef4444, emissiveIntensity:0.35,
+  transparent:true, opacity:0.65
+});
+const cyanMat = () => new THREE.MeshPhongMaterial({
+  color:0x00f1fe, emissive:0x00f1fe, emissiveIntensity:0.4,
+  transparent:true, opacity:0.3
+});
+const wickMat = new THREE.MeshBasicMaterial({ color:0x475569, transparent:true, opacity:0.35 });
 
-  const candles = [];
-  const spacing = 4.5;
-  let curPrice = -15;
+const candles = [];
+let curPrice = -15;
+const spacing = 4.5;
 
-  function createCandle(xPos, basePrice) {
-    const isUp = Math.random() > 0.35;
-    const change = isUp ? (Math.random()*12+2) : -(Math.random()*10+1);
-    const h = Math.abs(change)+1.5;
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 2.4), isUp ? greenMat.clone() : redMat.clone()));
-    const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,h+Math.random()*10+5,6), wickMat);
-    g.add(wick);
-    const depth = (Math.random()-0.5)*80;
-    const nd = (depth+40)/80;
-    const sc = 0.5+nd*0.8;
-    g.scale.setScalar(sc);
-    g.position.set(xPos, basePrice+change/2, depth);
-    g.children[0].material.opacity = 0.3+nd*0.6;
-    scene.add(g);
-    return { mesh:g, priceAt: basePrice+change };
-  }
+function mkCandle(xPos, basePrice) {
+  const isUp = Math.random() > 0.34;
+  const change = isUp ? (Math.random()*13+2) : -(Math.random()*10+1);
+  const h = Math.abs(change) + 1.5;
+  const g = new THREE.Group();
+  // Body
+  const mat = Math.random() > 0.92 ? cyanMat() : (isUp ? greenMat() : redMat());
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 2.4), mat));
+  // Wick
+  const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,h+Math.random()*11+5,6), wickMat);
+  g.add(wick);
+  const depth = (Math.random()-0.5) * 90;
+  const nd = (depth+45)/90;
+  g.scale.setScalar(0.45 + nd*0.85);
+  g.position.set(xPos, basePrice + change/2, depth);
+  g.children[0].material.opacity = 0.25 + nd*0.65;
+  scene.add(g);
+  return { mesh:g, priceAt: basePrice+change };
+}
 
-  for (let i = 0; i < 60; i++) {
-    const c = createCandle(120-(i*spacing), curPrice);
-    curPrice = c.priceAt;
-    if (curPrice > 40) curPrice -= 15;
-    if (curPrice < -40) curPrice += 15;
-    candles.unshift(c);
-  }
+for (let i = 0; i < 65; i++) {
+  const c = mkCandle(130-(i*spacing), curPrice);
+  curPrice = c.priceAt;
+  if (curPrice > 42) curPrice -= 18;
+  if (curPrice < -42) curPrice += 18;
+  candles.unshift(c);
+}
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.2));
-  const pl = new THREE.PointLight(0x4ade80, 1.2, 300);
-  pl.position.set(50,50,100); scene.add(pl);
+scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+const pl = new THREE.PointLight(0x4ae176, 1.3, 320);
+pl.position.set(60, 60, 110); scene.add(pl);
+const pl2 = new THREE.PointLight(0x00f1fe, 0.4, 200);
+pl2.position.set(-60, -20, 80); scene.add(pl2);
 
-  let frame = 0, mx = 0, my = 0;
-  window.addEventListener("mousemove", e => {
-    mx = (e.clientX/window.innerWidth)*2-1;
-    my = -(e.clientY/window.innerHeight)*2+1;
+let frame = 0, mx = 0, my = 0;
+addEventListener("mousemove", e => {
+  mx = (e.clientX/innerWidth)*2 - 1;
+  my = -(e.clientY/innerHeight)*2 + 1;
+});
+addEventListener("resize", () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+(function animate() {
+  requestAnimationFrame(animate); frame++;
+  candles.forEach(c => {
+    c.mesh.position.x -= 0.055;
+    c.mesh.position.y += Math.sin(frame*0.018 + c.mesh.position.x*0.04) * 0.018;
+    c.mesh.rotation.y += 0.004;
   });
-  window.addEventListener("resize", () => {
-    camera.aspect = window.innerWidth/window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+  if (candles[0] && candles[0].mesh.position.x < -130) {
+    scene.remove(candles.shift().mesh);
+    const last = candles[candles.length-1];
+    const nc = mkCandle(last.mesh.position.x + spacing, last.priceAt);
+    candles.push(nc);
+  }
+  scene.rotation.x += (my*0.12 - scene.rotation.x) * 0.04;
+  scene.rotation.y += (mx*0.12 - scene.rotation.y) * 0.04;
+  renderer.render(scene, camera);
+})();
+</script>
 
-  (function animate() {
-    requestAnimationFrame(animate); frame++;
-    candles.forEach(c => {
-      c.mesh.position.x -= 0.06;
-      c.mesh.position.y += Math.sin(frame*0.02+c.mesh.position.x*0.05)*0.02;
-      c.mesh.rotation.y += 0.005;
-    });
-    if (candles[0] && candles[0].mesh.position.x < -120) {
-      scene.remove(candles.shift().mesh);
-      const last = candles[candles.length-1];
-      candles.push(createCandle(last.mesh.position.x+spacing, last.priceAt));
-    }
-    scene.rotation.x += (my*0.15-scene.rotation.x)*0.05;
-    scene.rotation.y += (mx*0.15-scene.rotation.y)*0.05;
-    renderer.render(scene, camera);
-  })();
+<!-- UI SCRIPTS -->
+<script>
+// Clock
+function updateClock() {
+  const now = new Date();
+  const t = [now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+  const el = document.getElementById('footer-clock');
+  if (el) el.textContent = t;
+}
+setInterval(updateClock,1000); updateClock();
 
-  // Confidence jitter
-  const cv = document.getElementById("conf-val");
-  setInterval(() => {
-    cv.style.opacity = "0.4";
-    setTimeout(() => {
-      cv.textContent = (98.4+(Math.random()-0.5)*0.08).toFixed(1)+"%";
-      cv.style.opacity = "1";
-    }, 120);
-  }, 3000);
+// Confidence jitter
+const cv = document.getElementById('conf-val');
+setInterval(() => {
+  if (!cv) return;
+  cv.style.opacity = '0.3';
+  setTimeout(() => {
+    cv.textContent = (98.4+(Math.random()-0.5)*0.09).toFixed(1)+'%';
+    cv.style.opacity = '1';
+  }, 110);
+}, 3200);
+
+// Latency flicker
+setInterval(() => {
+  const v = 12+Math.floor(Math.random()*6);
+  const l = document.getElementById('lat');
+  const l2 = document.getElementById('lat2');
+  if (l) l.textContent = v;
+  if (l2) l2.textContent = v+'ms';
+}, 2400);
 </script>
 </body></html>
-""", height=780, scrolling=False)
+""", height=820, scrolling=False)
 
-    # ── Right panel: Streamlit auth form ─────────────────────────────────────
-    # Push form to the right using columns (left col = spacer)
-    _, right = st.columns([6, 4])
+    # ── RIGHT SIDE: Streamlit form overlaid ───────────────────────────────────
+    _, right_col = st.columns([6, 4])
 
-    with right:
-        if st.session_state.auth_view == "login":
-            st.markdown("""
-            <div style="background:rgba(15,23,42,0.75);backdrop-filter:blur(24px);
-                 border:1px solid rgba(74,222,128,0.15);border-radius:1rem;
-                 box-shadow:0 25px 50px -12px rgba(0,0,0,0.6),0 0 40px rgba(74,222,128,0.05);
-                 padding:2.5rem 2rem 1.5rem;position:relative;overflow:hidden;margin-top:-760px;">
-              <div style="position:absolute;top:0;left:-100%;width:60%;height:100%;
-                   background:linear-gradient(90deg,transparent,rgba(74,222,128,0.06),transparent);
-                   animation:scan 5s linear infinite;pointer-events:none;"></div>
-              <div style="text-align:center;margin-bottom:2rem;">
-                <h2 style="font-family:Space Grotesk,sans-serif;font-size:1rem;font-weight:600;letter-spacing:0.1em;color:#fff;">SECURE ACCESS</h2>
-                <p style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#64748b;letter-spacing:0.2em;text-transform:uppercase;margin-top:4px;">Encryption: Quantum AES-512</p>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+    with right_col:
+        is_login = (st.session_state.auth_view == "login")
+        card_title = "SECURE ACCESS" if is_login else "INITIALIZE SESSION"
+        card_sub   = "Encryption: Quantum AES-512" if is_login else "Awaiting user parameter input"
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-bottom:4px;">Identity Token (Email)</p>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="
+          margin-top:-810px;
+          background:rgba(10,15,23,0.82);
+          backdrop-filter:blur(28px);
+          -webkit-backdrop-filter:blur(28px);
+          border:1px solid rgba(74,225,118,0.18);
+          border-radius:0.75rem;
+          padding:2rem 1.8rem 1.2rem;
+          position:relative; overflow:hidden;
+          box-shadow:0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(74,225,118,0.06);
+          animation:breathe 4s ease-in-out infinite;
+        ">
+        <!-- scanning sweep inside card -->
+        <div style="position:absolute;top:0;left:-100%;width:55%;height:100%;
+          background:linear-gradient(90deg,transparent,rgba(74,225,118,0.05),transparent);
+          animation:sweep 6s linear infinite;pointer-events:none;"></div>
+        <style>
+          @keyframes breathe {{
+            0%,100%{{box-shadow:0 25px 60px rgba(0,0,0,.7),0 0 20px rgba(74,225,118,.04)}}
+            50%{{box-shadow:0 25px 60px rgba(0,0,0,.7),0 0 45px rgba(74,225,118,.12)}}
+          }}
+          @keyframes sweep {{ 0%{{left:-100%}} 100%{{left:210%}} }}
+        </style>
+        <!-- Segmented toggle -->
+        <div style="display:flex;background:rgba(2,6,23,0.5);border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;padding:3px;margin-bottom:1.5rem;">
+          <div style="flex:1;padding:0.55rem;border-radius:0.35rem;text-align:center;
+            {'background:linear-gradient(90deg,#064e3b,#22c55e);color:#000;font-weight:800;box-shadow:0 0 15px rgba(74,225,118,0.25)' if is_login else 'color:rgba(224,227,230,0.4)'};
+            font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">
+            Terminal Access
+          </div>
+          <div style="flex:1;padding:0.55rem;border-radius:0.35rem;text-align:center;
+            {'background:linear-gradient(90deg,#064e3b,#22c55e);color:#000;font-weight:800;box-shadow:0 0 15px rgba(74,225,118,0.25)' if not is_login else 'color:rgba(224,227,230,0.4)'};
+            font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;">
+            Create Account
+          </div>
+        </div>
+        <div style="text-align:center;margin-bottom:1.5rem;">
+          <h2 style="font-family:Space Grotesk,sans-serif;font-size:0.95rem;font-weight:700;letter-spacing:0.12em;color:#e0e3e6;text-transform:uppercase;">{card_title}</h2>
+          <p style="font-family:JetBrains Mono,monospace;font-size:0.52rem;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;">{card_sub}</p>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if is_login:
+            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-bottom:3px;margin-left:2px;">Identity Token (Email)</p>', unsafe_allow_html=True)
             login_email = st.text_input("Email", key="login_email", placeholder="name@firm.com")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Access Key</p>', unsafe_allow_html=True)
-            login_password = st.text_input("Password", key="login_password", type="password", placeholder="••••••••")
+            st.markdown('<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.8rem;margin-bottom:3px;"><p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin:0;">Access Key</p><a href="#" style="font-family:JetBrains Mono,monospace;font-size:0.54rem;color:rgba(74,225,118,0.5);text-decoration:none;letter-spacing:0.1em;text-transform:uppercase;">Forgot Key?</a></div>', unsafe_allow_html=True)
+            login_password = st.text_input("Password", key="login_password", type="password", placeholder="••••••••••")
 
-            if st.button("Authorize Terminal →", key="login_btn"):
+            if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn"):
                 if login_email and login_password:
                     with st.spinner("Securing session..."):
                         try:
@@ -1305,24 +1543,24 @@ if st.session_state.user is None:
                         except Exception as e:
                             st.error(f"⚠ Authorization failed: {e}")
                 else:
-                    st.warning("Please enter your identity token and access key.")
+                    st.warning("Please enter identity token and access key.")
 
             st.markdown("""
-            <div style="position:relative;padding:1rem 0;display:flex;align-items:center;gap:0.75rem;">
-              <div style="flex:1;height:1px;background:rgba(30,41,59,0.5);"></div>
-              <span style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:#475569;white-space:nowrap;">External Gateways</span>
-              <div style="flex:1;height:1px;background:rgba(30,41,59,0.5);"></div>
+            <div style="position:relative;padding:0.9rem 0;display:flex;align-items:center;gap:0.75rem;">
+              <div style="flex:1;height:1px;background:rgba(74,225,118,0.07);"></div>
+              <span style="font-family:JetBrains Mono,monospace;font-size:0.52rem;letter-spacing:0.18em;text-transform:uppercase;color:rgba(224,227,230,0.25);white-space:nowrap;">External Gateways</span>
+              <div style="flex:1;height:1px;background:rgba(74,225,118,0.07);"></div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.5rem;">
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.65rem;background:rgba(15,23,42,0.4);border:1px solid #1e293b;border-radius:0.5rem;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.72rem;cursor:pointer;">
-                <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.6 14.8 1 12 1 7.7 1 4 3.5 2.1 7.1l3.7 2.8C6.7 7.2 9.2 5 12 5z"/><path fill="#FBBC05" d="M23.5 12.2c0-.8-.1-1.5-.2-2.2H12v4.4h6.5c-.3 1.5-1.1 2.7-2.4 3.5l3.8 3c2.2-2 3.6-5 3.6-8.7z"/><path fill="#4285F4" d="M5.8 14.9c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1l-3.7-2.8C1.3 9.4 1 10.7 1 12s.3 2.6 1.1 4.1l3.7-2.2z"/><path fill="#34A853" d="M12 23c2.8 0 5.2-.9 7-2.5l-3.8-3c-1 .7-2.4 1.1-3.8 1.1-2.8 0-5.3-2.2-6.2-4.9l-3.7 2.8C4 20.5 7.7 23 12 23z"/></svg>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:1.2rem;">
+              <button style="display:flex;align-items:center;justify-content:center;gap:0.45rem;padding:0.65rem;background:rgba(15,23,42,0.5);border:1px solid rgba(74,225,118,0.08);border-radius:0.375rem;color:#e0e3e6;font-family:Space Grotesk,sans-serif;font-size:0.7rem;font-weight:500;cursor:pointer;transition:border-color 0.15s;">
+                <svg width="13" height="13" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.6 14.8 1 12 1 7.7 1 4 3.5 2.1 7.1l3.7 2.8C6.7 7.2 9.2 5 12 5z"/><path fill="#FBBC05" d="M23.5 12.2c0-.8-.1-1.5-.2-2.2H12v4.4h6.5c-.3 1.5-1.1 2.7-2.4 3.5l3.8 3c2.2-2 3.6-5 3.6-8.7z"/><path fill="#4285F4" d="M5.8 14.9c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1l-3.7-2.8C1.3 9.4 1 10.7 1 12s.3 2.6 1.1 4.1l3.7-2.2z"/><path fill="#34A853" d="M12 23c2.8 0 5.2-.9 7-2.5l-3.8-3c-1 .7-2.4 1.1-3.8 1.1-2.8 0-5.3-2.2-6.2-4.9l-3.7 2.8C4 20.5 7.7 23 12 23z"/></svg>
                 Google
               </button>
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.65rem;background:rgba(15,23,42,0.4);border:1px solid #1e293b;border-radius:0.5rem;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.72rem;cursor:pointer;">⌨ SSO</button>
+              <button style="display:flex;align-items:center;justify-content:center;gap:0.45rem;padding:0.65rem;background:rgba(15,23,42,0.5);border:1px solid rgba(74,225,118,0.08);border-radius:0.375rem;color:#e0e3e6;font-family:Space Grotesk,sans-serif;font-size:0.7rem;font-weight:500;cursor:pointer;">⌨ Terminal&nbsp;ID</button>
             </div>
-            <div style="border:1px solid rgba(74,222,128,0.1);border-radius:0.75rem;background:rgba(74,222,128,0.04);padding:1.1rem;text-align:center;margin-bottom:1rem;">
-              <div style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;font-weight:700;letter-spacing:0.3em;text-transform:uppercase;color:#4ade80;margin-bottom:4px;">BETA ALPHA</div>
-              <div style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#64748b;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.75rem;">Early access protocols active</div>
+            <div style="border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;background:rgba(74,225,118,0.04);padding:1rem 1.2rem;text-align:center;margin-bottom:0.6rem;">
+              <div style="font-family:JetBrains Mono,monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#4ae176;margin-bottom:3px;">BETA ALPHA</div>
+              <div style="font-family:JetBrains Mono,monospace;font-size:0.52rem;color:rgba(224,227,230,0.35);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.75rem;">Early access protocols active</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1331,31 +1569,20 @@ if st.session_state.user is None:
                 st.rerun()
 
         else:
-            # ── SIGNUP ────────────────────────────────────────────────────────
-            st.markdown("""
-            <div style="background:rgba(15,23,42,0.75);backdrop-filter:blur(24px);
-                 border:1px solid rgba(74,222,128,0.15);border-radius:1rem;
-                 padding:2.5rem 2rem 1.5rem;position:relative;overflow:hidden;margin-top:-760px;">
-              <div style="text-align:center;margin-bottom:2rem;">
-                <h2 style="font-family:Space Grotesk,sans-serif;font-size:1rem;font-weight:600;letter-spacing:0.1em;color:#fff;">CREATE ACCOUNT</h2>
-                <p style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#64748b;letter-spacing:0.2em;text-transform:uppercase;margin-top:4px;">Start your 14-day trial today</p>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # ── SIGNUP FORM ───────────────────────────────────────────────────
+            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-bottom:3px;">Identity_Full_Name</p>', unsafe_allow_html=True)
+            signup_name = st.text_input("Name", key="signup_name", placeholder="GORDON_GEKKO")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-bottom:4px;">Full Name</p>', unsafe_allow_html=True)
-            signup_name = st.text_input("Name", key="signup_name", placeholder="Enter your legal name")
+            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-top:0.7rem;margin-bottom:3px;">Corporate_Comm_Link (Email)</p>', unsafe_allow_html=True)
+            signup_email = st.text_input("Email", key="signup_email", placeholder="SECURE@NODE.CAST")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Work Email</p>', unsafe_allow_html=True)
-            signup_email = st.text_input("Email", key="signup_email", placeholder="name@company.com")
+            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-top:0.7rem;margin-bottom:3px;">Access_Key</p>', unsafe_allow_html=True)
+            signup_password = st.text_input("Password", key="signup_password", type="password", placeholder="••••••••••")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Access Password</p>', unsafe_allow_html=True)
-            signup_password = st.text_input("Password", key="signup_password", type="password", placeholder="••••••••")
+            st.markdown('<p style="font-family:JetBrains Mono,monospace;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-top:0.7rem;margin-bottom:3px;">Confirm_Key</p>', unsafe_allow_html=True)
+            signup_confirm = st.text_input("Confirm", key="signup_confirm", type="password", placeholder="••••••••••")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Confirm Password</p>', unsafe_allow_html=True)
-            signup_confirm = st.text_input("Confirm", key="signup_confirm", type="password", placeholder="••••••••")
-
-            if st.button("INITIALIZE TERMINAL", key="signup_btn"):
+            if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn"):
                 if signup_email and signup_password and signup_confirm:
                     if signup_password != signup_confirm:
                         st.error("⚠ Passwords do not match.")
@@ -1366,7 +1593,7 @@ if st.session_state.user is None:
                             try:
                                 res = supabase.auth.sign_up({"email": signup_email, "password": signup_password})
                                 if res.user:
-                                    st.success("✓ Account created! Check your email to confirm, then sign in.")
+                                    st.success("✓ Account created! Confirm your email, then sign in.")
                                 else:
                                     st.error("⚠ Sign-up failed. Please try again.")
                             except Exception as e:
@@ -1374,9 +1601,18 @@ if st.session_state.user is None:
                 else:
                     st.warning("Please fill in all fields.")
 
-            if st.button("Already have an account? Sign in →", key="goto_login"):
+            if st.button("Already an active node? Sign in →", key="goto_login"):
                 st.session_state.auth_view = "login"
                 st.rerun()
+
+            st.markdown("""
+            <div style="margin-top:1rem;padding:0.9rem 1.1rem;background:rgba(74,225,118,0.04);border:1px solid rgba(74,225,118,0.1);border-radius:0.5rem;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+                <div><div style="font-family:JetBrains Mono,monospace;font-size:0.5rem;color:rgba(74,225,118,0.4);letter-spacing:0.14em;text-transform:uppercase;border-bottom:1px solid rgba(74,225,118,0.08);padding-bottom:4px;margin-bottom:4px;">Data Integrity</div><div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(224,227,230,0.7);">AES-256 Quantum</div></div>
+                <div><div style="font-family:JetBrains Mono,monospace;font-size:0.5rem;color:rgba(74,225,118,0.4);letter-spacing:0.14em;text-transform:uppercase;border-bottom:1px solid rgba(74,225,118,0.08);padding-bottom:4px;margin-bottom:4px;">Latency</div><div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(224,227,230,0.7);">&lt; 0.04ms Sync</div></div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
