@@ -24,8 +24,8 @@ except LookupError:
 # Never hardcode credentials in source code.
 # Set up: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management
 try:
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    SUPABASE_URL = st.secrets["https://tpaqlfjszguinigygxcq.supabase.co"]
+    SUPABASE_KEY = st.secrets["sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV"]
 except (KeyError, FileNotFoundError):
     SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
     SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
