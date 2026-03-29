@@ -25,10 +25,10 @@ except LookupError:
 # Set up: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management
 try:
     SUPABASE_URL = st.secrets["https://tpaqlfjszguinigygxcq.supabase.co"]
-    SUPABASE_KEY = st.secrets["sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV"]
+    SUPABASE_KEY = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwYXFsZmpzemd1aW5pZ3lneGNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTY0NTAsImV4cCI6MjA5MDI3MjQ1MH0.UcNb2rJc5kNHHmuFNfN34WBirHKrxwveAzsVS5WGhs8"]
 except (KeyError, FileNotFoundError):
     SUPABASE_URL = os.environ.get("https://tpaqlfjszguinigygxcq.supabase.co", "")
-    SUPABASE_KEY = os.environ.get("sb_publishable_k3YRnuw5-wzS3VzpCpzQdg_0B-XldpV", "")
+    SUPABASE_KEY = os.environ.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwYXFsZmpzemd1aW5pZ3lneGNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTY0NTAsImV4cCI6MjA5MDI3MjQ1MH0.UcNb2rJc5kNHHmuFNfN34WBirHKrxwveAzsVS5WGhs8", "")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("⚠ Supabase credentials not found. Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets or environment variables.")
