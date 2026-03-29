@@ -1073,7 +1073,10 @@ if st.session_state.user is None:
     # fragile margin-top:-810px hack which broke on all screen sizes.
     # Now the form lives INSIDE the iframe (no cross-frame layout hacks),
     # and submits via URL query params which Streamlit reads above.
-    _is_login   = (st.session_state.auth_view == "login")
+  
+    _is_login    = (st.session_state.auth_view == "login")
+    _auth_error  = st.session_state.get("auth_error", "")
+    _auth_success = st.session_state.get("auth_success", "")
     _err_js     = _auth_error.replace('"', '\\"').replace('\n', ' ')
     _suc_js     = _auth_success.replace('"', '\\"').replace('\n', ' ')
     _card_title = "SECURE ACCESS" if _is_login else "INITIALIZE SESSION"
