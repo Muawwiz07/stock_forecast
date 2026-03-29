@@ -1010,7 +1010,17 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 # ── Auth Gate: Login / Signup ──────────────────────────────────────────────────
 if st.session_state.user is None:
 
-    # ── Override CSS for auth page ─────────────────────────────────────────────
+    import streamlit.components.v1 as _ac
+
+    _auth_error   = ""
+    _auth_success = ""
+
+    if "auth_view" not in st.session_state:
+        st.session_state.auth_view = "login"
+
+    _is_login = (st.session_state.auth_view == "login")
+
+    # ── CSS: hide Streamlit chrome, position form over canvas ─────────────────
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;600;700&display=swap');
@@ -1018,76 +1028,160 @@ if st.session_state.user is None:
         background: #0b0f11 !important;
         font-family: 'Space Grotesk', sans-serif !important;
         color: #e0e3e6 !important;
+        overflow: hidden !important;
     }
-    .block-container { padding: 2rem !important; max-width: 480px !important; margin: 0 auto !important; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
     header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
+    /* Overlay the form on top of the Three.js canvas */
+    section.main > div.block-container { position: relative; z-index: 10; }
     [data-testid="stTextInput"] input {
-        background: rgba(2,6,23,0.55) !important;
-        border: 1px solid rgba(74,225,118,0.15) !important;
+        background: rgba(2,6,23,0.75) !important;
+        border: 1px solid rgba(74,225,118,0.25) !important;
         border-radius: 0.375rem !important;
         color: #e0e3e6 !important;
         font-family: 'JetBrains Mono', monospace !important;
-        font-size: 0.85rem !important;
+        font-size: 0.82rem !important;
         padding: 11px 14px !important;
+        transition: all 0.2s !important;
     }
     [data-testid="stTextInput"] input:focus {
-        border-color: rgba(74,225,118,0.5) !important;
-        box-shadow: 0 0 0 1px rgba(74,225,118,0.3) !important;
+        border-color: rgba(74,225,118,0.6) !important;
+        box-shadow: 0 0 0 1px rgba(74,225,118,0.3), 0 0 12px rgba(74,225,118,0.15) !important;
+        outline: none !important;
     }
-    [data-testid="stTextInput"] label { color: #4ae176 !important; font-size: 0.65rem !important; letter-spacing: 0.15em !important; font-weight: 700 !important; }
+    [data-testid="stTextInput"] label {
+        color: #4ae176 !important;
+        font-size: 0.62rem !important;
+        letter-spacing: 0.15em !important;
+        font-weight: 700 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        text-transform: uppercase !important;
+    }
     .stButton > button {
         width: 100% !important;
         padding: 0.85rem !important;
-        background: linear-gradient(90deg, #064e3b, #22c55e, #4ae176, #22c55e, #064e3b) !important;
+        background: linear-gradient(90deg,#064e3b,#22c55e,#4ae176,#22c55e,#064e3b) !important;
         background-size: 300% auto !important;
+        animation: gflow 3.5s linear infinite !important;
         color: #000 !important;
         font-family: 'Space Grotesk', sans-serif !important;
         font-weight: 800 !important;
-        font-size: 0.75rem !important;
+        font-size: 0.72rem !important;
         border: none !important;
         border-radius: 0.25rem !important;
         letter-spacing: 0.2em !important;
         text-transform: uppercase !important;
+        box-shadow: 0 0 20px rgba(74,225,118,0.25) !important;
+        cursor: pointer !important;
     }
-    div[data-testid="stForm"] {
-        background: rgba(11,15,17,0.92) !important;
-        border: 1px solid rgba(74,225,118,0.15) !important;
+    .stButton > button:hover { filter: brightness(1.12) !important; box-shadow: 0 0 30px rgba(74,225,118,0.4) !important; }
+    [data-testid="stAlert"] { border-radius: 0.25rem !important; font-size: 0.78rem !important; }
+    [data-testid="stForm"] {
+        background: rgba(11,15,17,0.88) !important;
+        border: 1px solid rgba(74,225,118,0.12) !important;
         border-radius: 1rem !important;
-        padding: 2rem !important;
+        padding: 1.5rem !important;
+        backdrop-filter: blur(12px) !important;
     }
+    @keyframes gflow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
     </style>
     """, unsafe_allow_html=True)
 
-    if "auth_view" not in st.session_state:
-        st.session_state.auth_view = "login"
+    # ── Three.js animated background (no form inside) ─────────────────────────
+    _ac.html("""
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>*{margin:0;padding:0;}html,body{width:100%;height:100%;background:#0b0f11;overflow:hidden;}canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;}</style>
+</head><body>
+<canvas id="three-c"></canvas>
+<script>
+const canvas=document.getElementById("three-c");
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,0.1,1000);
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+camera.position.set(0,10,80);
+const greenMat=()=>new THREE.MeshPhongMaterial({color:0x4ae176,emissive:0x4ae176,emissiveIntensity:0.55,transparent:true,opacity:0.78});
+const redMat=()=>new THREE.MeshPhongMaterial({color:0xef4444,emissive:0xef4444,emissiveIntensity:0.35,transparent:true,opacity:0.65});
+const cyanMat=()=>new THREE.MeshPhongMaterial({color:0x00f1fe,emissive:0x00f1fe,emissiveIntensity:0.4,transparent:true,opacity:0.3});
+const wickMat=new THREE.MeshBasicMaterial({color:0x475569,transparent:true,opacity:0.35});
+const candles=[];let curPrice=-15;const spacing=4.5;
+function mkCandle(xPos,basePrice){
+  const isUp=Math.random()>0.34;const change=isUp?(Math.random()*13+2):-(Math.random()*10+1);
+  const h=Math.abs(change)+1.5;const g=new THREE.Group();
+  const mat=Math.random()>0.92?cyanMat():(isUp?greenMat():redMat());
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(2.4,h,2.4),mat));
+  const wick=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,h+Math.random()*11+5,6),wickMat);
+  g.add(wick);const depth=(Math.random()-0.5)*90;const nd=(depth+45)/90;
+  g.scale.setScalar(0.45+nd*0.85);g.position.set(xPos,basePrice+change/2,depth);
+  g.children[0].material.opacity=0.25+nd*0.65;scene.add(g);return{mesh:g,priceAt:basePrice+change};
+}
+for(let i=0;i<65;i++){const c=mkCandle(130-(i*spacing),curPrice);curPrice=c.priceAt;if(curPrice>42)curPrice-=18;if(curPrice<-42)curPrice+=18;candles.unshift(c);}
+scene.add(new THREE.AmbientLight(0xffffff,0.18));
+const pl=new THREE.PointLight(0x4ae176,1.3,320);pl.position.set(60,60,110);scene.add(pl);
+const pl2=new THREE.PointLight(0x00f1fe,0.4,200);pl2.position.set(-60,-20,80);scene.add(pl2);
+let frame=0,mx=0,my=0;
+addEventListener("mousemove",e=>{mx=(e.clientX/innerWidth)*2-1;my=-(e.clientY/innerHeight)*2+1;});
+addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+(function animate(){
+  requestAnimationFrame(animate);frame++;
+  candles.forEach(c=>{c.mesh.position.x-=0.055;c.mesh.position.y+=Math.sin(frame*0.018+c.mesh.position.x*0.04)*0.018;c.mesh.rotation.y+=0.004;});
+  if(candles[0]&&candles[0].mesh.position.x<-130){scene.remove(candles.shift().mesh);const last=candles[candles.length-1];candles.push(mkCandle(last.mesh.position.x+spacing,last.priceAt));}
+  scene.rotation.x+=(my*0.12-scene.rotation.x)*0.04;scene.rotation.y+=(mx*0.12-scene.rotation.y)*0.04;
+  renderer.render(scene,camera);
+})();
+</script>
+</body></html>
+""", height=820, scrolling=False)
 
-    # Brand header
+    # ── Streamlit form overlaid on top ────────────────────────────────────────
+    # Push the form up over the canvas using negative margin
     st.markdown("""
-    <div style="text-align:center;margin-bottom:2rem;">
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:800;color:#4ae176;letter-spacing:-0.03em;text-shadow:0 0 18px rgba(74,225,118,0.5);">Stockcast</div>
-      <div style="font-size:0.55rem;color:rgba(74,225,118,0.4);letter-spacing:0.2em;text-transform:uppercase;font-family:'JetBrains Mono',monospace;">AUTH_GATEWAY_v4.02</div>
+    <style>
+    /* Pull the form up to sit over the canvas */
+    div[data-testid="stVerticalBlock"] > div:nth-child(2) {
+        margin-top: -800px !important;
+        position: relative !important;
+        z-index: 100 !important;
+    }
+    </style>
+    <div style="display:flex;justify-content:center;">
+    <div style="width:420px;">
+    """, unsafe_allow_html=True)
+
+    # Brand
+    st.markdown(f"""
+    <div style="text-align:center;margin-bottom:1.2rem;padding-top:0.5rem;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:800;color:#4ae176;letter-spacing:-0.03em;text-shadow:0 0 18px rgba(74,225,118,0.5);">Stockcast</div>
+      <div style="font-size:0.5rem;color:rgba(74,225,118,0.35);letter-spacing:0.2em;font-family:'JetBrains Mono',monospace;text-transform:uppercase;">AUTH_GATEWAY_v4.02</div>
+    </div>
+    <!-- Tab buttons -->
+    <div style="display:flex;gap:0;margin-bottom:1.2rem;border:1px solid rgba(74,225,118,0.15);border-radius:0.4rem;overflow:hidden;">
+      <a href="?auth_switch=login" style="flex:1;text-align:center;padding:0.6rem;font-family:JetBrains Mono,monospace;font-size:0.62rem;font-weight:700;letter-spacing:0.1em;text-decoration:none;
+        background:{'rgba(74,225,118,0.15)' if _is_login else 'transparent'};color:{'#4ae176' if _is_login else 'rgba(224,227,230,0.3)'};">TERMINAL ACCESS</a>
+      <a href="?auth_switch=signup" style="flex:1;text-align:center;padding:0.6rem;font-family:JetBrains Mono,monospace;font-size:0.62rem;font-weight:700;letter-spacing:0.1em;text-decoration:none;
+        background:{'rgba(74,225,118,0.15)' if not _is_login else 'transparent'};color:{'#4ae176' if not _is_login else 'rgba(224,227,230,0.3)'};">CREATE ACCOUNT</a>
+    </div>
+    <div style="text-align:center;margin-bottom:1rem;">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:800;letter-spacing:0.1em;color:#e0e3e6;">{'SECURE ACCESS' if _is_login else 'INITIALIZE SESSION'}</div>
+      <div style="font-size:0.5rem;color:rgba(224,227,230,0.3);letter-spacing:0.18em;font-family:'JetBrains Mono',monospace;margin-top:3px;">{'ENCRYPTION: QUANTUM AES-512' if _is_login else 'CREATE YOUR TERMINAL NODE'}</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Tab switcher
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("TERMINAL ACCESS", use_container_width=True,
-                     type="primary" if st.session_state.auth_view == "login" else "secondary",
-                     key="tab_login"):
-            st.session_state.auth_view = "login"
-            st.rerun()
-    with col2:
-        if st.button("CREATE ACCOUNT", use_container_width=True,
-                     type="primary" if st.session_state.auth_view == "signup" else "secondary",
-                     key="tab_signup"):
-            st.session_state.auth_view = "signup"
-            st.rerun()
+    # Process tab switch via query params
+    _qp = st.query_params
+    _switch = _qp.get("auth_switch", "")
+    if _switch == "signup":
+        st.session_state.auth_view = "signup"
+        st.query_params.clear()
+        st.rerun()
+    elif _switch == "login":
+        st.session_state.auth_view = "login"
+        st.query_params.clear()
+        st.rerun()
 
-    if st.session_state.auth_view == "login":
-        st.markdown("<h3 style='text-align:center;font-family:Space Grotesk;font-weight:800;letter-spacing:0.1em;'>SECURE ACCESS</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center;font-size:0.55rem;color:rgba(224,227,230,0.35);letter-spacing:0.18em;font-family:JetBrains Mono,monospace;'>ENCRYPTION: QUANTUM AES-512</p>", unsafe_allow_html=True)
+    if _is_login:
         with st.form("login_form"):
             email    = st.text_input("IDENTITY TOKEN (EMAIL)", placeholder="name@firm.com")
             password = st.text_input("ACCESS KEY", type="password", placeholder="••••••••••")
@@ -1105,10 +1199,7 @@ if st.session_state.user is None:
                             st.error("Invalid credentials. Please try again.")
                     except Exception as e:
                         st.error(f"Login failed: {e}")
-
     else:
-        st.markdown("<h3 style='text-align:center;font-family:Space Grotesk;font-weight:800;letter-spacing:0.1em;'>INITIALIZE SESSION</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center;font-size:0.55rem;color:rgba(224,227,230,0.35);letter-spacing:0.18em;font-family:JetBrains Mono,monospace;'>CREATE YOUR TERMINAL NODE</p>", unsafe_allow_html=True)
         with st.form("signup_form"):
             name     = st.text_input("IDENTITY_FULL_NAME", placeholder="GORDON_GEKKO")
             email    = st.text_input("CORPORATE_COMM_LINK (EMAIL)", placeholder="SECURE@NODE.CAST")
@@ -1134,7 +1225,10 @@ if st.session_state.user is None:
                     except Exception as e:
                         st.error(f"Sign up failed: {e}")
 
-    st.stop()
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+    st.stop()  # 🚨 Halt — do not render the app until authenticated
+
 
 
 
