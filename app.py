@@ -1016,6 +1016,18 @@ if st.session_state.user is None:
     _auth_error   = ""
     _auth_success = ""
     _qp = st.query_params
+
+    # Handle tab switch
+    _switch = _qp.get("auth_switch", "")
+    if _switch == "signup":
+        st.session_state.auth_view = "signup"
+        st.query_params.clear()
+        st.rerun()
+    elif _switch == "login":
+        st.session_state.auth_view = "login"
+        st.query_params.clear()
+        st.rerun()
+
     _action = _qp.get("auth_action", "")
 
     if _action == "login":
@@ -1108,9 +1120,9 @@ if st.session_state.user is None:
     # fragile margin-top:-810px hack which broke on all screen sizes.
     # Now the form lives INSIDE the iframe (no cross-frame layout hacks),
     # and submits via URL query params which Streamlit reads above.
-    _is_login    = (st.session_state.auth_view == "login")
-    _err_js      = _auth_error.replace('"', '\\"').replace('\n', ' ')
-    _suc_js      = _auth_success.replace('"', '\\"').replace('\n', ' ')
+    _is_login   = (st.session_state.auth_view == "login")
+    _err_js     = _auth_error.replace('"', '\\"').replace('\n', ' ')
+    _suc_js     = _auth_success.replace('"', '\\"').replace('\n', ' ')
     _card_title = "SECURE ACCESS" if _is_login else "INITIALIZE SESSION"
     _card_sub   = "Encryption: Quantum AES-512" if _is_login else "Create your terminal node"
 
@@ -1219,7 +1231,7 @@ input::placeholder{{color:rgba(224,227,230,0.2);}}
     <div class="tab {'active' if _is_login else ''}" id="tab-login" onclick="switchTab('login')">Terminal Access</div>
     <div class="tab {'active' if not _is_login else ''}" id="tab-signup" onclick="switchTab('signup')">Create Account</div>
   </div>
-  <div class="card-title"><h2>{_card_title}</h2><p>{_card_sub}</p></div>
+  <div class="card-title"><h2 id="card-title">{_card_title}</h2><p id="card-sub">{_card_sub}</p></div>
   <div id="form-login" style="display:{'block' if _is_login else 'none'}">
     <div class="field-label">Identity Token (Email)</div>
     <input type="email" id="login-email" placeholder="name@firm.com" autocomplete="email">
@@ -1293,7 +1305,24 @@ setInterval(()=>{{const now=new Date();const t=[now.getHours(),now.getMinutes(),
 setInterval(()=>{{const v=12+Math.floor(Math.random()*6);const l2=document.getElementById('lat2');if(l2)l2.textContent=v+'ms';}},2400);
 
 function switchTab(tab){{
-  window.parent.location.href=window.parent.location.pathname+'?auth_switch='+tab;
+  const lf=document.getElementById('form-login');
+  const sf=document.getElementById('form-signup');
+  const tl=document.getElementById('tab-login');
+  const ts=document.getElementById('tab-signup');
+  const ct=document.getElementById('card-title');
+  const cs=document.getElementById('card-sub');
+  if(tab==='signup'){{
+    lf.style.display='none'; sf.style.display='block';
+    tl.classList.remove('active'); ts.classList.add('active');
+    if(ct) ct.textContent='INITIALIZE SESSION';
+    if(cs) cs.textContent='Create your terminal node';
+  }} else {{
+    sf.style.display='none'; lf.style.display='block';
+    ts.classList.remove('active'); tl.classList.add('active');
+    if(ct) ct.textContent='SECURE ACCESS';
+    if(cs) cs.textContent='Encryption: Quantum AES-512';
+  }}
+  document.getElementById('msg-area').innerHTML='';
 }}
 function submitLogin(){{
   const email=document.getElementById('login-email').value.trim();
