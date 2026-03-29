@@ -979,207 +979,319 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 # ── Auth Gate: Login / Signup ──────────────────────────────────────────────────
 if st.session_state.user is None:
 
+    import streamlit.components.v1 as _ac
+
+    # ── Global CSS override for auth page ─────────────────────────────────────
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
-
     html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
-        background: #0d0e0f !important;
-        font-family: 'Inter', sans-serif !important;
+        background: #020617 !important;
+        font-family: 'Space Grotesk', sans-serif !important;
         color: #ffffff !important;
+        overflow: hidden !important;
     }
-    .block-container { padding: 0 2rem !important; max-width: 100% !important; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
     header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
 
     [data-testid="stTextInput"] input {
-        background: #000000 !important;
-        border: none !important;
-        border-radius: 0.125rem !important;
+        background: rgba(2, 6, 23, 0.6) !important;
+        border: 1px solid #1e293b !important;
+        border-radius: 0.5rem !important;
         color: #ffffff !important;
-        font-family: 'Inter', sans-serif !important;
+        font-family: 'Space Grotesk', sans-serif !important;
         font-size: 0.875rem !important;
-        padding: 14px 16px !important;
-        transition: box-shadow 0.2s !important;
+        padding: 12px 16px !important;
+        transition: all 0.2s !important;
     }
     [data-testid="stTextInput"] input:focus {
-        box-shadow: 0 0 0 1px #3fff8b !important;
+        border-color: rgba(74, 222, 128, 0.5) !important;
+        box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.5) !important;
         outline: none !important;
     }
-    [data-testid="stTextInput"] input::placeholder { color: rgba(117,117,118,0.6) !important; }
+    [data-testid="stTextInput"] input::placeholder { color: #334155 !important; }
     [data-testid="stTextInput"] label { display: none !important; }
 
     .stButton > button {
         width: 100% !important;
         padding: 1rem !important;
-        background: linear-gradient(135deg, #3fff8b 0%, #13ea79 100%) !important;
-        color: #005d2c !important;
+        background: linear-gradient(90deg, #064e3b, #22c55e, #064e3b) !important;
+        background-size: 200% auto !important;
+        animation: gradient-flow 3s linear infinite !important;
+        color: #000000 !important;
         font-family: 'Space Grotesk', sans-serif !important;
         font-weight: 700 !important;
-        font-size: 0.85rem !important;
+        font-size: 0.75rem !important;
         border: none !important;
-        border-radius: 0.75rem !important;
-        letter-spacing: 0.06em !important;
+        border-radius: 0.5rem !important;
+        letter-spacing: 0.2em !important;
         text-transform: uppercase !important;
-        box-shadow: 0 0 20px rgba(63,255,139,0.15) !important;
-        transition: all 0.18s !important;
+        box-shadow: 0 10px 15px -3px rgba(74,222,128,0.1) !important;
+        transition: all 0.15s !important;
     }
-    .stButton > button:hover {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 0 28px rgba(63,255,139,0.3) !important;
-    }
+    .stButton > button:hover { transform: translateY(-1px) !important; filter: brightness(1.1) !important; }
     .stButton > button:active { transform: scale(0.98) !important; }
-    [data-testid="stAlert"] { border-radius: 0.25rem !important; font-size: 0.82rem !important; }
+    [data-testid="stAlert"] { border-radius: 0.375rem !important; font-size: 0.82rem !important; }
+
+    @keyframes gradient-flow {
+        0%   { background-position: 0%   50%; }
+        50%  { background-position: 100% 50%; }
+        100% { background-position: 0%   50%; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Determine which view: login or signup ─────────────────────────────────
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    import streamlit.components.v1 as _ac
-
-    if st.session_state.auth_view == "login":
-        # ── LOGIN: Full two-panel layout ──────────────────────────────────────
-        left_col, right_col = st.columns([7, 5], gap="small")
-
-        with left_col:
-            _ac.html("""
+    # ── 3D Animated Background Panel ─────────────────────────────────────────
+    _ac.html("""
 <!DOCTYPE html><html lang="en"><head>
-<meta charset="utf-8"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #121315; font-family: 'Inter', sans-serif; color: #fff; }
-  .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-  .forecast-pulse-texture {
-    background-image: radial-gradient(circle at 2px 2px, rgba(63,255,139,0.05) 1px, transparent 0);
-    background-size: 24px 24px;
+  html, body { width: 100%; height: 100%; background: #020617; overflow: hidden; font-family: 'Space Grotesk', sans-serif; }
+  canvas { display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+  .overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+    background: radial-gradient(circle at 70% 30%, rgba(6,78,59,0.45) 0%, #020617 70%);
+    pointer-events: none;
   }
-  @keyframes sc-pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(63,255,139,0.5);} 50%{opacity:.7;box-shadow:0 0 0 7px rgba(63,255,139,0);} }
-  @keyframes bar-rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-  .chart-bar { transform-origin: bottom; animation: bar-rise 1s ease-out forwards; }
+  .holo-lines { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; opacity: 0.18; }
+  .holo-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(74,222,128,0.5), transparent);
+    position: absolute; width: 140%; transform: rotate(-10deg); filter: blur(1px);
+  }
+  .data-node {
+    width: 5px; height: 5px; background: #4ade80; border-radius: 50%;
+    box-shadow: 0 0 10px #4ade80; position: absolute;
+  }
+  .scan-line {
+    position: fixed; top: 0; left: -100%; width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(74,222,128,0.06), transparent);
+    animation: scan 6s linear infinite; z-index: 3; pointer-events: none;
+  }
+  @keyframes scan { 0% { left: -100%; } 100% { left: 200%; } }
+
+  /* Hero text on left side */
+  .hero {
+    position: fixed; top: 0; left: 0; width: 58%; height: 100%;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 3rem 4rem; z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 2rem; }
+  .brand-icon { color: #4ade80; font-size: 1.5rem; }
+  .brand-name {
+    font-size: 1.2rem; font-weight: 700; color: #4ade80;
+    letter-spacing: 0.06em;
+    text-shadow: 0 0 12px rgba(74,222,128,0.5);
+  }
+  .brand-sub { font-size: 0.55rem; color: #64748b; letter-spacing: 0.2em; text-transform: uppercase; margin-top: 2px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.25rem 0.75rem; background: rgba(74,222,128,0.08);
+    border: 1px solid rgba(74,222,128,0.2); border-radius: 9999px;
+    font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase;
+    color: #4ade80; margin-bottom: 1.5rem;
+  }
+  .pill-dot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  .hero h1 {
+    font-size: 3.6rem; font-weight: 700; line-height: 1.1;
+    letter-spacing: -0.02em; color: #fff; margin-bottom: 1.2rem;
+  }
+  .hero h1 span { color: #4ade80; text-shadow: 0 0 18px rgba(74,222,128,0.4); }
+  .hero p {
+    font-size: 0.88rem; color: #94a3b8; line-height: 1.7; max-width: 380px;
+    border-left: 2px solid rgba(74,222,128,0.3); padding-left: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .stats { display: flex; gap: 3rem; align-items: center; }
+  .stat-ring { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .stat-label { font-size: 0.55rem; letter-spacing: 0.2em; text-transform: uppercase; color: #64748b; }
+  .ring-wrap { position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; }
+  .ring-val { position: absolute; display: flex; flex-direction: column; align-items: center; }
+  .ring-num { font-size: 1.4rem; font-weight: 700; color: #fff; }
+  .ring-sub { font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; }
+  .pulse-ring {
+    width: 80px; height: 80px; border-radius: 50%;
+    border: 2px dashed rgba(74,222,128,0.2);
+    animation: rotate 10s linear infinite; margin: 10px;
+  }
+  @keyframes rotate { to { transform: rotate(360deg); } }
 </style>
-</head>
-<body>
-<div class="forecast-pulse-texture" style="min-height:100vh;padding:3rem 3rem;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
-  <!-- Ambient glows -->
-  <div style="position:absolute;top:25%;left:-5rem;width:26rem;height:26rem;background:rgba(63,255,139,0.07);filter:blur(110px);border-radius:50%;pointer-events:none;z-index:0;"></div>
-  <div style="position:absolute;bottom:20%;right:-5rem;width:20rem;height:20rem;background:rgba(69,254,201,0.05);filter:blur(90px);border-radius:50%;pointer-events:none;z-index:0;"></div>
-  <!-- Decorative trading room background -->
-  <div style="position:absolute;inset:0;opacity:0.07;pointer-events:none;z-index:0;overflow:hidden;">
-    <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtVciMobXdrEkXbJw-yFvYglj9rDCT9oAWQqlRhg8V6vcDVerwYGDMD4bsGnEKE6UMHAIuBQBI7vlO0PCpPr10eRDcYmTNwsE51dklXEdET0kmGMrEKfq1ljaIxlI0HS42CVXPLM41OcX0NyRppI_C9jSxIG5wioUfq8wd5ZIKwm1fSSnQm83J0F66f6upJWmr5-71EkJpQU6b7ORqCGbv49p5NtF67oIgLSYcDZ0ZvR3LNBPxmIU-PnAX2zhC9m8PDqviCj2Od_E"
-         alt="" style="width:100%;height:100%;object-fit:cover;" />
-  </div>
-
-  <!-- Branding -->
-  <nav style="position:relative;z-index:1;display:flex;align-items:center;gap:0.6rem;">
-    <span class="material-symbols-outlined" style="color:#3fff8b;font-size:2rem;">insights</span>
-    <div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;line-height:1.1;">Stockcast</div>
-      <div style="font-family:'Space Grotesk',sans-serif;font-size:0.52rem;letter-spacing:0.16em;color:rgba(63,255,139,0.55);text-transform:uppercase;">Developed by Muawwiz Ghani</div>
-    </div>
-  </nav>
-
-  <!-- Hero copy -->
-  <div style="position:relative;z-index:1;margin:auto 0;padding:2rem 0;">
-    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:2.6rem;font-weight:500;line-height:1.18;letter-spacing:-0.02em;color:#fff;margin-bottom:1rem;">
-      Predicting the pulse<br>of <span style="background:linear-gradient(135deg,#3fff8b,#13ea79);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">global markets.</span>
-    </h2>
-    <p style="font-family:'Inter',sans-serif;font-size:0.95rem;color:#ababac;line-height:1.75;max-width:400px;margin-bottom:2rem;">
-      Access high-frequency forecasting models and neural-driven market analysis in one unified institutional interface.
-    </p>
-    <!-- Feature badges -->
-    <div style="display:flex;flex-direction:column;gap:0.85rem;">
-      <div style="display:flex;align-items:center;gap:0.85rem;">
-        <div style="width:2.6rem;height:2.6rem;border-radius:4px;background:#1e2021;border:1px solid rgba(71,72,73,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.1rem;">query_stats</span>
-        </div>
-        <div>
-          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.82rem;font-weight:600;color:#fff;margin-bottom:1px;">XGBoost Forecasting Engine</p>
-          <p style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#ababac;">6-factor signal · backtesting · bootstrap CI</p>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:0.85rem;">
-        <div style="width:2.6rem;height:2.6rem;border-radius:4px;background:#1e2021;border:1px solid rgba(71,72,73,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.1rem;">mosque</span>
-        </div>
-        <div>
-          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.82rem;font-weight:600;color:#fff;margin-bottom:1px;">Shariah Compliance Screening</p>
-          <p style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#ababac;">AAOIFI Standard No.21 automated checks</p>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:0.85rem;">
-        <div style="width:2.6rem;height:2.6rem;border-radius:4px;background:#1e2021;border:1px solid rgba(71,72,73,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.1rem;">security</span>
-        </div>
-        <div>
-          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.82rem;font-weight:600;color:#fff;margin-bottom:1px;">Institutional Security</p>
-          <p style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#ababac;">Supabase Auth · 256-bit encryption</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Live Alpha Stream card (from Stockcast Terminal) -->
-  <div style="position:relative;z-index:1;background:rgba(25,26,27,0.75);backdrop-filter:blur(20px);border:1px solid rgba(71,72,73,0.2);border-radius:8px;padding:1.2rem 1.4rem;margin-bottom:1.5rem;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;">
-      <span style="font-family:'Space Grotesk',sans-serif;font-size:0.58rem;letter-spacing:0.18em;text-transform:uppercase;color:#ababac;">Live Alpha Stream</span>
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3fff8b;animation:sc-pulse 2s infinite;"></span>
-    </div>
-    <!-- Abstract bar chart -->
-    <div style="height:72px;background:#000;border-radius:4px;overflow:hidden;display:flex;align-items:flex-end;padding:0 8px 6px;gap:5px;">
-      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.18);border-radius:2px 2px 0 0;height:40%;animation-delay:0.0s;"></div>
-      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.36);border-radius:2px 2px 0 0;height:58%;animation-delay:0.1s;"></div>
-      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.54);border-radius:2px 2px 0 0;height:52%;animation-delay:0.2s;"></div>
-      <div class="chart-bar" style="flex:1;background:rgba(63,255,139,0.72);border-radius:2px 2px 0 0;height:80%;animation-delay:0.3s;"></div>
-      <div class="chart-bar" style="flex:1;background:#3fff8b;border-radius:2px 2px 0 0;height:100%;animation-delay:0.4s;box-shadow:0 0 14px rgba(63,255,139,0.35);"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;margin-top:0.75rem;">
-      <span style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;color:#ababac;">Model Confidence</span>
-      <span style="font-family:'Space Grotesk',sans-serif;font-size:0.65rem;font-weight:700;color:#3fff8b;">98.4%</span>
-    </div>
-  </div>
-
-  <!-- Footer links -->
-  <footer style="position:relative;z-index:1;display:flex;gap:1.5rem;flex-wrap:wrap;border-top:1px solid rgba(71,72,73,0.15);padding-top:1rem;">
-    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">Terms of Service</a>
-    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">Privacy Policy</a>
-    <a href="#" style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#757576;text-decoration:none;">API Documentation</a>
-    <span style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#474849;margin-left:auto;">© 2025 Stockcast Terminal</span>
-  </footer>
+</head><body>
+<canvas id="three-canvas"></canvas>
+<div class="overlay"></div>
+<div class="holo-lines">
+  <div class="holo-line" style="top:18%;left:-10%;"></div>
+  <div class="holo-line" style="top:50%;left:-5%;"></div>
+  <div class="holo-line" style="top:82%;left:0%;"></div>
+  <div class="data-node" style="top:20%;left:32%;"></div>
+  <div class="data-node" style="top:53%;left:63%;"></div>
+  <div class="data-node" style="top:84%;left:87%;"></div>
 </div>
+<div class="scan-line"></div>
+<div class="hero">
+  <div class="brand">
+    <svg class="brand-icon" width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+    </svg>
+    <div>
+      <div class="brand-name">Stockcast</div>
+      <div class="brand-sub">Developed by Muawwiz Ghani</div>
+    </div>
+  </div>
+  <div class="pill"><div class="pill-dot"></div>Neural Engine Active</div>
+  <h1>Predicting the<br><span>pulse of global markets.</span></h1>
+  <p>Experience the next evolution of quantitative analysis. Stockcast decodes complex market signals into actionable alpha using XGBoost neural architecture.</p>
+  <div class="stats">
+    <div class="stat-ring">
+      <span class="stat-label">AI Accuracy</span>
+      <div class="ring-wrap">
+        <div class="ring-val">
+          <span class="ring-num" id="conf-val">98.4%</span>
+          <span class="ring-sub">Confidence</span>
+        </div>
+        <svg width="100" height="100" style="position:absolute;top:0;left:0;transform:rotate(-90deg)">
+          <circle cx="50" cy="50" r="44" fill="none" stroke="#0f172a" stroke-width="2"/>
+          <circle cx="50" cy="50" r="44" fill="none" stroke="#4ade80" stroke-width="3"
+            stroke-dasharray="276" stroke-dashoffset="5"
+            style="filter:drop-shadow(0 0 4px #4ade80);transition:stroke-dashoffset 1s"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stat-ring">
+      <span class="stat-label">Neural Stream</span>
+      <div class="ring-wrap" style="width:80px;height:80px;">
+        <div class="pulse-ring"></div>
+        <div class="ring-val">
+          <div style="width:8px;height:8px;background:#4ade80;border-radius:50%;box-shadow:0 0 10px #4ade80;animation:ping 1s infinite;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const canvas = document.getElementById("three-canvas");
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(65, window.innerWidth/window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  camera.position.set(0, 10, 80);
+
+  const greenMat = new THREE.MeshPhongMaterial({ color:0x4ade80, emissive:0x4ade80, emissiveIntensity:0.6, transparent:true, opacity:0.8 });
+  const redMat   = new THREE.MeshPhongMaterial({ color:0xef4444, emissive:0xef4444, emissiveIntensity:0.4, transparent:true, opacity:0.7 });
+  const wickMat  = new THREE.MeshBasicMaterial({ color:0x475569, transparent:true, opacity:0.4 });
+
+  const candles = [];
+  const spacing = 4.5;
+  let curPrice = -15;
+
+  function createCandle(xPos, basePrice) {
+    const isUp = Math.random() > 0.35;
+    const change = isUp ? (Math.random()*12+2) : -(Math.random()*10+1);
+    const h = Math.abs(change)+1.5;
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(2.4, h, 2.4), isUp ? greenMat.clone() : redMat.clone()));
+    const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,h+Math.random()*10+5,6), wickMat);
+    g.add(wick);
+    const depth = (Math.random()-0.5)*80;
+    const nd = (depth+40)/80;
+    const sc = 0.5+nd*0.8;
+    g.scale.setScalar(sc);
+    g.position.set(xPos, basePrice+change/2, depth);
+    g.children[0].material.opacity = 0.3+nd*0.6;
+    scene.add(g);
+    return { mesh:g, priceAt: basePrice+change };
+  }
+
+  for (let i = 0; i < 60; i++) {
+    const c = createCandle(120-(i*spacing), curPrice);
+    curPrice = c.priceAt;
+    if (curPrice > 40) curPrice -= 15;
+    if (curPrice < -40) curPrice += 15;
+    candles.unshift(c);
+  }
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+  const pl = new THREE.PointLight(0x4ade80, 1.2, 300);
+  pl.position.set(50,50,100); scene.add(pl);
+
+  let frame = 0, mx = 0, my = 0;
+  window.addEventListener("mousemove", e => {
+    mx = (e.clientX/window.innerWidth)*2-1;
+    my = -(e.clientY/window.innerHeight)*2+1;
+  });
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  (function animate() {
+    requestAnimationFrame(animate); frame++;
+    candles.forEach(c => {
+      c.mesh.position.x -= 0.06;
+      c.mesh.position.y += Math.sin(frame*0.02+c.mesh.position.x*0.05)*0.02;
+      c.mesh.rotation.y += 0.005;
+    });
+    if (candles[0] && candles[0].mesh.position.x < -120) {
+      scene.remove(candles.shift().mesh);
+      const last = candles[candles.length-1];
+      candles.push(createCandle(last.mesh.position.x+spacing, last.priceAt));
+    }
+    scene.rotation.x += (my*0.15-scene.rotation.x)*0.05;
+    scene.rotation.y += (mx*0.15-scene.rotation.y)*0.05;
+    renderer.render(scene, camera);
+  })();
+
+  // Confidence jitter
+  const cv = document.getElementById("conf-val");
+  setInterval(() => {
+    cv.style.opacity = "0.4";
+    setTimeout(() => {
+      cv.textContent = (98.4+(Math.random()-0.5)*0.08).toFixed(1)+"%";
+      cv.style.opacity = "1";
+    }, 120);
+  }, 3000);
+</script>
 </body></html>
 """, height=780, scrolling=False)
 
-        with right_col:
-            # ── Segmented toggle header (decorative — switching handled by button below)
+    # ── Right panel: Streamlit auth form ─────────────────────────────────────
+    # Push form to the right using columns (left col = spacer)
+    _, right = st.columns([6, 4])
+
+    with right:
+        if st.session_state.auth_view == "login":
             st.markdown("""
-            <div style="background:#191a1b;padding:2.5rem 2.5rem 0;border-left:1px solid rgba(71,72,73,0.1);">
-              <!-- Segmented toggle -->
-              <div style="display:flex;padding:4px;background:#000;border-radius:12px;border:1px solid rgba(71,72,73,0.12);margin-bottom:2rem;">
-                <div style="flex:1;padding:0.7rem 1rem;border-radius:8px;background:linear-gradient(135deg,#3fff8b,#13ea79);text-align:center;
-                     font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.78rem;color:#005d2c;
-                     box-shadow:0 4px 14px rgba(63,255,139,0.2);">Terminal Access</div>
-                <div style="flex:1;padding:0.7rem 1rem;text-align:center;font-family:'Space Grotesk',sans-serif;font-weight:700;
-                     font-size:0.78rem;color:rgba(171,171,172,0.6);">Create Account</div>
+            <div style="background:rgba(15,23,42,0.75);backdrop-filter:blur(24px);
+                 border:1px solid rgba(74,222,128,0.15);border-radius:1rem;
+                 box-shadow:0 25px 50px -12px rgba(0,0,0,0.6),0 0 40px rgba(74,222,128,0.05);
+                 padding:2.5rem 2rem 1.5rem;position:relative;overflow:hidden;margin-top:-760px;">
+              <div style="position:absolute;top:0;left:-100%;width:60%;height:100%;
+                   background:linear-gradient(90deg,transparent,rgba(74,222,128,0.06),transparent);
+                   animation:scan 5s linear infinite;pointer-events:none;"></div>
+              <div style="text-align:center;margin-bottom:2rem;">
+                <h2 style="font-family:Space Grotesk,sans-serif;font-size:1rem;font-weight:600;letter-spacing:0.1em;color:#fff;">SECURE ACCESS</h2>
+                <p style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#64748b;letter-spacing:0.2em;text-transform:uppercase;margin-top:4px;">Encryption: Quantum AES-512</p>
               </div>
-              <!-- Welcome copy -->
-              <h3 style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;color:#fff;margin-bottom:0.3rem;">Welcome Back</h3>
-              <p style="font-family:'Inter',sans-serif;font-size:0.82rem;color:#ababac;margin-bottom:1.5rem;">Synchronize with the terminal to resume analysis.</p>
             </div>
             """, unsafe_allow_html=True)
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:#ababac;margin-bottom:4px;">Identity Token (Email)</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-bottom:4px;">Identity Token (Email)</p>', unsafe_allow_html=True)
             login_email = st.text_input("Email", key="login_email", placeholder="name@firm.com")
 
-            st.markdown('<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;margin-bottom:4px;"><p style="font-family:Space Grotesk,sans-serif;font-size:0.62rem;letter-spacing:0.14em;text-transform:uppercase;color:#ababac;">Access Key</p><a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;color:rgba(63,255,139,0.7);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em;">Forgot Key?</a></div>', unsafe_allow_html=True)
+            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Access Key</p>', unsafe_allow_html=True)
             login_password = st.text_input("Password", key="login_password", type="password", placeholder="••••••••")
 
-            if st.button("AUTHORIZE ACCESS  →", key="login_btn"):
+            if st.button("Authorize Terminal →", key="login_btn"):
                 if login_email and login_password:
                     with st.spinner("Securing session..."):
                         try:
@@ -1196,27 +1308,21 @@ if st.session_state.user is None:
                     st.warning("Please enter your identity token and access key.")
 
             st.markdown("""
-            <div style="position:relative;padding:1.2rem 0;display:flex;align-items:center;gap:1rem;">
-              <div style="flex:1;height:1px;background:rgba(71,72,73,0.12);"></div>
-              <span style="font-family:'Space Grotesk',sans-serif;font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:#757576;white-space:nowrap;">Alternative Protocols</span>
-              <div style="flex:1;height:1px;background:rgba(71,72,73,0.12);"></div>
+            <div style="position:relative;padding:1rem 0;display:flex;align-items:center;gap:0.75rem;">
+              <div style="flex:1;height:1px;background:rgba(30,41,59,0.5);"></div>
+              <span style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:#475569;white-space:nowrap;">External Gateways</span>
+              <div style="flex:1;height:1px;background:rgba(30,41,59,0.5);"></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.5rem;">
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#1e2021;border:1px solid rgba(71,72,73,0.12);border-radius:8px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:0.72rem;cursor:pointer;">
-                <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.65rem;background:rgba(15,23,42,0.4);border:1px solid #1e293b;border-radius:0.5rem;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.72rem;cursor:pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.6 14.8 1 12 1 7.7 1 4 3.5 2.1 7.1l3.7 2.8C6.7 7.2 9.2 5 12 5z"/><path fill="#FBBC05" d="M23.5 12.2c0-.8-.1-1.5-.2-2.2H12v4.4h6.5c-.3 1.5-1.1 2.7-2.4 3.5l3.8 3c2.2-2 3.6-5 3.6-8.7z"/><path fill="#4285F4" d="M5.8 14.9c-.2-.6-.3-1.3-.3-2.1s.1-1.5.3-2.1l-3.7-2.8C1.3 9.4 1 10.7 1 12s.3 2.6 1.1 4.1l3.7-2.2z"/><path fill="#34A853" d="M12 23c2.8 0 5.2-.9 7-2.5l-3.8-3c-1 .7-2.4 1.1-3.8 1.1-2.8 0-5.3-2.2-6.2-4.9l-3.7 2.8C4 20.5 7.7 23 12 23z"/></svg>
                 Google
               </button>
-              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#1e2021;border:1px solid rgba(71,72,73,0.12);border-radius:8px;color:#fff;font-family:'Space Grotesk',sans-serif;font-size:0.72rem;cursor:pointer;">
-                ⌨ SSO
-              </button>
+              <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.65rem;background:rgba(15,23,42,0.4);border:1px solid #1e293b;border-radius:0.5rem;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.72rem;cursor:pointer;">⌨ SSO</button>
             </div>
-            <!-- Limited Offer trial banner (from Stockcast Terminal) -->
-            <div style="padding:1rem 1.2rem;background:rgba(63,255,139,0.04);border-radius:8px;border:1px solid rgba(63,255,139,0.12);display:flex;align-items:flex-start;gap:0.75rem;margin-bottom:1.5rem;">
-              <span class="material-symbols-outlined" style="color:#3fff8b;font-size:1.3rem;flex-shrink:0;font-variation-settings:'FILL' 1;">verified</span>
-              <div>
-                <p style="font-family:'Space Grotesk',sans-serif;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#3fff8b;margin-bottom:3px;">Limited Offer</p>
-                <p style="font-family:'Inter',sans-serif;font-size:0.72rem;color:#ababac;line-height:1.5;">Start your 14-day trial of Alpha-Tier models. No credit card required for initial calibration.</p>
-              </div>
+            <div style="border:1px solid rgba(74,222,128,0.1);border-radius:0.75rem;background:rgba(74,222,128,0.04);padding:1.1rem;text-align:center;margin-bottom:1rem;">
+              <div style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;font-weight:700;letter-spacing:0.3em;text-transform:uppercase;color:#4ade80;margin-bottom:4px;">BETA ALPHA</div>
+              <div style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#64748b;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.75rem;">Early access protocols active</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1224,104 +1330,30 @@ if st.session_state.user is None:
                 st.session_state.auth_view = "signup"
                 st.rerun()
 
-            st.markdown('<div style="text-align:center;margin-top:1rem;font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#474849;letter-spacing:0.1em;text-transform:uppercase;">⚠ For Educational Purposes Only · Not Financial Advice</div>', unsafe_allow_html=True)
-
-    else:
-        # ── SIGNUP: Full two-panel layout ─────────────────────────────────────
-        left_col, right_col = st.columns([3, 2], gap="small")
-
-        with left_col:
-            _ac.html("""
-<!DOCTYPE html><html lang="en"><head>
-<meta charset="utf-8"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<style>
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:#0d0e0f; font-family:'Inter',sans-serif; color:#fff; }
-  .material-symbols-outlined { font-variation-settings:'FILL' 1; vertical-align:middle; }
-  .primary-gradient { background:linear-gradient(135deg,#3fff8b 0%,#13ea79 100%); }
-  .forecast-pulse-bg { background-image:radial-gradient(circle at 2px 2px,rgba(63,255,139,0.05) 1px,transparent 0); background-size:24px 24px; }
-</style>
-</head>
-<body>
-<div class="forecast-pulse-bg" style="min-height:100vh;padding:3.5rem 3rem;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden;">
-  <div style="position:absolute;top:25%;left:25%;width:26rem;height:26rem;background:rgba(63,255,139,0.08);filter:blur(110px);border-radius:50%;pointer-events:none;z-index:0;"></div>
-  <div style="position:absolute;bottom:25%;right:25%;width:18rem;height:18rem;background:rgba(69,254,201,0.07);filter:blur(90px);border-radius:50%;pointer-events:none;z-index:0;"></div>
-
-  <div style="position:relative;z-index:1;max-width:560px;">
-    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:3rem;">
-      <span style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;letter-spacing:-0.02em;color:#3fff8b;">Stockcast</span>
-      <span style="font-size:0.58rem;padding:0.2rem 0.55rem;background:#252627;color:#3fff8b;font-family:'Space Grotesk',sans-serif;letter-spacing:0.1em;font-weight:700;text-transform:uppercase;border-radius:2px;">Developed by Muawwiz Ghani</span>
-    </div>
-
-    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:3.5rem;font-weight:500;line-height:1.1;letter-spacing:-0.02em;color:#fff;margin-bottom:1.2rem;">
-      Democratizing<br><span style="color:#3fff8b;font-style:italic;">Market Intelligence</span>
-    </h1>
-    <p style="font-family:'Inter',sans-serif;font-size:1rem;color:#ababac;line-height:1.75;max-width:460px;margin-bottom:2.5rem;">
-      Access institutional-grade XGBoost forecasting models, real-time signal analysis, and Shariah compliance screening. Join a community of professional traders.
-    </p>
-
-    <!-- Forecast Pulse Card -->
-    <div style="background:rgba(37,38,39,0.6);backdrop-filter:blur(20px);padding:1.5rem;border-radius:8px;border:1px solid rgba(71,72,73,0.15);max-width:380px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:1.2rem;">
-        <div>
-          <p style="font-family:'Space Grotesk',sans-serif;font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:#ababac;margin-bottom:0.3rem;">Projected Growth</p>
-          <h3 style="font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;color:#3fff8b;">+24.8%</h3>
-        </div>
-        <span class="material-symbols-outlined" style="color:#3fff8b;font-size:2rem;">trending_up</span>
-      </div>
-      <div style="height:6rem;display:flex;align-items:flex-end;gap:3px;">
-        <div style="flex:1;background:rgba(63,255,139,0.18);height:30%;border-radius:2px 2px 0 0;"></div>
-        <div style="flex:1;background:rgba(63,255,139,0.28);height:45%;border-radius:2px 2px 0 0;"></div>
-        <div style="flex:1;background:rgba(63,255,139,0.38);height:35%;border-radius:2px 2px 0 0;"></div>
-        <div style="flex:1;background:rgba(63,255,139,0.55);height:60%;border-radius:2px 2px 0 0;"></div>
-        <div style="flex:1;background:rgba(63,255,139,0.7);height:50%;border-radius:2px 2px 0 0;"></div>
-        <div style="flex:1;background:rgba(63,255,139,0.85);height:85%;border-radius:2px 2px 0 0;"></div>
-        <div class="primary-gradient" style="flex:1;height:100%;border-radius:2px 2px 0 0;box-shadow:0 0 12px rgba(63,255,139,0.4);"></div>
-      </div>
-    </div>
-  </div>
-</div>
-</body></html>
-""", height=780, scrolling=False)
-
-        with right_col:
+        else:
+            # ── SIGNUP ────────────────────────────────────────────────────────
             st.markdown("""
-            <div style="background:#121315;padding:3rem 2rem 1.5rem;border-left:1px solid rgba(71,72,73,0.1);">
-              <div style="margin-bottom:1.8rem;">
-                <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:500;color:#fff;margin-bottom:0.3rem;">Create Account</h2>
-                <p style="font-family:'Inter',sans-serif;font-size:0.85rem;color:#ababac;">Start your 14-day premium trial today.</p>
-              </div>
-              <!-- Social buttons (decorative) -->
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.5rem;">
-                <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#252627;border:none;border-radius:4px;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.78rem;font-weight:500;cursor:pointer;">
-                  <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                  Google
-                </button>
-                <button style="display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.75rem;background:#252627;border:none;border-radius:4px;color:#fff;font-family:Space Grotesk,sans-serif;font-size:0.78rem;font-weight:500;cursor:pointer;">
-                  ⌨ Terminal ID
-                </button>
-              </div>
-              <div style="position:relative;display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;">
-                <div style="flex:1;height:1px;background:rgba(71,72,73,0.2);"></div>
-                <span style="font-family:Space Grotesk,sans-serif;font-size:0.58rem;letter-spacing:0.14em;text-transform:uppercase;color:#ababac;white-space:nowrap;">or continue with email</span>
-                <div style="flex:1;height:1px;background:rgba(71,72,73,0.2);"></div>
+            <div style="background:rgba(15,23,42,0.75);backdrop-filter:blur(24px);
+                 border:1px solid rgba(74,222,128,0.15);border-radius:1rem;
+                 padding:2.5rem 2rem 1.5rem;position:relative;overflow:hidden;margin-top:-760px;">
+              <div style="text-align:center;margin-bottom:2rem;">
+                <h2 style="font-family:Space Grotesk,sans-serif;font-size:1rem;font-weight:600;letter-spacing:0.1em;color:#fff;">CREATE ACCOUNT</h2>
+                <p style="font-family:Space Grotesk,sans-serif;font-size:0.55rem;color:#64748b;letter-spacing:0.2em;text-transform:uppercase;margin-top:4px;">Start your 14-day trial today</p>
               </div>
             </div>
             """, unsafe_allow_html=True)
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;margin-bottom:4px;">Full Name</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-bottom:4px;">Full Name</p>', unsafe_allow_html=True)
             signup_name = st.text_input("Name", key="signup_name", placeholder="Enter your legal name")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;margin-top:0.75rem;margin-bottom:4px;">Work Email</p>', unsafe_allow_html=True)
+            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Work Email</p>', unsafe_allow_html=True)
             signup_email = st.text_input("Email", key="signup_email", placeholder="name@company.com")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;margin-top:0.75rem;margin-bottom:4px;">Access Password</p>', unsafe_allow_html=True)
-            signup_password = st.text_input("Password", key="signup_password", type="password", placeholder="••••••••••••")
+            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Access Password</p>', unsafe_allow_html=True)
+            signup_password = st.text_input("Password", key="signup_password", type="password", placeholder="••••••••")
 
-            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;margin-top:0.75rem;margin-bottom:4px;">Confirm Password</p>', unsafe_allow_html=True)
-            signup_confirm = st.text_input("Confirm", key="signup_confirm", type="password", placeholder="••••••••••••")
+            st.markdown('<p style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#64748b;margin-top:0.75rem;margin-bottom:4px;">Confirm Password</p>', unsafe_allow_html=True)
+            signup_confirm = st.text_input("Confirm", key="signup_confirm", type="password", placeholder="••••••••")
 
             if st.button("INITIALIZE TERMINAL", key="signup_btn"):
                 if signup_email and signup_password and signup_confirm:
@@ -1342,20 +1374,12 @@ if st.session_state.user is None:
                 else:
                     st.warning("Please fill in all fields.")
 
-            if st.button("Already an active node? Sign in →", key="goto_login"):
+            if st.button("Already have an account? Sign in →", key="goto_login"):
                 st.session_state.auth_view = "login"
                 st.rerun()
 
-            st.markdown("""
-            <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:1.2rem;opacity:0.4;margin-top:2rem;padding-top:1.5rem;border-top:1px solid rgba(71,72,73,0.2);">
-              <span style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;">© 2024 Stockcast</span>
-              <a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;text-decoration:none;">Privacy</a>
-              <a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;text-decoration:none;">SLA</a>
-              <a href="#" style="font-family:Space Grotesk,sans-serif;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:#ababac;text-decoration:none;">Support</a>
-            </div>
-            """, unsafe_allow_html=True)
-
     st.stop()  # 🚨 Halt — do not render the app until authenticated
+
 
 
 # ═══════════════════════════════════════════════════════════════════
