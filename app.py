@@ -695,7 +695,26 @@ def search_tickers(query):
 
 @st.cache_data(ttl=300)  # refresh every 5 minutes so prices stay current
 def fetch_data(ticker, start, end):
-    df = yf.download(ticker, start=str(start), end=str(end), progress=False, auto_adjust=True)
+    ticker = ticker.strip().upper()
+    df = pd.DataFrame()
+    # Try yf.download first
+    for attempt in range(3):
+        try:
+            df = yf.download(ticker, start=str(start), end=str(end),
+                             progress=False, auto_adjust=True, timeout=30)
+            if not df.empty:
+                break
+        except Exception:
+            pass
+        import time; time.sleep(1)
+    # Fallback: try yf.Ticker().history()
+    if df.empty:
+        try:
+            t = yf.Ticker(ticker)
+            df = t.history(start=str(start), end=str(end), auto_adjust=True)
+            df.index = df.index.tz_localize(None) if hasattr(df.index, 'tz') and df.index.tz else df.index
+        except Exception:
+            pass
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     if hasattr(df.index, 'tz') and df.index.tz is not None:
@@ -1584,7 +1603,7 @@ else:
         df = fetch_data(ticker, start_date, end_date)
 
     if df.empty:
-        st.error(f"No data found for '{ticker}'. Please check the symbol.")
+        st.error(f"⚠ No data found for '{ticker}'. Check symbol or try again in 30s — Yahoo Finance may be rate limiting. Try: AAPL, MSFT, TSLA")
         st.stop()
 
     st.success(f"✓ {len(df)} trading days loaded for {ticker}")
