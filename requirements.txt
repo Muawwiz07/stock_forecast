@@ -8,4 +8,3 @@ plotly==5.20.0
 supabase==2.4.2
 nltk==3.8.1
 textblob==0.18.0
-prophet==1.1.5
