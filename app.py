@@ -20,7 +20,7 @@ AV_BASE = "https://www.alphavantage.co/query"
 def av_get_daily(ticker):
     """Fetch full daily OHLCV from Alpha Vantage. Returns DataFrame."""
     r = requests.get(AV_BASE, params={
-        "function": "TIME_SERIES_DAILY_ADJUSTED",
+        "function": "TIME_SERIES_DAILY",
         "symbol": ticker,
         "outputsize": "full",
         "datatype": "json",
@@ -37,7 +37,7 @@ def av_get_daily(ticker):
             "Open":   float(vals["1. open"]),
             "High":   float(vals["2. high"]),
             "Low":    float(vals["3. low"]),
-            "Close":  float(vals["5. adjusted close"]),
+            "Close":  float(vals["4. close"]),
             "Volume": float(vals["6. volume"]),
         })
     df = pd.DataFrame(rows).set_index("Date").sort_index()
@@ -1664,7 +1664,7 @@ else:
         df = fetch_data(ticker, start_date, end_date)
 
     if df.empty:
-        st.error(f"⚠ No data found for '{ticker}'. Check symbol or try again in 30s — Yahoo Finance may be rate limiting. Try: AAPL, MSFT, TSLA")
+        st.error(f"⚠ No data found for '{ticker}'. Check symbol or try again in 30s — Alpha Vantage may be rate limiting (25 req/day on free tier). Try: AAPL, MSFT, TSLA")
         st.stop()
 
     st.success(f"✓ {len(df)} trading days loaded for {ticker}")
