@@ -695,29 +695,56 @@ def search_tickers(query):
 
 @st.cache_data(ttl=300)  # refresh every 5 minutes so prices stay current
 def fetch_data(ticker, start, end):
+    import time, requests as _req
     ticker = ticker.strip().upper()
     df = pd.DataFrame()
-    # Try yf.download first
-    for attempt in range(3):
+
+    _hdrs = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+
+    # Attempt 1: yf.download with browser headers
+    for _attempt in range(2):
         try:
+            _sess = _req.Session()
+            _sess.headers.update(_hdrs)
             df = yf.download(ticker, start=str(start), end=str(end),
-                             progress=False, auto_adjust=True, timeout=30)
+                             progress=False, auto_adjust=True, session=_sess)
             if not df.empty:
                 break
         except Exception:
             pass
-        import time; time.sleep(1)
-    # Fallback: try yf.Ticker().history()
+        time.sleep(2)
+
+    # Attempt 2: yf.Ticker().history()
     if df.empty:
         try:
-            t = yf.Ticker(ticker)
-            df = t.history(start=str(start), end=str(end), auto_adjust=True)
-            df.index = df.index.tz_localize(None) if hasattr(df.index, 'tz') and df.index.tz else df.index
+            _t = yf.Ticker(ticker)
+            df = _t.history(start=str(start), end=str(end), auto_adjust=True)
+            if hasattr(df.index, "tz") and df.index.tz:
+                df.index = df.index.tz_localize(None)
         except Exception:
             pass
+
+    # Attempt 3: Yahoo Finance chart API directly
+    if df.empty:
+        try:
+            _url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5y&includePrePost=false"
+            _r = _req.get(_url, headers=_hdrs, timeout=15)
+            _d = _r.json()
+            _ch = _d["chart"]["result"][0]
+            _ts = _ch["timestamp"]
+            _q  = _ch["indicators"]["quote"][0]
+            _ac = _ch["indicators"].get("adjclose", [{}])[0].get("adjclose", _q["close"])
+            df = pd.DataFrame({
+                "Open": _q["open"], "High": _q["high"],
+                "Low":  _q["low"],  "Close": _ac, "Volume": _q["volume"],
+            }, index=pd.to_datetime(_ts, unit="s").normalize())
+            df = df[(df.index >= str(start)) & (df.index <= str(end))].dropna()
+        except Exception:
+            pass
+
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
-    if hasattr(df.index, 'tz') and df.index.tz is not None:
+    if hasattr(df.index, "tz") and df.index.tz is not None:
         df.index = df.index.tz_localize(None)
     return df
 
