@@ -45,11 +45,42 @@ if "alert_signals" not in st.session_state:
     st.session_state.alert_signals = {}
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = [
-        {"ticker":"AAPL","name":"Apple Inc.",  "sector":"Technology • Consumer Electronics","qty":142.5,"avg_cost":162.01,"current_price":189.43,"pl":4210.40, "pl_pct":12.4},
-        {"ticker":"NVDA","name":"NVIDIA Corp", "sector":"Technology • Semiconductors",      "qty":85.0, "avg_cost":343.65,"current_price":485.12,"pl":12055.20,"pl_pct":42.1},
-        {"ticker":"MSFT","name":"Microsoft",   "sector":"Technology • Software",             "qty":62.0, "avg_cost":346.65,"current_price":328.79,"pl":-1104.50,"pl_pct":-4.2},
-        {"ticker":"TSLA","name":"Tesla, Inc.", "sector":"Consumer Cyclical • Auto",          "qty":45.0, "avg_cost":179.69,"current_price":242.68,"pl":2840.12, "pl_pct":18.5},
+        {"ticker":"AAPL","name":"Apple Inc.",  "sector":"Technology • Consumer Electronics","qty":142.5,"avg_cost":162.01},
+        {"ticker":"NVDA","name":"NVIDIA Corp", "sector":"Technology • Semiconductors",      "qty":85.0, "avg_cost":343.65},
+        {"ticker":"MSFT","name":"Microsoft",   "sector":"Technology • Software",             "qty":62.0, "avg_cost":346.65},
+        {"ticker":"TSLA","name":"Tesla, Inc.", "sector":"Consumer Cyclical • Auto",          "qty":45.0, "avg_cost":179.69},
     ]
+
+@st.cache_data(ttl=300)
+def fetch_live_portfolio(tickers):
+    """Fetch live prices for portfolio tickers. Cached for 5 minutes."""
+    prices = {}
+    prev_closes = {}
+    for t in tickers:
+        try:
+            info = yf.Ticker(t).fast_info
+            prices[t] = float(info.last_price)
+            prev_closes[t] = float(info.previous_close)
+        except Exception:
+            prices[t] = 0.0
+            prev_closes[t] = 0.0
+    return prices, prev_closes
+
+def get_live_portfolio():
+    """Return portfolio list with live current_price, pl, pl_pct, day_pl injected."""
+    base = st.session_state.portfolio
+    tickers = [h["ticker"] for h in base]
+    prices, prev_closes = fetch_live_portfolio(tuple(tickers))
+    enriched = []
+    for h in base:
+        t = h["ticker"]
+        cp = prices.get(t, 0.0)
+        pc = prev_closes.get(t, cp)
+        pl = (cp - h["avg_cost"]) * h["qty"]
+        pl_pct = ((cp - h["avg_cost"]) / h["avg_cost"] * 100) if h["avg_cost"] > 0 else 0
+        day_pl = (cp - pc) * h["qty"]
+        enriched.append({**h, "current_price": cp, "prev_close": pc, "pl": pl, "pl_pct": pl_pct, "day_pl": day_pl})
+    return enriched
 if "portfolio_history" not in st.session_state:
     st.session_state.portfolio_history = [
         {"date":"Today",     "type":"BUY",     "ticker":"NVDA","shares":12.5,"price":482.10,"amount":-6026.25},
@@ -695,56 +726,29 @@ def search_tickers(query):
 
 @st.cache_data(ttl=300)  # refresh every 5 minutes so prices stay current
 def fetch_data(ticker, start, end):
-    import time, requests as _req
     ticker = ticker.strip().upper()
     df = pd.DataFrame()
-
-    _hdrs = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-
-    # Attempt 1: yf.download with browser headers
-    for _attempt in range(2):
+    # Try yf.download first
+    for attempt in range(3):
         try:
-            _sess = _req.Session()
-            _sess.headers.update(_hdrs)
             df = yf.download(ticker, start=str(start), end=str(end),
-                             progress=False, auto_adjust=True, session=_sess)
+                             progress=False, auto_adjust=True, timeout=30)
             if not df.empty:
                 break
         except Exception:
             pass
-        time.sleep(2)
-
-    # Attempt 2: yf.Ticker().history()
+        import time; time.sleep(1)
+    # Fallback: try yf.Ticker().history()
     if df.empty:
         try:
-            _t = yf.Ticker(ticker)
-            df = _t.history(start=str(start), end=str(end), auto_adjust=True)
-            if hasattr(df.index, "tz") and df.index.tz:
-                df.index = df.index.tz_localize(None)
+            t = yf.Ticker(ticker)
+            df = t.history(start=str(start), end=str(end), auto_adjust=True)
+            df.index = df.index.tz_localize(None) if hasattr(df.index, 'tz') and df.index.tz else df.index
         except Exception:
             pass
-
-    # Attempt 3: Yahoo Finance chart API directly
-    if df.empty:
-        try:
-            _url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=5y&includePrePost=false"
-            _r = _req.get(_url, headers=_hdrs, timeout=15)
-            _d = _r.json()
-            _ch = _d["chart"]["result"][0]
-            _ts = _ch["timestamp"]
-            _q  = _ch["indicators"]["quote"][0]
-            _ac = _ch["indicators"].get("adjclose", [{}])[0].get("adjclose", _q["close"])
-            df = pd.DataFrame({
-                "Open": _q["open"], "High": _q["high"],
-                "Low":  _q["low"],  "Close": _ac, "Volume": _q["volume"],
-            }, index=pd.to_datetime(_ts, unit="s").normalize())
-            df = df[(df.index >= str(start)) & (df.index <= str(end))].dropna()
-        except Exception:
-            pass
-
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
-    if hasattr(df.index, "tz") and df.index.tz is not None:
+    if hasattr(df.index, 'tz') and df.index.tz is not None:
         df.index = df.index.tz_localize(None)
     return df
 
@@ -1824,13 +1828,13 @@ else:
 
         # ──────────────────────────────────────────────────────────────────────
         with port_tab:
-            port = st.session_state.portfolio
+            port = get_live_portfolio()
             hist = st.session_state.portfolio_history
             total_value    = sum(h["qty"] * h["current_price"] for h in port)
             total_invested = sum(h["qty"] * h["avg_cost"]       for h in port)
             total_pl       = total_value - total_invested
             total_pl_pct   = (total_pl / total_invested * 100) if total_invested > 0 else 0
-            day_pl         = sum(h["pl"] for h in port if h["pl"] > 0) * 0.1
+            day_pl         = sum(h.get("day_pl", 0) for h in port)
 
             st.markdown(f"""
             <div style="margin-bottom:1.2rem;">
@@ -1909,14 +1913,24 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # Market index cards
+            # Market index cards — live data
+            @st.cache_data(ttl=300)
+            def fetch_market_indices():
+                indices = {"S&P 500":"^GSPC","NASDAQ 100":"^NDX","DOW JONES":"^DJI","VIX":"^VIX"}
+                result = []
+                for name, sym in indices.items():
+                    try:
+                        fi = yf.Ticker(sym).fast_info
+                        price = fi.last_price
+                        prev  = fi.previous_close
+                        chg_pct = ((price - prev) / prev * 100) if prev else 0
+                        result.append((name, f"{price:,.2f}", f"{chg_pct:+.2f}%", "#00e5b0" if chg_pct >= 0 else "#ff6b6b"))
+                    except Exception:
+                        result.append((name, "N/A", "N/A", "#8c909f"))
+                return result
+
             mkt_cols = st.columns(4)
-            mkt_data = [
-                ("S&P 500","5,137.08","+1.24%","#00e5b0"),
-                ("NASDAQ 100","18,302.91","+2.10%","#00e5b0"),
-                ("DOW JONES","38,989.83","+0.68%","#00e5b0"),
-                ("VIX","14.23","-5.2%","#00e5b0"),
-            ]
+            mkt_data = fetch_market_indices()
             for i, (name, price, chg, col) in enumerate(mkt_data):
                 with mkt_cols[i]:
                     st.markdown(f"""
@@ -1931,13 +1945,24 @@ else:
             ms1, ms2 = st.columns([2,1])
             with ms1:
                 st.subheader("Sector Heat Map")
-                sectors = [
-                    ("Technology","+3.2%","#00e5b0"),("Healthcare","+1.1%","#00e5b0"),
-                    ("Financials","-0.4%","#ff6b6b"),("Energy","+0.8%","#00e5b0"),
-                    ("Consumer Disc.","+1.9%","#00e5b0"),("Industrials","-0.2%","#ff6b6b"),
-                    ("Utilities","+0.3%","#00e5b0"),("Real Estate","-1.2%","#ff6b6b"),
-                    ("Materials","+0.6%","#00e5b0"),("Comm. Services","+2.4%","#00e5b0"),
-                ]
+                @st.cache_data(ttl=300)
+                def fetch_sector_etfs():
+                    sector_etfs = {
+                        "Technology":"XLK","Healthcare":"XLV","Financials":"XLF",
+                        "Energy":"XLE","Consumer Disc.":"XLY","Industrials":"XLI",
+                        "Utilities":"XLU","Real Estate":"XLRE","Materials":"XLB","Comm. Services":"XLC"
+                    }
+                    result = []
+                    for name, sym in sector_etfs.items():
+                        try:
+                            fi = yf.Ticker(sym).fast_info
+                            chg_pct = ((fi.last_price - fi.previous_close) / fi.previous_close * 100) if fi.previous_close else 0
+                            col = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
+                            result.append((name, f"{chg_pct:+.1f}%", col))
+                        except Exception:
+                            result.append((name, "N/A", "#8c909f"))
+                    return result
+                sectors = fetch_sector_etfs()
                 cols5 = st.columns(5)
                 for i, (name, chg, col) in enumerate(sectors):
                     with cols5[i % 5]:
