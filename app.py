@@ -13,7 +13,7 @@ import os
 warnings.filterwarnings('ignore')
 
 # ── Alpha Vantage config ───────────────────────────────────────────────────────
-AV_KEY = " WNJGHWWDDOZ3OYFT "
+AV_KEY = "RTPYOZDYUO352HK8"
 AV_BASE = "https://www.alphavantage.co/query"
 
 @st.cache_data(ttl=300)
@@ -22,7 +22,7 @@ def av_get_daily(ticker):
     r = requests.get(AV_BASE, params={
         "function": "TIME_SERIES_DAILY",
         "symbol": ticker,
-        "outputsize": "full",
+        "outputsize": "compact",
         "datatype": "json",
         "apikey": AV_KEY
     }, timeout=30)
