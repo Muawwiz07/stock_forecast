@@ -38,7 +38,7 @@ def av_get_daily(ticker):
             "High":   float(vals["2. high"]),
             "Low":    float(vals["3. low"]),
             "Close":  float(vals["4. close"]),
-            "Volume": float(vals["6. volume"]),
+            "Volume": float(vals["5. volume"]),
         })
     df = pd.DataFrame(rows).set_index("Date").sort_index()
     return df
