@@ -907,7 +907,7 @@ QUESTIONABLE_TICKERS = {
 HARAM_SECTORS_KW = ["bank","insurance","casino","gambling","alcohol","tobacco",
                     "brewing","distill","porn","adult","weapons","defense","firearm"]
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def get_shariah_data(ticker_sym):
     t = yf.Ticker(ticker_sym); info = {}
     try:
@@ -1030,7 +1030,25 @@ if st.session_state.user is None:
 
     _action = _qp.get("auth_action", "")
 
-    if _action == "login":
+    if _action == "login_direct":
+        _email    = _qp.get("auth_email", "")
+        _password_b64 = _qp.get("auth_password", "")
+        try:
+            import base64 as _b64
+            try: _password = _b64.b64decode(_password_b64).decode("utf-8")
+            except Exception: _password = _password_b64
+            res = supabase.auth.sign_in_with_password({"email": _email, "password": _password})
+            if res.user:
+                st.session_state.user = res.user
+                st.query_params.clear()
+                st.rerun()
+            else:
+                _auth_error = "Invalid credentials. Please try again."
+        except Exception as e:
+            _auth_error = str(e)
+        st.query_params.clear()
+
+    elif _action == "login":
         _token = _qp.get("auth_token", "")
         _email = _qp.get("auth_email", "")
         try:
@@ -1050,8 +1068,11 @@ if st.session_state.user is None:
 
     elif _action == "signup":
         _email    = _qp.get("auth_email", "")
-        _password = _qp.get("auth_password", "")
+        _password_b64 = _qp.get("auth_password", "")
         try:
+            import base64 as _b64
+            try: _password = _b64.b64decode(_password_b64).decode("utf-8")
+            except Exception: _password = _password_b64
             res = supabase.auth.sign_up({"email": _email, "password": _password})
             if res.user:
                 _auth_success = "Account created! Check your email to confirm, then log in."
@@ -1331,41 +1352,22 @@ function submitLogin(){{
   const email=document.getElementById('login-email').value.trim();
   const password=document.getElementById('login-password').value;
   const msg=document.getElementById('msg-area');
-  if(!email||!password){{msg.innerHTML='<div class="msg-box msg-error">⚠ Please enter your email and access key.</div>';return;}}
-  msg.innerHTML='<div class="msg-box msg-success">◎ Authenticating…</div>';
-  fetch('{SUPABASE_URL}/auth/v1/token?grant_type=password',{{
-    method:'POST',
-    headers:{{'Content-Type':'application/json','apikey':'{SUPABASE_KEY}','Authorization':'Bearer {SUPABASE_KEY}'}},
-    body:JSON.stringify({{email:email,password:password}})
-  }}).then(r=>r.json()).then(data=>{{
-    if(data.access_token){{
-      const params=new URLSearchParams({{auth_action:'login',auth_token:data.access_token,auth_email:email}});
-      window.top.location.href=window.top.location.pathname+'?'+params.toString();
-    }}else{{
-      msg.innerHTML='<div class="msg-box msg-error">⚠ '+(data.error_description||data.msg||'Invalid credentials')+'</div>';
-    }}
-  }}).catch(e=>{{msg.innerHTML='<div class="msg-box msg-error">⚠ Network error</div>';}});
+  if(!email||!password){{msg.innerHTML='<div class="msg-box msg-error">&#9888; Please enter your email and access key.</div>';return;}}
+  msg.innerHTML='<div class="msg-box msg-success">&#9711; Authenticating&#8230;</div>';
+  const params=new URLSearchParams({{auth_action:'login_direct',auth_email:email,auth_password:btoa(password)}});
+  window.top.location.href=window.top.location.pathname+'?'+params.toString();
 }}
 function submitSignup(){{
   const email=document.getElementById('signup-email').value.trim();
   const password=document.getElementById('signup-password').value;
   const confirm=document.getElementById('signup-confirm').value;
   const msg=document.getElementById('msg-area');
-  if(!email||!password||!confirm){{msg.innerHTML='<div class="msg-box msg-error">⚠ Please fill in all fields.</div>';return;}}
-  if(password!==confirm){{msg.innerHTML='<div class="msg-box msg-error">⚠ Passwords do not match.</div>';return;}}
-  if(password.length<6){{msg.innerHTML='<div class="msg-box msg-error">⚠ Password must be at least 6 characters.</div>';return;}}
-  msg.innerHTML='<div class="msg-box msg-success">◎ Initializing terminal…</div>';
-  fetch('{SUPABASE_URL}/auth/v1/signup',{{
-    method:'POST',
-    headers:{{'Content-Type':'application/json','apikey':'{SUPABASE_KEY}','Authorization':'Bearer {SUPABASE_KEY}'}},
-    body:JSON.stringify({{email:email,password:password}})
-  }}).then(r=>r.json()).then(data=>{{
-    if(data.id||data.access_token){{
-      msg.innerHTML='<div class="msg-box msg-success">✓ Account created! Check your email to confirm, then log in.</div>';
-    }}else{{
-      msg.innerHTML='<div class="msg-box msg-error">⚠ '+(data.error_description||data.msg||'Sign up failed')+'</div>';
-    }}
-  }}).catch(e=>{{msg.innerHTML='<div class="msg-box msg-error">⚠ Network error</div>';}});
+  if(!email||!password||!confirm){{msg.innerHTML='<div class="msg-box msg-error">&#9888; Please fill in all fields.</div>';return;}}
+  if(password!==confirm){{msg.innerHTML='<div class="msg-box msg-error">&#9888; Passwords do not match.</div>';return;}}
+  if(password.length<6){{msg.innerHTML='<div class="msg-box msg-error">&#9888; Password must be at least 6 characters.</div>';return;}}
+  msg.innerHTML='<div class="msg-box msg-success">&#9711; Initializing terminal&#8230;</div>';
+  const params=new URLSearchParams({{auth_action:'signup',auth_email:email,auth_password:btoa(password)}});
+  window.top.location.href=window.top.location.pathname+'?'+params.toString();
 }}
 document.addEventListener('keydown',function(e){{
   if(e.key!=='Enter')return;
@@ -1469,7 +1471,10 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     if st.button("⏏  Logout", use_container_width=True, key="logout_btn"):
-        supabase.auth.sign_out()
+        try:
+            supabase.auth.sign_out()
+        except Exception:
+            pass
         st.session_state.user = None
         st.rerun()
 
@@ -2346,11 +2351,19 @@ else:
                 try:
                     from textblob import TextBlob
                     t_obj = yf.Ticker(ticker)
-                    news  = t_obj.news
+                    try:
+                        raw_news = t_obj.news
+                    except Exception:
+                        raw_news = []
+                    news = raw_news if isinstance(raw_news, list) else []
                     if news:
                         scored = []
                         for item in news[:10]:
-                            title = item.get("title","")
+                            # yfinance 0.2.x returns dicts; newer versions may nest under 'content'
+                            if isinstance(item, dict):
+                                title = item.get("title") or item.get("content", {}).get("title","") if isinstance(item.get("content"), dict) else item.get("title","")
+                            else:
+                                title = ""
                             if title:
                                 pol = TextBlob(title).sentiment.polarity
                                 scored.append({"headline":title,"polarity":pol})
