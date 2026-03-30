@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
-import yfinance as yf
+import requests
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.preprocessing import MinMaxScaler
@@ -11,9 +11,86 @@ from supabase import create_client
 import warnings
 import os
 warnings.filterwarnings('ignore')
-import nltk
 
-# Download NLTK data only if not already present
+# ── Alpha Vantage config ───────────────────────────────────────────────────────
+AV_KEY = "RTPYOZDYUO352HK8"
+AV_BASE = "https://www.alphavantage.co/query"
+
+@st.cache_data(ttl=300)
+def av_get_daily(ticker):
+    """Fetch full daily OHLCV from Alpha Vantage. Returns DataFrame."""
+    r = requests.get(AV_BASE, params={
+        "function": "TIME_SERIES_DAILY_ADJUSTED",
+        "symbol": ticker,
+        "outputsize": "full",
+        "datatype": "json",
+        "apikey": AV_KEY
+    }, timeout=30)
+    data = r.json()
+    ts = data.get("Time Series (Daily)", {})
+    if not ts:
+        return pd.DataFrame()
+    rows = []
+    for date, vals in ts.items():
+        rows.append({
+            "Date": pd.to_datetime(date),
+            "Open":   float(vals["1. open"]),
+            "High":   float(vals["2. high"]),
+            "Low":    float(vals["3. low"]),
+            "Close":  float(vals["5. adjusted close"]),
+            "Volume": float(vals["6. volume"]),
+        })
+    df = pd.DataFrame(rows).set_index("Date").sort_index()
+    return df
+
+@st.cache_data(ttl=60)
+def av_get_quote(ticker):
+    """Fetch live quote from Alpha Vantage. Returns dict with price, change%, prev_close."""
+    r = requests.get(AV_BASE, params={
+        "function": "GLOBAL_QUOTE",
+        "symbol": ticker,
+        "apikey": AV_KEY
+    }, timeout=15)
+    q = r.json().get("Global Quote", {})
+    if not q:
+        return {"price": 0.0, "change_pct": 0.0, "prev_close": 0.0, "open": 0.0}
+    price      = float(q.get("05. price", 0))
+    prev_close = float(q.get("08. previous close", 0))
+    change_pct = float(q.get("10. change percent", "0").replace("%",""))
+    open_price = float(q.get("02. open", 0))
+    return {"price": price, "change_pct": change_pct, "prev_close": prev_close, "open": open_price}
+
+@st.cache_data(ttl=3600)
+def av_get_overview(ticker):
+    """Fetch company overview (sector, industry, market cap etc) from Alpha Vantage."""
+    r = requests.get(AV_BASE, params={
+        "function": "OVERVIEW",
+        "symbol": ticker,
+        "apikey": AV_KEY
+    }, timeout=15)
+    return r.json()
+
+@st.cache_data(ttl=300)
+def av_search(query):
+    """Search tickers via Alpha Vantage symbol search."""
+    r = requests.get(AV_BASE, params={
+        "function": "SYMBOL_SEARCH",
+        "keywords": query,
+        "apikey": AV_KEY
+    }, timeout=15)
+    return r.json().get("bestMatches", [])
+
+@st.cache_data(ttl=300)
+def av_get_news(ticker):
+    """Fetch news sentiment from Alpha Vantage."""
+    r = requests.get(AV_BASE, params={
+        "function": "NEWS_SENTIMENT",
+        "tickers": ticker,
+        "limit": 10,
+        "apikey": AV_KEY
+    }, timeout=15)
+    return r.json().get("feed", [])
+import nltk
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -45,42 +122,11 @@ if "alert_signals" not in st.session_state:
     st.session_state.alert_signals = {}
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = [
-        {"ticker":"AAPL","name":"Apple Inc.",  "sector":"Technology • Consumer Electronics","qty":142.5,"avg_cost":162.01},
-        {"ticker":"NVDA","name":"NVIDIA Corp", "sector":"Technology • Semiconductors",      "qty":85.0, "avg_cost":343.65},
-        {"ticker":"MSFT","name":"Microsoft",   "sector":"Technology • Software",             "qty":62.0, "avg_cost":346.65},
-        {"ticker":"TSLA","name":"Tesla, Inc.", "sector":"Consumer Cyclical • Auto",          "qty":45.0, "avg_cost":179.69},
+        {"ticker":"AAPL","name":"Apple Inc.",  "sector":"Technology • Consumer Electronics","qty":142.5,"avg_cost":162.01,"current_price":189.43,"pl":4210.40, "pl_pct":12.4},
+        {"ticker":"NVDA","name":"NVIDIA Corp", "sector":"Technology • Semiconductors",      "qty":85.0, "avg_cost":343.65,"current_price":485.12,"pl":12055.20,"pl_pct":42.1},
+        {"ticker":"MSFT","name":"Microsoft",   "sector":"Technology • Software",             "qty":62.0, "avg_cost":346.65,"current_price":328.79,"pl":-1104.50,"pl_pct":-4.2},
+        {"ticker":"TSLA","name":"Tesla, Inc.", "sector":"Consumer Cyclical • Auto",          "qty":45.0, "avg_cost":179.69,"current_price":242.68,"pl":2840.12, "pl_pct":18.5},
     ]
-
-@st.cache_data(ttl=300)
-def fetch_live_portfolio(tickers):
-    """Fetch live prices for portfolio tickers. Cached for 5 minutes."""
-    prices = {}
-    prev_closes = {}
-    for t in tickers:
-        try:
-            info = yf.Ticker(t).fast_info
-            prices[t] = float(info.last_price)
-            prev_closes[t] = float(info.previous_close)
-        except Exception:
-            prices[t] = 0.0
-            prev_closes[t] = 0.0
-    return prices, prev_closes
-
-def get_live_portfolio():
-    """Return portfolio list with live current_price, pl, pl_pct, day_pl injected."""
-    base = st.session_state.portfolio
-    tickers = [h["ticker"] for h in base]
-    prices, prev_closes = fetch_live_portfolio(tuple(tickers))
-    enriched = []
-    for h in base:
-        t = h["ticker"]
-        cp = prices.get(t, 0.0)
-        pc = prev_closes.get(t, cp)
-        pl = (cp - h["avg_cost"]) * h["qty"]
-        pl_pct = ((cp - h["avg_cost"]) / h["avg_cost"] * 100) if h["avg_cost"] > 0 else 0
-        day_pl = (cp - pc) * h["qty"]
-        enriched.append({**h, "current_price": cp, "prev_close": pc, "pl": pl, "pl_pct": pl_pct, "day_pl": day_pl})
-    return enriched
 if "portfolio_history" not in st.session_state:
     st.session_state.portfolio_history = [
         {"date":"Today",     "type":"BUY",     "ticker":"NVDA","shares":12.5,"price":482.10,"amount":-6026.25},
@@ -711,45 +757,26 @@ def search_tickers(query):
         if sym != q and (ql in name.lower() or ql in sym.lower()):
             results.append(f"{sym} — {name}")
     try:
-        res = yf.Search(query, max_results=6)
-        for r in res.quotes:
-            sym  = r.get("symbol","")
-            name = r.get("longname") or r.get("shortname") or sym
-            exch = r.get("exchange","")
-            qt   = r.get("quoteType","")
-            entry = f"{sym} — {name} ({exch})"
-            if sym and qt in ("EQUITY","ETF","INDEX") and entry not in results:
+        matches = av_search(query)
+        for m in matches:
+            sym  = m.get("1. symbol","")
+            name = m.get("2. name","")
+            mtype = m.get("3. type","")
+            entry = f"{sym} — {name}"
+            if sym and mtype in ("Equity","ETF") and entry not in results:
                 results.append(entry)
     except Exception:
         pass
     return results[:10]
 
-@st.cache_data(ttl=300)  # refresh every 5 minutes so prices stay current
+@st.cache_data(ttl=300)
 def fetch_data(ticker, start, end):
     ticker = ticker.strip().upper()
-    df = pd.DataFrame()
-    # Try yf.download first
-    for attempt in range(3):
-        try:
-            df = yf.download(ticker, start=str(start), end=str(end),
-                             progress=False, auto_adjust=True, timeout=30)
-            if not df.empty:
-                break
-        except Exception:
-            pass
-        import time; time.sleep(1)
-    # Fallback: try yf.Ticker().history()
+    df = av_get_daily(ticker)
     if df.empty:
-        try:
-            t = yf.Ticker(ticker)
-            df = t.history(start=str(start), end=str(end), auto_adjust=True)
-            df.index = df.index.tz_localize(None) if hasattr(df.index, 'tz') and df.index.tz else df.index
-        except Exception:
-            pass
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-    if hasattr(df.index, 'tz') and df.index.tz is not None:
-        df.index = df.index.tz_localize(None)
+        return df
+    # Filter by date range
+    df = df[(df.index >= pd.to_datetime(start)) & (df.index <= pd.to_datetime(end))]
     return df
 
 def compute_rsi(series, period=14):
@@ -959,26 +986,29 @@ HARAM_SECTORS_KW = ["bank","insurance","casino","gambling","alcohol","tobacco",
 
 @st.cache_data(ttl=3600)
 def get_shariah_data(ticker_sym):
-    t = yf.Ticker(ticker_sym); info = {}
-    try:
-        raw = t.info
-        if raw and len(raw) > 5: info = raw
-    except Exception: pass
-    if not info:
-        try:
-            fi = t.fast_info
-            info = {"marketCap": getattr(fi,"market_cap",0) or 0, "sector":"Unknown",
-                    "industry":"Unknown","longName":ticker_sym,"totalDebt":0,"totalAssets":0,"totalCash":0}
-        except Exception: pass
-    if not info: return None
+    info = av_get_overview(ticker_sym)
+    if not info or "Symbol" not in info:
+        return None
     def _safe(k, d=0):
-        v = info.get(k, d); return v if v is not None else d
-    mc = _safe("marketCap", 1) or 1; td = _safe("totalDebt", 0)
-    ta = _safe("totalAssets", 1) or 1; tc = _safe("totalCash", 0)
-    return {"debt_to_mktcap":td/mc,"debt_to_assets":td/ta,"cash_to_assets":tc/ta,
-            "market_cap":mc,"total_debt":td,"total_assets":ta,"total_cash":tc,
-            "sector":_safe("sector","Unknown"),"industry":_safe("industry","Unknown"),
-            "company_name":_safe("longName",ticker_sym)}
+        v = info.get(k, d)
+        try: return float(v) if v not in (None, "None", "-", "") else d
+        except: return d
+    mc = _safe("MarketCapitalization", 1) or 1
+    td = _safe("LongTermDebtUSD", 0) or _safe("TotalDebt", 0)
+    ta = _safe("TotalAssets", 1) or 1
+    tc = _safe("CashAndCashEquivalentsAtCarryingValue", 0)
+    return {
+        "debt_to_mktcap": td/mc,
+        "debt_to_assets": td/ta,
+        "cash_to_assets": tc/ta,
+        "market_cap": mc,
+        "total_debt": td,
+        "total_assets": ta,
+        "total_cash": tc,
+        "sector":   info.get("Sector","Unknown"),
+        "industry": info.get("Industry","Unknown"),
+        "company_name": info.get("Name", ticker_sym)
+    }
 
 def check_shariah_compliance(ticker_sym, data):
     t = ticker_sym.upper(); ind_lower = data["industry"].lower(); haram_hit = None
@@ -1503,9 +1533,9 @@ with st.sidebar:
             wc1, wc2 = st.columns([3,1])
             with wc1:
                 try:
-                    _qt   = yf.Ticker(wl_sym).fast_info
-                    _px   = _qt.get("last_price") or _qt.get("regularMarketPrice") or 0
-                    _chg  = _qt.get("regularMarketChangePercent") or 0
+                    _qt   = av_get_quote(wl_sym)
+                    _px   = _qt["price"]
+                    _chg  = _qt["change_pct"]
                     _col  = "#00e5b0" if _chg >= 0 else "#ff6b6b"
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;padding:.2rem 0;"><span style="color:#424754;">{wl_sym}</span> <span style="color:{_col};">{_sign} ${_px:.2f}</span></div>', unsafe_allow_html=True)
@@ -1571,9 +1601,9 @@ if not run_btn:
         for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
             with wl_cols[i % 4]:
                 try:
-                    _fi   = yf.Ticker(wl_sym).fast_info
-                    _px   = _fi.get("last_price") or _fi.get("regularMarketPrice") or 0
-                    _chg  = _fi.get("regularMarketChangePercent") or 0
+                    _fi   = av_get_quote(wl_sym)
+                    _px   = _fi["price"]
+                    _chg  = _fi["change_pct"]
                     _col  = "#00e5b0" if _chg >= 0 else "#ff6b6b"
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(f"""
@@ -1828,13 +1858,13 @@ else:
 
         # ──────────────────────────────────────────────────────────────────────
         with port_tab:
-            port = get_live_portfolio()
+            port = st.session_state.portfolio
             hist = st.session_state.portfolio_history
             total_value    = sum(h["qty"] * h["current_price"] for h in port)
             total_invested = sum(h["qty"] * h["avg_cost"]       for h in port)
             total_pl       = total_value - total_invested
             total_pl_pct   = (total_pl / total_invested * 100) if total_invested > 0 else 0
-            day_pl         = sum(h.get("day_pl", 0) for h in port)
+            day_pl         = sum(h["pl"] for h in port if h["pl"] > 0) * 0.1
 
             st.markdown(f"""
             <div style="margin-bottom:1.2rem;">
@@ -1913,24 +1943,14 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # Market index cards — live data
-            @st.cache_data(ttl=300)
-            def fetch_market_indices():
-                indices = {"S&P 500":"^GSPC","NASDAQ 100":"^NDX","DOW JONES":"^DJI","VIX":"^VIX"}
-                result = []
-                for name, sym in indices.items():
-                    try:
-                        fi = yf.Ticker(sym).fast_info
-                        price = fi.last_price
-                        prev  = fi.previous_close
-                        chg_pct = ((price - prev) / prev * 100) if prev else 0
-                        result.append((name, f"{price:,.2f}", f"{chg_pct:+.2f}%", "#00e5b0" if chg_pct >= 0 else "#ff6b6b"))
-                    except Exception:
-                        result.append((name, "N/A", "N/A", "#8c909f"))
-                return result
-
+            # Market index cards
             mkt_cols = st.columns(4)
-            mkt_data = fetch_market_indices()
+            mkt_data = [
+                ("S&P 500","5,137.08","+1.24%","#00e5b0"),
+                ("NASDAQ 100","18,302.91","+2.10%","#00e5b0"),
+                ("DOW JONES","38,989.83","+0.68%","#00e5b0"),
+                ("VIX","14.23","-5.2%","#00e5b0"),
+            ]
             for i, (name, price, chg, col) in enumerate(mkt_data):
                 with mkt_cols[i]:
                     st.markdown(f"""
@@ -1945,24 +1965,13 @@ else:
             ms1, ms2 = st.columns([2,1])
             with ms1:
                 st.subheader("Sector Heat Map")
-                @st.cache_data(ttl=300)
-                def fetch_sector_etfs():
-                    sector_etfs = {
-                        "Technology":"XLK","Healthcare":"XLV","Financials":"XLF",
-                        "Energy":"XLE","Consumer Disc.":"XLY","Industrials":"XLI",
-                        "Utilities":"XLU","Real Estate":"XLRE","Materials":"XLB","Comm. Services":"XLC"
-                    }
-                    result = []
-                    for name, sym in sector_etfs.items():
-                        try:
-                            fi = yf.Ticker(sym).fast_info
-                            chg_pct = ((fi.last_price - fi.previous_close) / fi.previous_close * 100) if fi.previous_close else 0
-                            col = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
-                            result.append((name, f"{chg_pct:+.1f}%", col))
-                        except Exception:
-                            result.append((name, "N/A", "#8c909f"))
-                    return result
-                sectors = fetch_sector_etfs()
+                sectors = [
+                    ("Technology","+3.2%","#00e5b0"),("Healthcare","+1.1%","#00e5b0"),
+                    ("Financials","-0.4%","#ff6b6b"),("Energy","+0.8%","#00e5b0"),
+                    ("Consumer Disc.","+1.9%","#00e5b0"),("Industrials","-0.2%","#ff6b6b"),
+                    ("Utilities","+0.3%","#00e5b0"),("Real Estate","-1.2%","#ff6b6b"),
+                    ("Materials","+0.6%","#00e5b0"),("Comm. Services","+2.4%","#00e5b0"),
+                ]
                 cols5 = st.columns(5)
                 for i, (name, chg, col) in enumerate(sectors):
                     with cols5[i % 5]:
@@ -2296,23 +2305,14 @@ else:
                 st.subheader("News Sentiment NLP")
                 try:
                     from textblob import TextBlob
-                    t_obj = yf.Ticker(ticker)
-                    try:
-                        raw_news = t_obj.news
-                    except Exception:
-                        raw_news = []
-                    news = raw_news if isinstance(raw_news, list) else []
-                    if news:
+                    raw_news = av_get_news(ticker)
+                    if raw_news:
                         scored = []
-                        for item in news[:10]:
-                            # yfinance 0.2.x returns dicts; newer versions may nest under 'content'
-                            if isinstance(item, dict):
-                                title = item.get("title") or item.get("content", {}).get("title","") if isinstance(item.get("content"), dict) else item.get("title","")
-                            else:
-                                title = ""
+                        for item in raw_news[:10]:
+                            title = item.get("title", "")
                             if title:
                                 pol = TextBlob(title).sentiment.polarity
-                                scored.append({"headline":title,"polarity":pol})
+                                scored.append({"headline": title, "polarity": pol})
                         if scored:
                             sc_df = pd.DataFrame(scored)
                             avg_polarity = sc_df["polarity"].mean()
@@ -2324,11 +2324,11 @@ else:
                             fig_sent.add_vline(x=0, line_color=C_GREY)
                             fig_sent.add_vline(x=avg_polarity, line_dash="dot", line_color=sent_color, line_width=1.5)
                             fig_sent.update_layout(**PLOTLY_LAYOUT,
-                                title=dict(text=f"{ticker} · Headline Sentiment (TextBlob)", font=dict(color=C_GREEN, size=11)),
+                                title=dict(text=f"{ticker} · Headline Sentiment (Alpha Vantage + TextBlob)", font=dict(color=C_GREEN, size=11)),
                                 height=max(220, len(scored)*32), xaxis_title="Polarity (negative ← 0 → positive)",
                                 xaxis=dict(range=[-1,1], gridcolor="#2d3449", linecolor="#2d3449", zeroline=False, tickfont=dict(color="#424754",size=9)))
                             st.plotly_chart(fig_sent, use_container_width=True)
-                            st.caption("⚠ Sentiment is based on headline text only — not article content. Use as supplementary signal.")
+                            st.caption("⚠ Sentiment is based on headline text only. Powered by Alpha Vantage News API.")
                     else:
                         st.info("No recent news found for this ticker.")
                 except ImportError:
