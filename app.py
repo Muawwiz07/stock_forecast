@@ -1031,16 +1031,19 @@ if st.session_state.user is None:
     _action = _qp.get("auth_action", "")
 
     if _action == "login":
-        _email    = _qp.get("auth_email", "")
-        _password = _qp.get("auth_password", "")
+        _token = _qp.get("auth_token", "")
+        _email = _qp.get("auth_email", "")
         try:
-            res = supabase.auth.sign_in_with_password({"email": _email, "password": _password})
-            if res.user:
-                st.session_state.user = res.user
-                st.query_params.clear()
-                st.rerun()
+            if _token:
+                res = supabase.auth.get_user(_token)
+                if res.user:
+                    st.session_state.user = res.user
+                    st.query_params.clear()
+                    st.rerun()
+                else:
+                    _auth_error = "Invalid session. Please try again."
             else:
-                _auth_error = "Invalid credentials. Please try again."
+                _auth_error = "No token received."
         except Exception as e:
             _auth_error = str(e)
         st.query_params.clear()
@@ -1211,7 +1214,7 @@ input::placeholder{{color:rgba(224,227,230,0.2);}}
   <span><span class="t-sym">NVDA</span><span class="t-up">▲ $875.33 +2.1%</span></span>
 </div></div>
 <div class="top-nav">
-  <div><span class="brand-logo">Stockcast</span><span class="brand-tag">Developed by Muawwiz Ghani</span></div>
+  <div><span class="brand-logo">Stockcast</span><span class="brand-tag">AUTH_GATEWAY_v4.02</span></div>
   <div><span class="status-dot"></span><span class="status-txt">Neural Engine Active · Live Alpha Stream</span></div>
 </div>
 <div class="hero">
@@ -1330,8 +1333,18 @@ function submitLogin(){{
   const msg=document.getElementById('msg-area');
   if(!email||!password){{msg.innerHTML='<div class="msg-box msg-error">⚠ Please enter your email and access key.</div>';return;}}
   msg.innerHTML='<div class="msg-box msg-success">◎ Authenticating…</div>';
-  const params=new URLSearchParams({{auth_action:'login',auth_email:email,auth_password:password}});
-  window.top.location.href=window.top.location.pathname+'?'+params.toString();
+  fetch('{SUPABASE_URL}/auth/v1/token?grant_type=password',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json','apikey':'{SUPABASE_KEY}','Authorization':'Bearer {SUPABASE_KEY}'}},
+    body:JSON.stringify({{email:email,password:password}})
+  }}).then(r=>r.json()).then(data=>{{
+    if(data.access_token){{
+      const params=new URLSearchParams({{auth_action:'login',auth_token:data.access_token,auth_email:email}});
+      window.top.location.href=window.top.location.pathname+'?'+params.toString();
+    }}else{{
+      msg.innerHTML='<div class="msg-box msg-error">⚠ '+(data.error_description||data.msg||'Invalid credentials')+'</div>';
+    }}
+  }}).catch(e=>{{msg.innerHTML='<div class="msg-box msg-error">⚠ Network error</div>';}});
 }}
 function submitSignup(){{
   const email=document.getElementById('signup-email').value.trim();
@@ -1342,8 +1355,17 @@ function submitSignup(){{
   if(password!==confirm){{msg.innerHTML='<div class="msg-box msg-error">⚠ Passwords do not match.</div>';return;}}
   if(password.length<6){{msg.innerHTML='<div class="msg-box msg-error">⚠ Password must be at least 6 characters.</div>';return;}}
   msg.innerHTML='<div class="msg-box msg-success">◎ Initializing terminal…</div>';
-  const params=new URLSearchParams({{auth_action:'signup',auth_email:email,auth_password:password}});
-  window.top.location.href=window.top.location.pathname+'?'+params.toString();
+  fetch('{SUPABASE_URL}/auth/v1/signup',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json','apikey':'{SUPABASE_KEY}','Authorization':'Bearer {SUPABASE_KEY}'}},
+    body:JSON.stringify({{email:email,password:password}})
+  }}).then(r=>r.json()).then(data=>{{
+    if(data.id||data.access_token){{
+      msg.innerHTML='<div class="msg-box msg-success">✓ Account created! Check your email to confirm, then log in.</div>';
+    }}else{{
+      msg.innerHTML='<div class="msg-box msg-error">⚠ '+(data.error_description||data.msg||'Sign up failed')+'</div>';
+    }}
+  }}).catch(e=>{{msg.innerHTML='<div class="msg-box msg-error">⚠ Network error</div>';}});
 }}
 document.addEventListener('keydown',function(e){{
   if(e.key!=='Enter')return;
