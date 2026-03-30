@@ -13,7 +13,7 @@ import os
 warnings.filterwarnings('ignore')
 
 # ── Alpha Vantage config ───────────────────────────────────────────────────────
-AV_KEY = "RTPYOZDYUO352HK8"
+AV_KEY = " WNJGHWWDDOZ3OYFT "
 AV_BASE = "https://www.alphavantage.co/query"
 
 @st.cache_data(ttl=300)
