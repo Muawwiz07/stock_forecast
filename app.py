@@ -169,6 +169,107 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# ── Portfolio Supabase helpers ─────────────────────────────────────────────────
+# Required Supabase tables (run once in your Supabase SQL editor):
+#
+#   CREATE TABLE IF NOT EXISTS portfolio_holdings (
+#     id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+#     user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+#     ticker       TEXT NOT NULL,
+#     name         TEXT,
+#     sector       TEXT,
+#     qty          FLOAT NOT NULL,
+#     avg_cost     FLOAT NOT NULL,
+#     current_price FLOAT,
+#     pl           FLOAT,
+#     pl_pct       FLOAT,
+#     created_at   TIMESTAMPTZ DEFAULT NOW(),
+#     UNIQUE(user_id, ticker)
+#   );
+#
+#   CREATE TABLE IF NOT EXISTS portfolio_history (
+#     id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+#     user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+#     date       TEXT,
+#     type       TEXT,
+#     ticker     TEXT,
+#     shares     FLOAT,
+#     price      FLOAT,
+#     amount     FLOAT,
+#     created_at TIMESTAMPTZ DEFAULT NOW()
+#   );
+
+def _sb_load_portfolio(user_id: str) -> list:
+    try:
+        res = supabase.table("portfolio_holdings").select("*").eq("user_id", user_id).execute()
+        rows = res.data or []
+        # Sanitize: fill None numeric fields so UI arithmetic never crashes
+        for r in rows:
+            r["current_price"] = float(r.get("current_price") or r.get("avg_cost") or 0.0)
+            r["pl"]      = float(r.get("pl")      or 0.0)
+            r["pl_pct"]  = float(r.get("pl_pct")  or 0.0)
+            r["qty"]     = float(r.get("qty")      or 0.0)
+            r["avg_cost"]= float(r.get("avg_cost") or 0.0)
+            r["name"]    = r.get("name")   or r.get("ticker", "")
+            r["sector"]  = r.get("sector") or "Unknown"
+        return rows
+    except Exception:
+        return []
+
+def _sb_load_history(user_id: str) -> list:
+    try:
+        res = (supabase.table("portfolio_history").select("*")
+               .eq("user_id", user_id).order("created_at", desc=True).limit(100).execute())
+        return res.data or []
+    except Exception:
+        return []
+
+def _sb_upsert_holding(user_id: str, h: dict):
+    try:
+        supabase.table("portfolio_holdings").upsert({
+            "user_id": user_id,
+            "ticker":        h["ticker"],
+            "name":          h.get("name", h["ticker"]),
+            "sector":        h.get("sector", "Unknown"),
+            "qty":           h["qty"],
+            "avg_cost":      h["avg_cost"],
+            "current_price": h.get("current_price", h["avg_cost"]),
+            "pl":            h.get("pl", 0.0),
+            "pl_pct":        h.get("pl_pct", 0.0),
+        }, on_conflict="user_id,ticker").execute()
+    except Exception:
+        pass
+
+def _sb_delete_holding(user_id: str, ticker: str):
+    try:
+        supabase.table("portfolio_holdings").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
+    except Exception:
+        pass
+
+def _sb_insert_history(user_id: str, record: dict):
+    try:
+        supabase.table("portfolio_history").insert({
+            "user_id": user_id,
+            "date":    record.get("date"),
+            "type":    record.get("type"),
+            "ticker":  record.get("ticker"),
+            "shares":  record.get("shares"),
+            "price":   record.get("price"),
+            "amount":  record.get("amount"),
+        }).execute()
+    except Exception:
+        pass
+
+def _sb_update_prices(user_id: str, holdings: list):
+    for h in holdings:
+        try:
+            supabase.table("portfolio_holdings").update({
+                "current_price": h["current_price"],
+                "pl":            h["pl"],
+                "pl_pct":        h["pl_pct"],
+            }).eq("user_id", user_id).eq("ticker", h["ticker"]).execute()
+        except Exception:
+            pass
 
 # ── Multi-language support ─────────────────────────────────────────────────────
 LANGUAGES = {
@@ -1750,7 +1851,14 @@ setInterval(()=>{const v=12+Math.floor(Math.random()*6);const l2=document.getEle
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
-
+# ── Load portfolio from Supabase once per login session ───────────────────────
+_current_uid = st.session_state.user.id if st.session_state.user else None
+if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_uid:
+    _loaded = _sb_load_portfolio(_current_uid)
+    st.session_state.portfolio = _loaded
+    _loaded_hist = _sb_load_history(_current_uid)
+    st.session_state.portfolio_history = _loaded_hist
+    st.session_state._portfolio_loaded_for = _current_uid
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1852,6 +1960,9 @@ with st.sidebar:
             pass
         st.session_state.user = None
         st.session_state.run_pressed = False
+        st.session_state.portfolio = []
+        st.session_state.portfolio_history = []
+        st.session_state._portfolio_loaded_for = None
         st.rerun()
 
     st.markdown("---")
@@ -2320,7 +2431,7 @@ else:
                     add_sym = add_sym.strip().upper()
                     if not add_sym:
                         st.warning("Please enter a ticker symbol.")
-                    elif current_count >= MAX_HOLDINGS:
+                    elif len(st.session_state.portfolio) >= MAX_HOLDINGS:
                         st.warning(f"Maximum {MAX_HOLDINGS} holdings reached.")
                     else:
                         existing = [h for h in st.session_state.portfolio if h["ticker"] == add_sym]
@@ -2338,17 +2449,22 @@ else:
                                     _name = add_sym; _sector = "Unknown"
                             _pl = (_live_px - add_cost) * add_qty
                             _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
-                            st.session_state.portfolio.append({
+                            _new_holding = {
                                 "ticker": add_sym, "name": _name, "sector": _sector,
                                 "qty": add_qty, "avg_cost": add_cost,
                                 "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
-                            })
+                            }
+                            st.session_state.portfolio.append(_new_holding)
+                            # ── Persist to Supabase ──
+                            _sb_upsert_holding(st.session_state.user.id, _new_holding)
                             _date = pd.Timestamp.today().strftime("%b %d")
-                            st.session_state.portfolio_history.insert(0, {
+                            _hist_record = {
                                 "date": _date, "type": "BUY", "ticker": add_sym,
                                 "shares": add_qty, "price": add_cost,
                                 "amount": -(add_qty * add_cost)
-                            })
+                            }
+                            st.session_state.portfolio_history.insert(0, _hist_record)
+                            _sb_insert_history(st.session_state.user.id, _hist_record)
                             st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
                             st.rerun()
 
@@ -2369,6 +2485,8 @@ else:
                                 h["pl_pct"] = ((_q["price"] - h["avg_cost"]) / h["avg_cost"] * 100)
                         except Exception:
                             pass
+                    # ── Persist updated prices to Supabase ──
+                    _sb_update_prices(st.session_state.user.id, st.session_state.portfolio)
                     st.rerun()
 
                 # KPIs
@@ -2390,12 +2508,15 @@ else:
                     pl_sign = "+" if h["pl"] >= 0 else ""
                     hc1, hc2, hc3, hc4, hc5, hc6 = st.columns([1.2,2,1,1,1.5,0.7])
                     hc1.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;font-weight:700;color:#4d8eff;padding:.4rem 0;">{h["ticker"]}</div>', unsafe_allow_html=True)
-                    hc2.markdown(f'<div style="font-size:.75rem;color:#8c909f;padding:.4rem 0;">{h["name"][:28]}</div>', unsafe_allow_html=True)
+                    hc2.markdown(f'<div style="font-size:.75rem;color:#8c909f;padding:.4rem 0;">{(h["name"] or h["ticker"])[:28]}</div>', unsafe_allow_html=True)
                     hc3.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#dae2fd;padding:.4rem 0;">{h["qty"]:.2f} sh</div>', unsafe_allow_html=True)
                     hc4.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#dae2fd;padding:.4rem 0;">${h["current_price"]:.2f}</div>', unsafe_allow_html=True)
                     hc5.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{pl_col};font-weight:700;padding:.4rem 0;">{pl_sign}${abs(h["pl"]):,.2f} ({pl_sign}{h["pl_pct"]:.1f}%)</div>', unsafe_allow_html=True)
                     if hc6.button("✕", key=f"pt_del_{h['ticker']}", use_container_width=True):
-                        st.session_state.portfolio = [x for x in st.session_state.portfolio if x["ticker"] != h["ticker"]]
+                        _del_ticker = h["ticker"]
+                        st.session_state.portfolio = [x for x in st.session_state.portfolio if x["ticker"] != _del_ticker]
+                        # ── Remove from Supabase ──
+                        _sb_delete_holding(st.session_state.user.id, _del_ticker)
                         st.rerun()
 
                 # Sector donut
@@ -2404,7 +2525,7 @@ else:
                     st.subheader(_L["sector_allocation"])
                     sector_map = {}
                     for h in port:
-                        sec = h["sector"].split(" •")[0].strip()
+                        sec = (h["sector"] or "Unknown").split(" •")[0].strip()
                         sector_map[sec] = sector_map.get(sec, 0) + h["qty"] * h["current_price"]
                     sec_colors = {"Technology":"#4d8eff","Consumer Cyclical":"#ffdd2d","Financials":"#adc6ff","Energy":"#ff9f40","Healthcare":"#00e5b0","Unknown":"#8c909f"}
                     fig_sector = go.Figure(go.Pie(
