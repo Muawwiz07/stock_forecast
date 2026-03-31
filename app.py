@@ -176,27 +176,32 @@ LANGUAGES = {
                    "mode": "Mode", "beginner": "🟢 Beginner", "pro": "🔴 Pro",
                    "watchlist": "⭐ Watchlist", "alerts": "🔔 Signal Alerts",
                    "forecast": "Forecast", "days": "Days", "add": "Add",
-                   "portfolio": "💼  Portfolio", "markets": "🌍  Markets"},
+                   "portfolio": "💼  Portfolio", "markets": "🌍  Markets",
+                   "back": "← Back to Dashboard"},
     "Arabic":     {"run": "▶  تشغيل التنبؤ", "ticker": "الرمز", "from": "من", "to": "إلى",
                    "mode": "الوضع", "beginner": "🟢 مبتدئ", "pro": "🔴 محترف",
                    "watchlist": "⭐ قائمة المراقبة", "alerts": "🔔 تنبيهات الإشارة",
                    "forecast": "التوقعات", "days": "أيام", "add": "إضافة",
-                   "portfolio": "💼  المحفظة", "markets": "🌍  الأسواق"},
+                   "portfolio": "💼  المحفظة", "markets": "🌍  الأسواق",
+                   "back": "← العودة إلى لوحة التحكم"},
     "Urdu":       {"run": "▶  پیشن گوئی چلائیں", "ticker": "ٹکر", "from": "سے", "to": "تک",
                    "mode": "موڈ", "beginner": "🟢 ابتدائی", "pro": "🔴 پرو",
                    "watchlist": "⭐ واچ لسٹ", "alerts": "🔔 سگنل الرٹس",
                    "forecast": "پیشن گوئی", "days": "دن", "add": "شامل کریں",
-                   "portfolio": "💼  پورٹ فولیو", "markets": "🌍  مارکیٹس"},
+                   "portfolio": "💼  پورٹ فولیو", "markets": "🌍  مارکیٹس",
+                   "back": "← ڈیش بورڈ پر واپس"},
     "Hindi":      {"run": "▶  पूर्वानुमान चलाएं", "ticker": "टिकर", "from": "से", "to": "तक",
                    "mode": "मोड", "beginner": "🟢 शुरुआती", "pro": "🔴 प्रो",
                    "watchlist": "⭐ वॉचलिस्ट", "alerts": "🔔 सिग्नल अलर्ट",
                    "forecast": "पूर्वानुमान", "days": "दिन", "add": "जोड़ें",
-                   "portfolio": "💼  पोर्टफोलियो", "markets": "🌍  बाज़ार"},
+                   "portfolio": "💼  पोर्टफोलियो", "markets": "🌍  बाज़ार",
+                   "back": "← डैशबोर्ड पर वापस"},
     "Chinese":    {"run": "▶  运行预测", "ticker": "股票代码", "from": "从", "to": "到",
                    "mode": "模式", "beginner": "🟢 新手", "pro": "🔴 专业",
                    "watchlist": "⭐ 关注列表", "alerts": "🔔 信号提醒",
                    "forecast": "预测", "days": "天", "add": "添加",
-                   "portfolio": "💼  投资组合", "markets": "🌍  市场"},
+                   "portfolio": "💼  投资组合", "markets": "🌍  市场",
+                   "back": "← 返回仪表板"},
 }
 if "lang" not in st.session_state:
     st.session_state.lang = "English"
@@ -1521,6 +1526,7 @@ with st.sidebar:
         except Exception:
             pass
         st.session_state.user = None
+        st.session_state.run_pressed = False
         st.rerun()
 
     st.markdown("---")
@@ -1546,8 +1552,8 @@ with st.sidebar:
         st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#4d8eff;letter-spacing:.07em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">● ACTIVE: {ticker}</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
-    with col1: start_date = st.date_input("From", value=pd.to_datetime("2018-01-01"))
-    with col2: end_date   = st.date_input("To",   value=pd.Timestamp.today())
+    with col1: start_date = st.date_input(_L["from"], value=pd.to_datetime("2018-01-01"))
+    with col2: end_date   = st.date_input(_L["to"],   value=pd.Timestamp.today())
 
     st.markdown('<div class="stat-row">Lookback Window (days)</div>', unsafe_allow_html=True)
     seq_len     = st.slider("", 10, 60, 30, label_visibility="collapsed")
@@ -1555,8 +1561,8 @@ with st.sidebar:
     future_days = st.slider(" ", 1, 30, 7, label_visibility="collapsed")
 
     st.markdown("---")
-    ui_mode    = st.radio("Mode", ["🟢 Beginner","🔴 Pro"], index=1, horizontal=True, label_visibility="collapsed")
-    is_beginner = (ui_mode == "🟢 Beginner")
+    ui_mode    = st.radio("Mode", [_L["beginner"], _L["pro"]], index=1, horizontal=True, label_visibility="collapsed")
+    is_beginner = (ui_mode == _L["beginner"])
     if is_beginner:
         st.markdown('<div style="background:rgba(0,229,176,0.06);border-left:3px solid #00e5b0;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#00e5b0;font-weight:700;">✓ Simple view active</div>', unsafe_allow_html=True)
     else:
@@ -1607,11 +1613,13 @@ with st.sidebar:
         compare_tickers = []
 
     st.markdown("---")
-    run_btn = st.button(_L["run"], use_container_width=True)
+    if st.button(_L["run"], use_container_width=True):
+        st.session_state.run_pressed = True
+    run_btn = st.session_state.get("run_pressed", False)
 
     # Watchlist
     st.markdown("---")
-    st.markdown("""<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;margin-bottom:.5rem;">⭐ Watchlist</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;margin-bottom:.5rem;">{_L["watchlist"]}</div>""", unsafe_allow_html=True)
     wl_c1, wl_c2 = st.columns([3,1])
     with wl_c1: add_ticker_input = st.text_input("Add", placeholder="e.g. AAPL", label_visibility="collapsed", key="wl_add").strip().upper()
     with wl_c2: add_clicked = st.button("＋", use_container_width=True, key="wl_add_btn")
@@ -1640,7 +1648,7 @@ with st.sidebar:
         st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#2d3449;padding:.3rem 0;">No stocks saved yet.</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;margin-bottom:.5rem;">🔔 Signal Alerts</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;margin-bottom:.5rem;">{_L["alerts"]}</div>', unsafe_allow_html=True)
     alert_on_signal_change = st.checkbox("Alert when signal changes", value=True)
 
 
@@ -1750,6 +1758,9 @@ else:
     # ═══════════════════════════════════════════════════════════════
     # ANALYSIS ENGINE
     # ═══════════════════════════════════════════════════════════════
+    if st.sidebar.button(_L.get("back", "← Back to Dashboard"), use_container_width=True, key="back_btn"):
+        st.session_state.run_pressed = False
+        st.rerun()
     # ── Input validation ──────────────────────────────────────────────────────
     if not ticker or len(ticker.strip()) < 1:
         st.warning("Please enter a ticker symbol.")
@@ -2501,5 +2512,4 @@ st.markdown("""
   </div>
 </div>
 """, unsafe_allow_html=True)
-
 
