@@ -172,36 +172,290 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Multi-language support ─────────────────────────────────────────────────────
 LANGUAGES = {
-    "English":    {"run": "▶  Run Forecast", "ticker": "Ticker", "from": "From", "to": "To",
-                   "mode": "Mode", "beginner": "🟢 Beginner", "pro": "🔴 Pro",
-                   "watchlist": "⭐ Watchlist", "alerts": "🔔 Signal Alerts",
-                   "forecast": "Forecast", "days": "Days", "add": "Add",
-                   "portfolio": "💼  Portfolio", "markets": "🌍  Markets",
-                   "back": "← Back to Dashboard"},
-    "Arabic":     {"run": "▶  تشغيل التنبؤ", "ticker": "الرمز", "from": "من", "to": "إلى",
-                   "mode": "الوضع", "beginner": "🟢 مبتدئ", "pro": "🔴 محترف",
-                   "watchlist": "⭐ قائمة المراقبة", "alerts": "🔔 تنبيهات الإشارة",
-                   "forecast": "التوقعات", "days": "أيام", "add": "إضافة",
-                   "portfolio": "💼  المحفظة", "markets": "🌍  الأسواق",
-                   "back": "← العودة إلى لوحة التحكم"},
-    "Urdu":       {"run": "▶  پیشن گوئی چلائیں", "ticker": "ٹکر", "from": "سے", "to": "تک",
-                   "mode": "موڈ", "beginner": "🟢 ابتدائی", "pro": "🔴 پرو",
-                   "watchlist": "⭐ واچ لسٹ", "alerts": "🔔 سگنل الرٹس",
-                   "forecast": "پیشن گوئی", "days": "دن", "add": "شامل کریں",
-                   "portfolio": "💼  پورٹ فولیو", "markets": "🌍  مارکیٹس",
-                   "back": "← ڈیش بورڈ پر واپس"},
-    "Hindi":      {"run": "▶  पूर्वानुमान चलाएं", "ticker": "टिकर", "from": "से", "to": "तक",
-                   "mode": "मोड", "beginner": "🟢 शुरुआती", "pro": "🔴 प्रो",
-                   "watchlist": "⭐ वॉचलिस्ट", "alerts": "🔔 सिग्नल अलर्ट",
-                   "forecast": "पूर्वानुमान", "days": "दिन", "add": "जोड़ें",
-                   "portfolio": "💼  पोर्टफोलियो", "markets": "🌍  बाज़ार",
-                   "back": "← डैशबोर्ड पर वापस"},
-    "Chinese":    {"run": "▶  运行预测", "ticker": "股票代码", "from": "从", "to": "到",
-                   "mode": "模式", "beginner": "🟢 新手", "pro": "🔴 专业",
-                   "watchlist": "⭐ 关注列表", "alerts": "🔔 信号提醒",
-                   "forecast": "预测", "days": "天", "add": "添加",
-                   "portfolio": "💼  投资组合", "markets": "🌍  市场",
-                   "back": "← 返回仪表板"},
+    "English": {
+        # Sidebar controls
+        "run": "▶  Run Forecast", "ticker": "Ticker", "from": "From", "to": "To",
+        "mode": "Mode", "beginner": "🟢 Beginner", "pro": "🔴 Pro",
+        "watchlist": "⭐ Watchlist", "alerts": "🔔 Signal Alerts",
+        "forecast": "Forecast", "days": "Days", "add": "Add",
+        "portfolio": "💼  Portfolio", "markets": "🌍  Markets",
+        "back": "← Back to Dashboard",
+        "search_label": "🔍 Search Company / Ticker",
+        "lookback": "Lookback Window (days)", "horizon": "Forecast Horizon (days)",
+        "simple_view": "✓ Simple view active",
+        "pro_view": "⚡ Pro view — all parameters unlocked",
+        "fast_mode": "⚡ Fast Mode (skip CI + backtest)",
+        "xgb_params": "XGBoost Hyperparameters",
+        "alert_target": "Price Alert Target ($)",
+        "backtesting": "Backtesting", "enable_backtest": "Enable Backtesting Engine",
+        "init_capital": "Initial Capital ($)", "commission": "Commission per Trade ($)",
+        "signal_thresh": "Signal Threshold (%)", "extra_features": "Extra Features",
+        "model_compare": "Model Comparison (XGB vs LR vs Prophet)",
+        "halal_check": "Halal / Shariah Compliance Check",
+        "conf_interval": "Confidence Intervals on Forecast",
+        "bootstrap_samples": "Bootstrap Samples (CI)", "multi_stock": "Multi-Stock Comparison",
+        "compare_tickers": "Compare Tickers", "alert_signal_change": "Alert when signal changes",
+        # Dashboard
+        "dashboard_title": "Dashboard", "dashboard_subtitle": "Overview",
+        "dashboard_desc": "AI-powered stock intelligence · Enter a ticker in the sidebar and click Run Forecast to begin.",
+        "watchlist_live": "⭐ Watchlist — Live Prices",
+        "how_it_works": "How It Works",
+        "hw1_title": "Enter a Ticker", "hw1_body": "Search by company name or symbol. Add it to your watchlist to track it persistently.",
+        "hw2_title": "Run the Model", "hw2_body": "XGBoost trains on 7 years of OHLCV data with 20 engineered features. Results in seconds.",
+        "hw3_title": "Read the Signal", "hw3_body": "Get a BUY / SELL / HOLD verdict with a full explanation of every contributing factor.",
+        "platform_features": "Platform Features",
+        "no_stocks_saved": "No stocks saved yet.",
+        "no_holdings": "No holdings yet. Add your first stock above.",
+        "no_transactions": "No transactions yet.",
+        # Portfolio
+        "portfolio_title": "Portfolio", "portfolio_tracker": "Tracker",
+        "portfolio_desc": "Add your real holdings — prices refresh live from Yahoo Finance",
+        "add_holding": "➕ Add Holding", "add_to_portfolio": "Add to Portfolio",
+        "refresh_prices": "🔄 Refresh Live Prices",
+        "total_value": "Total Value", "total_pl": "Total P&L",
+        "invested": "Invested", "holdings": "Holdings",
+        "holdings_label": "Holdings", "sector_allocation": "Sector Allocation",
+        "recent_activity": "Recent Activity",
+        # Analysis
+        "price_chart": "Price Chart", "tech_indicators": "Technical Indicators",
+        "news_sentiment": "News Sentiment NLP", "screening_criteria": "Screening Criteria",
+        "analysis_tab": "📊  Analysis", "methodology_tab": "📖  Methodology",
+        "dashboard_tab": "🖥  Dashboard",
+        "reality_check_title": "⚠ Model Reality Check — Read Before Trading",
+        "reality_check_body": "This model uses <b style='color:#dae2fd;'>price &amp; volume data only</b>. It has <b style='color:#ff6b6b;'>zero awareness</b> of: &nbsp;📰 breaking news &nbsp;·&nbsp;📊 earnings releases &nbsp;·&nbsp;🏦 Fed/macro events &nbsp;·&nbsp;🧠 analyst upgrades &nbsp;·&nbsp;🌍 geopolitical events. <b style='color:#ffdd2d;'>Use signals as one input — never as sole decision.</b>",
+        "logout": "⏏  Logout",
+        "verify_symbol": "Using: {ticker} — verify symbol",
+        "active_ticker": "● ACTIVE: {ticker}",
+        "greed_territory": "Greed territory", "low_volatility": "Low volatility",
+        "no_recent_news": "No recent news found for this ticker.",
+        "already_in_portfolio": "{sym} already in portfolio. Remove it first to update.",
+        "added_success": "✓ Added {sym} — live price ${price:.2f}",
+        "footer": "⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI",
+    },
+    "Arabic": {
+        "run": "▶  تشغيل التنبؤ", "ticker": "الرمز", "from": "من", "to": "إلى",
+        "mode": "الوضع", "beginner": "🟢 مبتدئ", "pro": "🔴 محترف",
+        "watchlist": "⭐ قائمة المراقبة", "alerts": "🔔 تنبيهات الإشارة",
+        "forecast": "التوقعات", "days": "أيام", "add": "إضافة",
+        "portfolio": "💼  المحفظة", "markets": "🌍  الأسواق",
+        "back": "← العودة إلى لوحة التحكم",
+        "search_label": "🔍 البحث عن شركة / رمز",
+        "lookback": "نافذة الاسترجاع (أيام)", "horizon": "أفق التنبؤ (أيام)",
+        "simple_view": "✓ العرض البسيط مفعّل",
+        "pro_view": "⚡ وضع الاحتراف — جميع الخيارات مفتوحة",
+        "fast_mode": "⚡ الوضع السريع (بدون CI والاختبار)",
+        "xgb_params": "معلمات XGBoost",
+        "alert_target": "سعر التنبيه المستهدف ($)",
+        "backtesting": "الاختبار الخلفي", "enable_backtest": "تفعيل محرك الاختبار الخلفي",
+        "init_capital": "رأس المال الابتدائي ($)", "commission": "عمولة كل صفقة ($)",
+        "signal_thresh": "حد الإشارة (%)", "extra_features": "ميزات إضافية",
+        "model_compare": "مقارنة النماذج (XGB vs LR vs Prophet)",
+        "halal_check": "فحص الامتثال للشريعة / الحلال",
+        "conf_interval": "فترات الثقة في التنبؤ",
+        "bootstrap_samples": "عينات Bootstrap (CI)", "multi_stock": "مقارنة متعددة الأسهم",
+        "compare_tickers": "مقارنة الرموز", "alert_signal_change": "تنبيه عند تغيير الإشارة",
+        "dashboard_title": "لوحة التحكم", "dashboard_subtitle": "نظرة عامة",
+        "dashboard_desc": "ذكاء الأسهم بالذكاء الاصطناعي · أدخل رمزًا في الشريط الجانبي وانقر تشغيل للبدء.",
+        "watchlist_live": "⭐ قائمة المراقبة — الأسعار الحية",
+        "how_it_works": "كيف يعمل",
+        "hw1_title": "أدخل الرمز", "hw1_body": "ابحث باسم الشركة أو الرمز. أضفه إلى قائمة المراقبة للمتابعة.",
+        "hw2_title": "تشغيل النموذج", "hw2_body": "يتدرب XGBoost على 7 سنوات من البيانات بـ 20 ميزة مهندسة. النتائج في ثوانٍ.",
+        "hw3_title": "اقرأ الإشارة", "hw3_body": "احصل على حكم شراء / بيع / انتظار مع شرح كامل لكل عامل.",
+        "platform_features": "ميزات المنصة",
+        "no_stocks_saved": "لا أسهم محفوظة بعد.",
+        "no_holdings": "لا حيازات بعد. أضف أول سهم أعلاه.",
+        "no_transactions": "لا معاملات بعد.",
+        "portfolio_title": "المحفظة", "portfolio_tracker": "المتتبع",
+        "portfolio_desc": "أضف حيازاتك الحقيقية — تتحدث الأسعار مباشرةً من Yahoo Finance",
+        "add_holding": "➕ إضافة حيازة", "add_to_portfolio": "أضف إلى المحفظة",
+        "refresh_prices": "🔄 تحديث الأسعار الحية",
+        "total_value": "القيمة الإجمالية", "total_pl": "الربح/الخسارة الإجمالية",
+        "invested": "المستثمر", "holdings": "الحيازات",
+        "holdings_label": "الحيازات", "sector_allocation": "توزيع القطاعات",
+        "recent_activity": "النشاط الأخير",
+        "price_chart": "مخطط السعر", "tech_indicators": "المؤشرات الفنية",
+        "news_sentiment": "تحليل مشاعر الأخبار", "screening_criteria": "معايير الفحص",
+        "analysis_tab": "📊  التحليل", "methodology_tab": "📖  المنهجية",
+        "dashboard_tab": "🖥  لوحة التحكم",
+        "reality_check_title": "⚠ التحقق من الواقع — اقرأ قبل التداول",
+        "reality_check_body": "يستخدم هذا النموذج <b style='color:#dae2fd;'>بيانات السعر والحجم فقط</b>. ليس لديه <b style='color:#ff6b6b;'>أي وعي</b> بـ: 📰 الأخبار العاجلة · 📊 إصدارات الأرباح · 🏦 أحداث الاقتصاد الكلي · 🧠 ترقيات المحللين · 🌍 الأحداث الجيوسياسية. <b style='color:#ffdd2d;'>استخدم الإشارات كمدخل واحد فقط.</b>",
+        "logout": "⏏  تسجيل الخروج",
+        "verify_symbol": "استخدام: {ticker} — تحقق من الرمز",
+        "active_ticker": "● نشط: {ticker}",
+        "greed_territory": "منطقة الجشع", "low_volatility": "تذبذب منخفض",
+        "no_recent_news": "لا توجد أخبار حديثة لهذا الرمز.",
+        "already_in_portfolio": "{sym} موجود بالفعل في المحفظة. أزله أولاً للتحديث.",
+        "added_success": "✓ تمت إضافة {sym} — السعر الحي ${price:.2f}",
+        "footer": "⚠ STOCKCAST · للأغراض التعليمية فقط · ليست نصيحة مالية · طوّره معاوية غني",
+    },
+    "Urdu": {
+        "run": "▶  پیشن گوئی چلائیں", "ticker": "ٹکر", "from": "سے", "to": "تک",
+        "mode": "موڈ", "beginner": "🟢 ابتدائی", "pro": "🔴 پرو",
+        "watchlist": "⭐ واچ لسٹ", "alerts": "🔔 سگنل الرٹس",
+        "forecast": "پیشن گوئی", "days": "دن", "add": "شامل کریں",
+        "portfolio": "💼  پورٹ فولیو", "markets": "🌍  مارکیٹس",
+        "back": "← ڈیش بورڈ پر واپس",
+        "search_label": "🔍 کمپنی / ٹکر تلاش کریں",
+        "lookback": "لُک بیک ونڈو (دن)", "horizon": "پیشن گوئی کا دورانیہ (دن)",
+        "simple_view": "✓ سادہ منظر فعال ہے",
+        "pro_view": "⚡ پرو منظر — تمام اختیارات کھلے ہیں",
+        "fast_mode": "⚡ فاسٹ موڈ (CI اور بیک ٹیسٹ چھوڑیں)",
+        "xgb_params": "XGBoost پیرامیٹرز",
+        "alert_target": "قیمت الرٹ ہدف ($)",
+        "backtesting": "بیک ٹیسٹنگ", "enable_backtest": "بیک ٹیسٹنگ انجن فعال کریں",
+        "init_capital": "ابتدائی سرمایہ ($)", "commission": "فی ٹریڈ کمیشن ($)",
+        "signal_thresh": "سگنل حد (%)", "extra_features": "اضافی خصوصیات",
+        "model_compare": "ماڈل موازنہ (XGB vs LR vs Prophet)",
+        "halal_check": "حلال / شریعت کی تعمیل کی جانچ",
+        "conf_interval": "پیشن گوئی پر اعتماد کے وقفے",
+        "bootstrap_samples": "Bootstrap سیمپل (CI)", "multi_stock": "کثیر اسٹاک موازنہ",
+        "compare_tickers": "ٹکر موازنہ کریں", "alert_signal_change": "سگنل بدلنے پر الرٹ",
+        "dashboard_title": "ڈیش بورڈ", "dashboard_subtitle": "جائزہ",
+        "dashboard_desc": "AI سے چلنے والی اسٹاک انٹیلی جنس · سائڈبار میں ٹکر درج کریں اور پیشن گوئی چلائیں۔",
+        "watchlist_live": "⭐ واچ لسٹ — لائیو قیمتیں",
+        "how_it_works": "یہ کیسے کام کرتا ہے",
+        "hw1_title": "ٹکر درج کریں", "hw1_body": "کمپنی کے نام یا علامت سے تلاش کریں۔ اسے واچ لسٹ میں شامل کریں۔",
+        "hw2_title": "ماڈل چلائیں", "hw2_body": "XGBoost 7 سال کے ڈیٹا پر 20 انجینئرڈ فیچرز کے ساتھ تربیت کرتا ہے۔ نتائج سیکنڈوں میں۔",
+        "hw3_title": "سگنل پڑھیں", "hw3_body": "خرید / فروخت / انتظار کا فیصلہ حاصل کریں ہر عنصر کی مکمل وضاحت کے ساتھ۔",
+        "platform_features": "پلیٹ فارم کی خصوصیات",
+        "no_stocks_saved": "ابھی تک کوئی اسٹاک محفوظ نہیں۔",
+        "no_holdings": "ابھی تک کوئی ہولڈنگ نہیں۔ اوپر پہلا اسٹاک شامل کریں۔",
+        "no_transactions": "ابھی تک کوئی لین دین نہیں۔",
+        "portfolio_title": "پورٹ فولیو", "portfolio_tracker": "ٹریکر",
+        "portfolio_desc": "اپنی اصل ہولڈنگز شامل کریں — قیمتیں Yahoo Finance سے لائیو اپ ڈیٹ ہوتی ہیں",
+        "add_holding": "➕ ہولڈنگ شامل کریں", "add_to_portfolio": "پورٹ فولیو میں شامل کریں",
+        "refresh_prices": "🔄 لائیو قیمتیں تازہ کریں",
+        "total_value": "کل قیمت", "total_pl": "کل نفع/نقصان",
+        "invested": "سرمایہ کاری", "holdings": "ہولڈنگز",
+        "holdings_label": "ہولڈنگز", "sector_allocation": "شعبہ وار تقسیم",
+        "recent_activity": "حالیہ سرگرمی",
+        "price_chart": "قیمت کا چارٹ", "tech_indicators": "تکنیکی اشارے",
+        "news_sentiment": "خبر جذباتی تجزیہ", "screening_criteria": "اسکریننگ کا معیار",
+        "analysis_tab": "📊  تجزیہ", "methodology_tab": "📖  طریقہ کار",
+        "dashboard_tab": "🖥  ڈیش بورڈ",
+        "reality_check_title": "⚠ ماڈل کی حقیقت — تجارت سے پہلے پڑھیں",
+        "reality_check_body": "یہ ماڈل صرف <b style='color:#dae2fd;'>قیمت اور حجم کا ڈیٹا</b> استعمال کرتا ہے۔ اسے <b style='color:#ff6b6b;'>کوئی آگاہی نہیں</b> 📰 خبروں · 📊 آمدنی کے اعلانات · 🏦 اقتصادی واقعات · 🧠 تجزیہ کاروں کی رائے · 🌍 جیوپولیٹیکل واقعات سے۔ <b style='color:#ffdd2d;'>سگنلز صرف ایک ان پٹ کے طور پر استعمال کریں۔</b>",
+        "logout": "⏏  لاگ آؤٹ",
+        "verify_symbol": "استعمال: {ticker} — علامت کی تصدیق کریں",
+        "active_ticker": "● فعال: {ticker}",
+        "greed_territory": "لالچ کا علاقہ", "low_volatility": "کم اتار چڑھاؤ",
+        "no_recent_news": "اس ٹکر کے لیے کوئی حالیہ خبر نہیں ملی۔",
+        "already_in_portfolio": "{sym} پہلے سے پورٹ فولیو میں ہے۔ اپڈیٹ کرنے کے لیے پہلے ہٹائیں۔",
+        "added_success": "✓ {sym} شامل کیا — لائیو قیمت ${price:.2f}",
+        "footer": "⚠ STOCKCAST · صرف تعلیمی مقاصد کے لیے · مالی مشورہ نہیں · تیار کردہ معاویہ غنی",
+    },
+    "Hindi": {
+        "run": "▶  पूर्वानुमान चलाएं", "ticker": "टिकर", "from": "से", "to": "तक",
+        "mode": "मोड", "beginner": "🟢 शुरुआती", "pro": "🔴 प्रो",
+        "watchlist": "⭐ वॉचलिस्ट", "alerts": "🔔 सिग्नल अलर्ट",
+        "forecast": "पूर्वानुमान", "days": "दिन", "add": "जोड़ें",
+        "portfolio": "💼  पोर्टफोलियो", "markets": "🌍  बाज़ार",
+        "back": "← डैशबोर्ड पर वापस",
+        "search_label": "🔍 कंपनी / टिकर खोजें",
+        "lookback": "लुकबैक विंडो (दिन)", "horizon": "पूर्वानुमान अवधि (दिन)",
+        "simple_view": "✓ सरल दृश्य सक्रिय",
+        "pro_view": "⚡ प्रो दृश्य — सभी पैरामीटर अनलॉक",
+        "fast_mode": "⚡ फास्ट मोड (CI + बैकटेस्ट छोड़ें)",
+        "xgb_params": "XGBoost हाइपरपैरामीटर",
+        "alert_target": "मूल्य अलर्ट लक्ष्य ($)",
+        "backtesting": "बैकटेस्टिंग", "enable_backtest": "बैकटेस्टिंग इंजन सक्षम करें",
+        "init_capital": "प्रारंभिक पूंजी ($)", "commission": "प्रति ट्रेड कमीशन ($)",
+        "signal_thresh": "सिग्नल सीमा (%)", "extra_features": "अतिरिक्त सुविधाएं",
+        "model_compare": "मॉडल तुलना (XGB vs LR vs Prophet)",
+        "halal_check": "हलाल / शरिया अनुपालन जांच",
+        "conf_interval": "पूर्वानुमान पर विश्वास अंतराल",
+        "bootstrap_samples": "Bootstrap नमूने (CI)", "multi_stock": "बहु-स्टॉक तुलना",
+        "compare_tickers": "टिकर तुलना करें", "alert_signal_change": "सिग्नल बदलने पर अलर्ट",
+        "dashboard_title": "डैशबोर्ड", "dashboard_subtitle": "अवलोकन",
+        "dashboard_desc": "AI-संचालित स्टॉक इंटेलिजेंस · साइडबार में टिकर दर्ज करें और पूर्वानुमान चलाएं।",
+        "watchlist_live": "⭐ वॉचलिस्ट — लाइव कीमतें",
+        "how_it_works": "यह कैसे काम करता है",
+        "hw1_title": "टिकर दर्ज करें", "hw1_body": "कंपनी नाम या प्रतीक से खोजें। लगातार ट्रैक करने के लिए वॉचलिस्ट में जोड़ें।",
+        "hw2_title": "मॉडल चलाएं", "hw2_body": "XGBoost 7 साल के OHLCV डेटा पर 20 इंजीनियर्ड फीचर्स के साथ प्रशिक्षण लेता है। सेकंडों में परिणाम।",
+        "hw3_title": "सिग्नल पढ़ें", "hw3_body": "हर योगदान कारक की पूरी व्याख्या के साथ BUY/SELL/HOLD निर्णय प्राप्त करें।",
+        "platform_features": "प्लेटफॉर्म की विशेषताएं",
+        "no_stocks_saved": "अभी तक कोई स्टॉक सहेजा नहीं गया।",
+        "no_holdings": "अभी तक कोई होल्डिंग नहीं। ऊपर पहला स्टॉक जोड़ें।",
+        "no_transactions": "अभी तक कोई लेनदेन नहीं।",
+        "portfolio_title": "पोर्टफोलियो", "portfolio_tracker": "ट्रैकर",
+        "portfolio_desc": "अपनी वास्तविक होल्डिंग्स जोड़ें — Yahoo Finance से कीमतें लाइव अपडेट होती हैं",
+        "add_holding": "➕ होल्डिंग जोड़ें", "add_to_portfolio": "पोर्टफोलियो में जोड़ें",
+        "refresh_prices": "🔄 लाइव कीमतें ताज़ा करें",
+        "total_value": "कुल मूल्य", "total_pl": "कुल लाभ/हानि",
+        "invested": "निवेशित", "holdings": "होल्डिंग्स",
+        "holdings_label": "होल्डिंग्स", "sector_allocation": "क्षेत्र आवंटन",
+        "recent_activity": "हालिया गतिविधि",
+        "price_chart": "मूल्य चार्ट", "tech_indicators": "तकनीकी संकेतक",
+        "news_sentiment": "समाचार भावना NLP", "screening_criteria": "स्क्रीनिंग मानदंड",
+        "analysis_tab": "📊  विश्लेषण", "methodology_tab": "📖  कार्यप्रणाली",
+        "dashboard_tab": "🖥  डैशबोर्ड",
+        "reality_check_title": "⚠ मॉडल वास्तविकता जांच — ट्रेड से पहले पढ़ें",
+        "reality_check_body": "यह मॉडल केवल <b style='color:#dae2fd;'>मूल्य और वॉल्यूम डेटा</b> उपयोग करता है। इसे <b style='color:#ff6b6b;'>कोई जागरूकता नहीं</b> 📰 ताज़ा खबरें · 📊 आय रिलीज़ · 🏦 Fed/मैक्रो इवेंट · 🧠 विश्लेषक अपग्रेड · 🌍 भू-राजनीतिक घटनाओं की। <b style='color:#ffdd2d;'>सिग्नल को एक इनपुट के रूप में उपयोग करें।</b>",
+        "logout": "⏏  लॉगआउट",
+        "verify_symbol": "उपयोग: {ticker} — प्रतीक सत्यापित करें",
+        "active_ticker": "● सक्रिय: {ticker}",
+        "greed_territory": "लालच क्षेत्र", "low_volatility": "कम अस्थिरता",
+        "no_recent_news": "इस टिकर के लिए कोई हालिया खबर नहीं मिली।",
+        "already_in_portfolio": "{sym} पहले से पोर्टफोलियो में है। अपडेट करने के लिए पहले हटाएं।",
+        "added_success": "✓ {sym} जोड़ा गया — लाइव कीमत ${price:.2f}",
+        "footer": "⚠ STOCKCAST · केवल शैक्षणिक उद्देश्यों के लिए · वित्तीय सलाह नहीं · निर्मित मुआवविज़ घनी द्वारा",
+    },
+    "Chinese": {
+        "run": "▶  运行预测", "ticker": "股票代码", "from": "从", "to": "到",
+        "mode": "模式", "beginner": "🟢 新手", "pro": "🔴 专业",
+        "watchlist": "⭐ 关注列表", "alerts": "🔔 信号提醒",
+        "forecast": "预测", "days": "天", "add": "添加",
+        "portfolio": "💼  投资组合", "markets": "🌍  市场",
+        "back": "← 返回仪表板",
+        "search_label": "🔍 搜索公司 / 代码",
+        "lookback": "回溯窗口（天）", "horizon": "预测周期（天）",
+        "simple_view": "✓ 简单视图已激活",
+        "pro_view": "⚡ 专业视图 — 所有参数已解锁",
+        "fast_mode": "⚡ 快速模式（跳过CI和回测）",
+        "xgb_params": "XGBoost 超参数",
+        "alert_target": "价格提醒目标 ($)",
+        "backtesting": "回测", "enable_backtest": "启用回测引擎",
+        "init_capital": "初始资金 ($)", "commission": "每笔交易佣金 ($)",
+        "signal_thresh": "信号阈值 (%)", "extra_features": "额外功能",
+        "model_compare": "模型对比 (XGB vs LR vs Prophet)",
+        "halal_check": "清真 / 伊斯兰教法合规检查",
+        "conf_interval": "预测置信区间",
+        "bootstrap_samples": "Bootstrap 样本 (CI)", "multi_stock": "多股票对比",
+        "compare_tickers": "对比股票代码", "alert_signal_change": "信号变化时提醒",
+        "dashboard_title": "仪表板", "dashboard_subtitle": "概览",
+        "dashboard_desc": "AI 驱动的股票分析 · 在侧边栏输入代码并点击运行预测。",
+        "watchlist_live": "⭐ 关注列表 — 实时价格",
+        "how_it_works": "运作方式",
+        "hw1_title": "输入代码", "hw1_body": "按公司名称或代码搜索，添加到关注列表持续跟踪。",
+        "hw2_title": "运行模型", "hw2_body": "XGBoost 对 7 年 OHLCV 数据进行 20 个工程特征训练，秒级出结果。",
+        "hw3_title": "读取信号", "hw3_body": "获得买入/卖出/持有判断及每个贡献因子的完整说明。",
+        "platform_features": "平台功能",
+        "no_stocks_saved": "尚未保存任何股票。",
+        "no_holdings": "尚无持仓。在上方添加第一只股票。",
+        "no_transactions": "尚无交易记录。",
+        "portfolio_title": "投资组合", "portfolio_tracker": "跟踪器",
+        "portfolio_desc": "添加您的真实持仓 — 价格实时从 Yahoo Finance 更新",
+        "add_holding": "➕ 添加持仓", "add_to_portfolio": "添加到投资组合",
+        "refresh_prices": "🔄 刷新实时价格",
+        "total_value": "总价值", "total_pl": "总盈亏",
+        "invested": "已投资", "holdings": "持仓",
+        "holdings_label": "持仓", "sector_allocation": "板块分配",
+        "recent_activity": "最近活动",
+        "price_chart": "价格图表", "tech_indicators": "技术指标",
+        "news_sentiment": "新闻情绪 NLP", "screening_criteria": "筛选标准",
+        "analysis_tab": "📊  分析", "methodology_tab": "📖  方法论",
+        "dashboard_tab": "🖥  仪表板",
+        "reality_check_title": "⚠ 模型现实检验 — 交易前请阅读",
+        "reality_check_body": "该模型仅使用<b style='color:#dae2fd;'>价格和成交量数据</b>，对以下内容<b style='color:#ff6b6b;'>毫无感知</b>：📰 突发新闻 · 📊 财报发布 · 🏦 美联储/宏观事件 · 🧠 分析师评级 · 🌍 地缘政治事件。<b style='color:#ffdd2d;'>仅将信号作为参考，切勿作为唯一依据。</b>",
+        "logout": "⏏  退出登录",
+        "verify_symbol": "使用中: {ticker} — 请验证代码",
+        "active_ticker": "● 当前: {ticker}",
+        "greed_territory": "贪婪区域", "low_volatility": "低波动",
+        "no_recent_news": "未找到该股票的近期新闻。",
+        "already_in_portfolio": "{sym} 已在投资组合中。如需更新请先删除。",
+        "added_success": "✓ 已添加 {sym} — 实时价格 ${price:.2f}",
+        "footer": "⚠ STOCKCAST · 仅供教育目的 · 非财务建议 · 由 MUAWWIZ GHANI 开发",
+    },
 }
 if "lang" not in st.session_state:
     st.session_state.lang = "English"
@@ -1520,7 +1774,7 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    if st.button("⏏  Logout", use_container_width=True, key="logout_btn"):
+    if st.button(_L.get("logout", "⏏  Logout"), use_container_width=True, key="logout_btn"):
         try:
             supabase.auth.sign_out()
         except Exception:
@@ -1532,7 +1786,7 @@ with st.sidebar:
     st.markdown("---")
 
     # Ticker Search
-    st.markdown('<div class="stat-row">🔍 Search Company / Ticker</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="stat-row">{_L["search_label"]}</div>', unsafe_allow_html=True)
     search_query = st.text_input("Search", placeholder="e.g. Apple, TSLA, Saudi Aramco…",
                                  label_visibility="collapsed", key="search_input")
     ticker = "AAPL"
@@ -1544,35 +1798,35 @@ with st.sidebar:
             st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.3);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#adc6ff;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">✓ {ticker}</div>', unsafe_allow_html=True)
         else:
             ticker = search_query.strip().upper()
-            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffdd2d;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#ffdd2d;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">Using: {ticker} — verify symbol</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffdd2d;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#ffdd2d;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="stat-row">{_L["ticker"]}</div>', unsafe_allow_html=True)
         ticker = st.text_input("Ticker", value="AAPL", placeholder="AAPL, TSLA, MSFT…",
                                label_visibility="collapsed", key="direct_ticker").strip().upper() or "AAPL"
-        st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#4d8eff;letter-spacing:.07em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">● ACTIVE: {ticker}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#4d8eff;letter-spacing:.07em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["active_ticker"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1: start_date = st.date_input(_L["from"], value=pd.to_datetime("2018-01-01"))
     with col2: end_date   = st.date_input(_L["to"],   value=pd.Timestamp.today())
 
-    st.markdown('<div class="stat-row">Lookback Window (days)</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="stat-row">{_L["lookback"]}</div>', unsafe_allow_html=True)
     seq_len     = st.slider("", 10, 60, 30, label_visibility="collapsed")
-    st.markdown('<div class="stat-row">Forecast Horizon (days)</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="stat-row">{_L["horizon"]}</div>', unsafe_allow_html=True)
     future_days = st.slider(" ", 1, 30, 7, label_visibility="collapsed")
 
     st.markdown("---")
     ui_mode    = st.radio("Mode", [_L["beginner"], _L["pro"]], index=1, horizontal=True, label_visibility="collapsed")
     is_beginner = (ui_mode == _L["beginner"])
     if is_beginner:
-        st.markdown('<div style="background:rgba(0,229,176,0.06);border-left:3px solid #00e5b0;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#00e5b0;font-weight:700;">✓ Simple view active</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:rgba(0,229,176,0.06);border-left:3px solid #00e5b0;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#00e5b0;font-weight:700;">{_L["simple_view"]}</div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div style="background:rgba(255,107,107,0.06);border-left:3px solid #ff6b6b;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#ff6b6b;font-weight:700;">⚡ Pro view — all parameters unlocked</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:rgba(255,107,107,0.06);border-left:3px solid #ff6b6b;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#ff6b6b;font-weight:700;">{_L["pro_view"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    fast_mode = st.checkbox("⚡ Fast Mode (skip CI + backtest)", value=is_beginner)
+    fast_mode = st.checkbox(_L["fast_mode"], value=is_beginner)
 
     if not is_beginner:
-        st.markdown('<div class="stat-row">XGBoost Hyperparameters</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="stat-row">{_L["xgb_params"]}</div>', unsafe_allow_html=True)
         n_estimators  = st.slider("Trees", 100, 500, 200, step=50)
         max_depth     = st.slider("Max Depth", 2, 8, 4)
         learning_rate = st.select_slider("Learning Rate", options=[0.01, 0.05, 0.1, 0.2], value=0.05)
@@ -1580,33 +1834,33 @@ with st.sidebar:
         n_estimators = 200; max_depth = 4; learning_rate = 0.05
 
     st.markdown("---")
-    st.markdown('<div class="stat-row">Price Alert Target ($)</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="stat-row">{_L["alert_target"]}</div>', unsafe_allow_html=True)
     alert_price = st.number_input("", min_value=0.0, value=0.0, step=1.0, label_visibility="collapsed")
 
     if not is_beginner:
         st.markdown("---")
-        st.markdown('<div class="stat-row">Backtesting</div>', unsafe_allow_html=True)
-        run_backtest        = st.checkbox("Enable Backtesting Engine", value=True)
-        bt_initial_capital  = st.number_input("Initial Capital ($)", min_value=1000, value=10000, step=1000)
-        bt_commission       = st.number_input("Commission per Trade ($)", min_value=0.0, value=1.0, step=0.5)
-        bt_signal_threshold = st.slider("Signal Threshold (%)", 0.5, 5.0, 1.0, step=0.5)
+        st.markdown(f'<div class="stat-row">{_L["backtesting"]}</div>', unsafe_allow_html=True)
+        run_backtest        = st.checkbox(_L["enable_backtest"], value=True)
+        bt_initial_capital  = st.number_input(_L["init_capital"], min_value=1000, value=10000, step=1000)
+        bt_commission       = st.number_input(_L["commission"], min_value=0.0, value=1.0, step=0.5)
+        bt_signal_threshold = st.slider(_L["signal_thresh"], 0.5, 5.0, 1.0, step=0.5)
     else:
         run_backtest = False; bt_initial_capital = 10000; bt_commission = 1.0; bt_signal_threshold = 1.0
 
     if not is_beginner:
         st.markdown("---")
-        st.markdown('<div class="stat-row">Extra Features</div>', unsafe_allow_html=True)
-        run_model_compare  = st.checkbox("Model Comparison (XGB vs LR vs Prophet)", value=False)
-        run_halal_check    = st.checkbox("Halal / Shariah Compliance Check", value=True)
-        show_conf_interval = st.checkbox("Confidence Intervals on Forecast", value=True) and not fast_mode
-        ci_bootstrap_n     = st.slider("Bootstrap Samples (CI)", 50, 300, 100, step=50) if show_conf_interval else 100
+        st.markdown(f'<div class="stat-row">{_L["extra_features"]}</div>', unsafe_allow_html=True)
+        run_model_compare  = st.checkbox(_L["model_compare"], value=False)
+        run_halal_check    = st.checkbox(_L["halal_check"], value=True)
+        show_conf_interval = st.checkbox(_L["conf_interval"], value=True) and not fast_mode
+        ci_bootstrap_n     = st.slider(_L["bootstrap_samples"], 50, 300, 100, step=50) if show_conf_interval else 100
     else:
         run_model_compare = False; run_halal_check = True; show_conf_interval = False; ci_bootstrap_n = 100
 
     if not is_beginner:
         st.markdown("---")
-        st.markdown('<div class="stat-row">Multi-Stock Comparison</div>', unsafe_allow_html=True)
-        compare_tickers_raw = st.text_input("Compare Tickers", value="", placeholder="e.g. AAPL,TSLA,NVDA",
+        st.markdown(f'<div class="stat-row">{_L["multi_stock"]}</div>', unsafe_allow_html=True)
+        compare_tickers_raw = st.text_input(_L["compare_tickers"], value="", placeholder="e.g. AAPL,TSLA,NVDA",
                                             label_visibility="collapsed", key="compare_input")
         compare_tickers = [t.strip().upper() for t in compare_tickers_raw.split(",") if t.strip()] if compare_tickers_raw.strip() else []
     else:
@@ -1645,11 +1899,11 @@ with st.sidebar:
                     if wl_sym in st.session_state.alert_signals: del st.session_state.alert_signals[wl_sym]
                     st.rerun()
     else:
-        st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#2d3449;padding:.3rem 0;">No stocks saved yet.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#2d3449;padding:.3rem 0;">{_L["no_stocks_saved"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;margin-bottom:.5rem;">{_L["alerts"]}</div>', unsafe_allow_html=True)
-    alert_on_signal_change = st.checkbox("Alert when signal changes", value=True)
+    alert_on_signal_change = st.checkbox(_L["alert_signal_change"], value=True)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1657,12 +1911,12 @@ with st.sidebar:
 # ═══════════════════════════════════════════════════════════════════
 if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
-    st.markdown("""
+    st.markdown(f"""
     <div style="font-family:Manrope,sans-serif;font-size:2.2rem;font-weight:800;letter-spacing:-.02em;color:#dae2fd;margin-bottom:.3rem;">
-      Dashboard <span style="color:#4d8eff;">Overview</span>
+      {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
     </div>
     <div style="font-size:.82rem;color:#8c909f;margin-bottom:1.5rem;font-weight:500;">
-      AI-powered stock intelligence · Enter a ticker in the sidebar and click Run Forecast to begin.
+      {_L["dashboard_desc"]}
     </div>
     """, unsafe_allow_html=True)
 
@@ -1694,7 +1948,7 @@ if not run_btn:
 
     # Watchlist live prices if any
     if st.session_state.watchlist:
-        st.subheader("⭐ Watchlist — Live Prices")
+        st.subheader(_L["watchlist_live"])
         wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
         for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
             with wl_cols[i % 4]:
@@ -1715,23 +1969,23 @@ if not run_btn:
                     st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#424754;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
-    st.subheader("How It Works")
+    st.subheader(_L["how_it_works"])
     hw1, hw2, hw3 = st.columns(3)
-    for col, num, color, title, body in [
-        (hw1,"01","#4d8eff","Enter a Ticker","Search by company name or symbol. Add it to your watchlist to track it persistently."),
-        (hw2,"02","#00e5b0","Run the Model","XGBoost trains on 7 years of OHLCV data with 20 engineered features. Results in seconds."),
-        (hw3,"03","#ffdd2d","Read the Signal","Get a BUY / SELL / HOLD verdict with a full explanation of every contributing factor."),
+    for col, num, color, title_key, body_key in [
+        (hw1,"01","#4d8eff","hw1_title","hw1_body"),
+        (hw2,"02","#00e5b0","hw2_title","hw2_body"),
+        (hw3,"03","#ffdd2d","hw3_title","hw3_body"),
     ]:
         with col:
             st.markdown(f"""
             <div style="background:linear-gradient(145deg,#131b2e,#171f33);border:1px solid #2d3449;
                  border-top:2px solid {color};padding:1.4rem 1.5rem;height:100%;border-radius:.5rem;">
               <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:{color};margin-bottom:.5rem;">{num}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;font-weight:700;margin-bottom:.5rem;">{title}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8c909f;line-height:1.6;">{body}</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;font-weight:700;margin-bottom:.5rem;">{_L[title_key]}</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8c909f;line-height:1.6;">{_L[body_key]}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.subheader("Platform Features")
+    st.subheader(_L["platform_features"])
     feat_grid = [
         ("#4d8eff","📈 XGBoost Forecast","ML trained on 20 technical features. N-day forecast with 95% bootstrap CI."),
         ("#00e5b0","⚙ Explainable Signals","RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain English."),
@@ -1786,19 +2040,15 @@ else:
     <div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.3);
          border-left:4px solid #ffdd2d;padding:.9rem 1.4rem;margin:.5rem 0 1rem;border-radius:0 .5rem .5rem 0;">
       <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:#ffdd2d;margin-bottom:.3rem;font-weight:700;">
-        ⚠ Model Reality Check — Read Before Trading
+        {_L["reality_check_title"]}
       </div>
       <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.6;">
-        This model uses <b style="color:#dae2fd;">price &amp; volume data only</b>.
-        It has <b style="color:#ff6b6b;">zero awareness</b> of:
-        &nbsp;📰 breaking news &nbsp;·&nbsp;📊 earnings releases &nbsp;·&nbsp;🏦 Fed/macro events &nbsp;·&nbsp;
-        🧠 analyst upgrades &nbsp;·&nbsp;🌍 geopolitical events.
-        <b style="color:#ffdd2d;">Use signals as one input — never as sole decision.</b>
+        {_L["reality_check_body"]}
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    tab_analysis, tab_methodology = st.tabs(["📊  Analysis", "📖  Methodology"])
+    tab_analysis, tab_methodology = st.tabs([_L["analysis_tab"], _L["methodology_tab"]])
 
     with tab_methodology:
         render_methodology_page(seq_len_val=seq_len, ci_n=ci_bootstrap_n, show_ci=show_conf_interval)
@@ -1809,7 +2059,7 @@ else:
         close_series = df['Close'].squeeze()
 
         # ── Candlestick Chart ──────────────────────────────────────────────────
-        st.subheader("Price Chart")
+        st.subheader(_L["price_chart"])
         fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.72, 0.28], vertical_spacing=0.02)
         fig_candle.add_trace(go.Candlestick(x=df.index,
             open=df['Open'].squeeze(), high=df['High'].squeeze(),
@@ -1830,7 +2080,7 @@ else:
         st.plotly_chart(fig_candle, use_container_width=True)
 
         # ── RSI + MACD ──────────────────────────────────────────────────────────
-        st.subheader("Technical Indicators")
+        st.subheader(_L["tech_indicators"])
         fig_tech = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.5, 0.5], vertical_spacing=0.08,
                                  subplot_titles=["RSI (14)", "MACD (12/26/9)"])
         fig_tech.add_trace(go.Scatter(x=df.index, y=df['RSI'].squeeze(), name="RSI", line=dict(color=C_ACCENT, width=1.5)), row=1, col=1)
@@ -1911,7 +2161,7 @@ else:
         st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#424754;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
 
         # Tabs
-        dash_tab, port_tab, mkt_tab, deep_tab = st.tabs(["🖥  Dashboard", "💼  Portfolio", "🌍  Markets", "📈  Deep Analysis"])
+        dash_tab, port_tab, mkt_tab, deep_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], "📈  Deep Analysis"])
 
         # ──────────────────────────────────────────────────────────────────────
         with dash_tab:
@@ -1971,57 +2221,71 @@ else:
 
         # ──────────────────────────────────────────────────────────────────────
         with port_tab:
-            st.markdown("""
+            st.markdown(f"""
             <div style="margin-bottom:1.2rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#dae2fd;">Portfolio <span style="color:#4d8eff;">Tracker</span></div>
-              <div style="font-size:.78rem;color:#8c909f;margin-top:.2rem;">Add your real holdings — prices refresh live from Yahoo Finance</div>
+              <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#dae2fd;">{_L["portfolio_title"]} <span style="color:#4d8eff;">{_L["portfolio_tracker"]}</span></div>
+              <div style="font-size:.78rem;color:#8c909f;margin-top:.2rem;">{_L["portfolio_desc"]}</div>
             </div>
             """, unsafe_allow_html=True)
 
             # ── Add new holding ────────────────────────────────────────────────
-            with st.expander("➕ Add Holding", expanded=len(st.session_state.portfolio)==0):
+            # Expander always available so user can keep adding stocks (up to 500)
+            with st.expander(_L["add_holding"], expanded=len(st.session_state.portfolio) == 0):
                 pa1, pa2, pa3 = st.columns(3)
                 with pa1: add_sym   = st.text_input("Ticker", placeholder="e.g. AAPL", key="pt_sym").strip().upper()
                 with pa2: add_qty   = st.number_input("Quantity", min_value=0.0001, value=1.0, step=0.5, key="pt_qty")
                 with pa3: add_cost  = st.number_input("Avg Buy Price ($)", min_value=0.01, value=100.0, step=0.5, key="pt_cost")
-                if st.button("Add to Portfolio", use_container_width=True, key="pt_add_btn"):
+
+                # Show current portfolio count
+                current_count = len(st.session_state.portfolio)
+                MAX_HOLDINGS = 500
+                st.markdown(
+                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#424754;margin-bottom:.4rem;">'
+                    f'Holdings: {current_count} / {MAX_HOLDINGS}</div>',
+                    unsafe_allow_html=True
+                )
+
+                if st.button(_L["add_to_portfolio"], use_container_width=True, key="pt_add_btn"):
                     if add_sym:
-                        existing = [h for h in st.session_state.portfolio if h["ticker"] == add_sym]
-                        if existing:
-                            st.warning(f"{add_sym} already in portfolio. Remove it first to update.")
+                        if current_count >= MAX_HOLDINGS:
+                            st.warning(f"Maximum {MAX_HOLDINGS} holdings reached.")
                         else:
-                            with st.spinner(f"Fetching live price for {add_sym}..."):
-                                _q = av_get_quote(add_sym)
-                                _live_px = _q["price"] if _q["price"] > 0 else add_cost
-                                try:
-                                    _info = yf.Ticker(add_sym).info
-                                    _name = _info.get("longName", add_sym)
-                                    _sector = _info.get("sector","Unknown") + " • " + _info.get("industry","")
-                                except Exception:
-                                    _name = add_sym; _sector = "Unknown"
-                            _pl = (_live_px - add_cost) * add_qty
-                            _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
-                            st.session_state.portfolio.append({
-                                "ticker": add_sym, "name": _name, "sector": _sector,
-                                "qty": add_qty, "avg_cost": add_cost,
-                                "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
-                            })
-                            _date = pd.Timestamp.today().strftime("%b %d")
-                            st.session_state.portfolio_history.insert(0, {
-                                "date": _date, "type": "BUY", "ticker": add_sym,
-                                "shares": add_qty, "price": add_cost,
-                                "amount": -(add_qty * add_cost)
-                            })
-                            st.success(f"✓ Added {add_sym} — live price ${_live_px:.2f}")
-                            st.rerun()
+                            existing = [h for h in st.session_state.portfolio if h["ticker"] == add_sym]
+                            if existing:
+                                st.warning(_L["already_in_portfolio"].format(sym=add_sym))
+                            else:
+                                with st.spinner(f"Fetching live price for {add_sym}..."):
+                                    _q = av_get_quote(add_sym)
+                                    _live_px = _q["price"] if _q["price"] > 0 else add_cost
+                                    try:
+                                        _info = yf.Ticker(add_sym).info
+                                        _name = _info.get("longName", add_sym)
+                                        _sector = _info.get("sector","Unknown") + " • " + _info.get("industry","")
+                                    except Exception:
+                                        _name = add_sym; _sector = "Unknown"
+                                _pl = (_live_px - add_cost) * add_qty
+                                _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
+                                st.session_state.portfolio.append({
+                                    "ticker": add_sym, "name": _name, "sector": _sector,
+                                    "qty": add_qty, "avg_cost": add_cost,
+                                    "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
+                                })
+                                _date = pd.Timestamp.today().strftime("%b %d")
+                                st.session_state.portfolio_history.insert(0, {
+                                    "date": _date, "type": "BUY", "ticker": add_sym,
+                                    "shares": add_qty, "price": add_cost,
+                                    "amount": -(add_qty * add_cost)
+                                })
+                                st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
+                                st.rerun()
 
             port = st.session_state.portfolio
 
             if not port:
-                st.info("No holdings yet. Add your first stock above.")
+                st.info(_L["no_holdings"])
             else:
                 # Refresh live prices button
-                if st.button("🔄 Refresh Live Prices", key="pt_refresh"):
+                if st.button(_L["refresh_prices"], key="pt_refresh"):
                     av_get_quote.clear()  # Clear cache to force fresh prices
                     for h in st.session_state.portfolio:
                         try:
@@ -2040,13 +2304,13 @@ else:
                 total_pl       = total_value - total_invested
                 total_pl_pct   = (total_pl / total_invested * 100) if total_invested > 0 else 0
                 p1, p2, p3, p4 = st.columns(4)
-                p1.metric("Total Value",    f"${total_value:,.2f}")
-                p2.metric("Total P&L",      f"${total_pl:+,.2f}", delta=f"{total_pl_pct:+.1f}%")
-                p3.metric("Invested",       f"${total_invested:,.2f}")
-                p4.metric("Holdings",       str(len(port)))
+                p1.metric(_L["total_value"],    f"${total_value:,.2f}")
+                p2.metric(_L["total_pl"],       f"${total_pl:+,.2f}", delta=f"{total_pl_pct:+.1f}%")
+                p3.metric(_L["invested"],       f"${total_invested:,.2f}")
+                p4.metric(_L["holdings"],       str(len(port)))
 
                 # Holdings table with remove buttons
-                st.subheader("Holdings")
+                st.subheader(_L["holdings_label"])
                 for h in port:
                     mktval = h["qty"] * h["current_price"]
                     pl_col = "#00e5b0" if h["pl"] >= 0 else "#ff6b6b"
@@ -2064,7 +2328,7 @@ else:
                 # Sector donut
                 sc1, sc2 = st.columns([1,1])
                 with sc1:
-                    st.subheader("Sector Allocation")
+                    st.subheader(_L["sector_allocation"])
                     sector_map = {}
                     for h in port:
                         sec = h["sector"].split(" •")[0].strip()
@@ -2080,10 +2344,10 @@ else:
                     st.plotly_chart(fig_sector, use_container_width=True)
 
                 with sc2:
-                    st.subheader("Recent Activity")
+                    st.subheader(_L["recent_activity"])
                     hist = st.session_state.portfolio_history
                     if not hist:
-                        st.markdown('<div style="font-size:.78rem;color:#424754;padding:.5rem 0;">No transactions yet.</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="font-size:.78rem;color:#424754;padding:.5rem 0;">{_L["no_transactions"]}</div>', unsafe_allow_html=True)
                     for a in hist[:10]:
                         type_color = {"BUY":"#4d8eff","SELL":"#00e5b0","DIVIDEND":"#ffdd2d"}.get(a["type"],"#8c909f")
                         amt_str = f'+${a["amount"]:,.2f}' if a["amount"] >= 0 else f'-${abs(a["amount"]):,.2f}'
@@ -2444,7 +2708,7 @@ else:
                     v_icon  = {"COMPLIANT":"✅","NON-COMPLIANT":"❌","QUESTIONABLE":"⚠️"}[sh_verdict]
                     st.markdown(f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};padding:1.2rem 2rem;margin:1rem 0;text-align:center;border-radius:0 .5rem .5rem 0;"><div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#424754;letter-spacing:.14em;text-transform:uppercase;font-weight:700;">{sd["company_name"]} ({ticker})</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{sh_verdict}</div><div style="font-size:.76rem;color:#8c909f;margin-top:.3rem;">Sector: {sd["sector"]} | Industry: {sd["industry"]}</div></div>', unsafe_allow_html=True)
 
-                    st.subheader("Screening Criteria")
+                    st.subheader(_L["screening_criteria"])
                     col_left, col_right = st.columns(2)
                     with col_left:
                         bs = compliance_result["business"]
@@ -2470,7 +2734,7 @@ else:
 
             # ── News Sentiment ──────────────────────────────────────────────────
             if not is_beginner:
-                st.subheader("News Sentiment NLP")
+                st.subheader(_L["news_sentiment"])
                 try:
                     from textblob import TextBlob
                     raw_news = av_get_news(ticker)
@@ -2498,17 +2762,17 @@ else:
                             st.plotly_chart(fig_sent, use_container_width=True)
                             st.caption("⚠ Sentiment is based on headline text only. Powered by Yahoo Finance News + TextBlob.")
                     else:
-                        st.info("No recent news found for this ticker.")
+                        st.info(_L["no_recent_news"])
                 except ImportError:
                     st.info("Install `textblob` to enable News Sentiment NLP.")
                 except Exception as e:
                     st.warning(f"Could not fetch news: {e}")
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
-    ⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI
+    {_L["footer"]}
   </div>
 </div>
 """, unsafe_allow_html=True)
