@@ -231,6 +231,21 @@ LANGUAGES = {
         "already_in_portfolio": "{sym} already in portfolio. Remove it first to update.",
         "added_success": "✓ Added {sym} — live price ${price:.2f}",
         "footer": "⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI",
+        "model_performance": "Model Performance", "actual_vs_pred": "Actual vs Predicted",
+        "feature_importance": "Feature Importance", "signal_intelligence": "Signal Intelligence",
+        "forecast_next": "Forecast — Next {n} Days", "backtest_engine": "Backtesting Engine",
+        "trade_log": "Trade Log", "forecast_ci": "Forecast with Confidence Intervals",
+        "model_comparison": "Model Comparison — XGBoost vs Prophet vs Linear Regression",
+        "sector_heatmap": "Sector Heat Map · Live", "fear_greed": "Fear & Greed Index · Live",
+        "days_loaded": "✓ {n} trading days loaded for {ticker}", "fetching": "Fetching {ticker} data...",
+        "engineering": "Engineering technical features...", "building": "Building feature matrix...",
+        "training": "Training XGBoost model (cached after first run)...",
+        "running_backtest": "Running backtest simulation...", "running_bootstrap": "Running {n} bootstrap samples...",
+        "training_lr": "Training Linear Regression...", "fetching_market": "Loading live market data...",
+        "fetching_financial": "Fetching financial data for {ticker}...",
+        "not_enough_data": "Not enough data to train. Try a longer date range or smaller lookback window.",
+        "enter_ticker": "Please enter a ticker symbol.", "max_holdings": "Maximum {n} holdings reached.",
+        "loading_prices": "Fetching live price for {sym}...",
     },
     "Arabic": {
         "run": "▶  تشغيل التنبؤ", "ticker": "الرمز", "from": "من", "to": "إلى",
@@ -287,6 +302,20 @@ LANGUAGES = {
         "already_in_portfolio": "{sym} موجود بالفعل في المحفظة. أزله أولاً للتحديث.",
         "added_success": "✓ تمت إضافة {sym} — السعر الحي ${price:.2f}",
         "footer": "⚠ STOCKCAST · للأغراض التعليمية فقط · ليست نصيحة مالية · طوّره معاوية غني",
+        "model_performance": "أداء النموذج", "actual_vs_pred": "الفعلي مقابل المتوقع",
+        "feature_importance": "أهمية الميزات", "signal_intelligence": "ذكاء الإشارات",
+        "forecast_next": "التنبؤ — الـ {n} أيام القادمة", "backtest_engine": "محرك الاختبار الخلفي",
+        "trade_log": "سجل التداول", "forecast_ci": "التنبؤ مع فترات الثقة",
+        "model_comparison": "مقارنة النماذج — XGBoost مقابل Prophet مقابل الانحدار الخطي",
+        "sector_heatmap": "خريطة حرارة القطاعات · مباشر", "fear_greed": "مؤشر الخوف والجشع · مباشر",
+        "days_loaded": "✓ {n} يوم تداول تم تحميله لـ {ticker}", "fetching": "جارٍ جلب بيانات {ticker}...",
+        "engineering": "جارٍ هندسة الميزات التقنية...", "building": "جارٍ بناء مصفوفة الميزات...",
+        "training": "جارٍ تدريب نموذج XGBoost...", "running_backtest": "جارٍ تشغيل محاكاة الاختبار الخلفي...",
+        "running_bootstrap": "جارٍ تشغيل {n} عينة Bootstrap...", "training_lr": "جارٍ تدريب الانحدار الخطي...",
+        "fetching_market": "جارٍ تحميل بيانات السوق المباشرة...", "fetching_financial": "جارٍ جلب البيانات المالية لـ {ticker}...",
+        "not_enough_data": "بيانات غير كافية للتدريب. جرّب نطاقاً زمنياً أطول أو نافذة استرجاع أصغر.",
+        "enter_ticker": "الرجاء إدخال رمز السهم.", "max_holdings": "تم الوصول إلى الحد الأقصى {n} حيازة.",
+        "loading_prices": "جارٍ جلب السعر المباشر لـ {sym}...",
     },
     "Urdu": {
         "run": "▶  پیشن گوئی چلائیں", "ticker": "ٹکر", "from": "سے", "to": "تک",
@@ -343,6 +372,20 @@ LANGUAGES = {
         "already_in_portfolio": "{sym} پہلے سے پورٹ فولیو میں ہے۔ اپڈیٹ کرنے کے لیے پہلے ہٹائیں۔",
         "added_success": "✓ {sym} شامل کیا — لائیو قیمت ${price:.2f}",
         "footer": "⚠ STOCKCAST · صرف تعلیمی مقاصد کے لیے · مالی مشورہ نہیں · تیار کردہ معاویہ غنی",
+        "model_performance": "ماڈل کی کارکردگی", "actual_vs_pred": "حقیقی بمقابلہ پیشین گوئی",
+        "feature_importance": "فیچرز کی اہمیت", "signal_intelligence": "سگنل انٹیلی جنس",
+        "forecast_next": "پیشن گوئی — اگلے {n} دن", "backtest_engine": "بیک ٹیسٹ انجن",
+        "trade_log": "ٹریڈ لاگ", "forecast_ci": "اعتماد کے وقفوں کے ساتھ پیشن گوئی",
+        "model_comparison": "ماڈل موازنہ — XGBoost بمقابلہ Prophet بمقابلہ لکیری رجعت",
+        "sector_heatmap": "سیکٹر ہیٹ میپ · لائیو", "fear_greed": "خوف اور لالچ انڈیکس · لائیو",
+        "days_loaded": "✓ {n} ٹریڈنگ دن {ticker} کے لیے لوڈ ہوئے", "fetching": "{ticker} کا ڈیٹا لا رہے ہیں...",
+        "engineering": "تکنیکی فیچرز بنا رہے ہیں...", "building": "فیچر میٹرکس بنا رہے ہیں...",
+        "training": "XGBoost ماڈل ٹرین ہو رہا ہے...", "running_backtest": "بیک ٹیسٹ سمولیشن چل رہی ہے...",
+        "running_bootstrap": "{n} Bootstrap سیمپل چل رہے ہیں...", "training_lr": "لکیری رجعت ٹرین ہو رہی ہے...",
+        "fetching_market": "مارکیٹ کا لائیو ڈیٹا لوڈ ہو رہا ہے...", "fetching_financial": "{ticker} کا مالی ڈیٹا لا رہے ہیں...",
+        "not_enough_data": "تربیت کے لیے کافی ڈیٹا نہیں۔ طویل تاریخی رینج یا چھوٹا لُک بیک آزمائیں۔",
+        "enter_ticker": "براہ کرم ٹکر علامت درج کریں۔", "max_holdings": "زیادہ سے زیادہ {n} ہولڈنگز پہنچ گئی۔",
+        "loading_prices": "{sym} کی لائیو قیمت لا رہے ہیں...",
     },
     "Hindi": {
         "run": "▶  पूर्वानुमान चलाएं", "ticker": "टिकर", "from": "से", "to": "तक",
@@ -399,6 +442,20 @@ LANGUAGES = {
         "already_in_portfolio": "{sym} पहले से पोर्टफोलियो में है। अपडेट करने के लिए पहले हटाएं।",
         "added_success": "✓ {sym} जोड़ा गया — लाइव कीमत ${price:.2f}",
         "footer": "⚠ STOCKCAST · केवल शैक्षणिक उद्देश्यों के लिए · वित्तीय सलाह नहीं · निर्मित मुआवविज़ घनी द्वारा",
+        "model_performance": "मॉडल प्रदर्शन", "actual_vs_pred": "वास्तविक बनाम पूर्वानुमान",
+        "feature_importance": "फीचर महत्व", "signal_intelligence": "सिग्नल इंटेलिजेंस",
+        "forecast_next": "पूर्वानुमान — अगले {n} दिन", "backtest_engine": "बैकटेस्टिंग इंजन",
+        "trade_log": "ट्रेड लॉग", "forecast_ci": "विश्वास अंतराल के साथ पूर्वानुमान",
+        "model_comparison": "मॉडल तुलना — XGBoost बनाम Prophet बनाम रैखिक प्रतिगमन",
+        "sector_heatmap": "सेक्टर हीट मैप · लाइव", "fear_greed": "भय और लालच सूचकांक · लाइव",
+        "days_loaded": "✓ {ticker} के लिए {n} ट्रेडिंग दिन लोड हुए", "fetching": "{ticker} का डेटा लाया जा रहा है...",
+        "engineering": "तकनीकी फीचर बनाए जा रहे हैं...", "building": "फीचर मैट्रिक्स बनाया जा रहा है...",
+        "training": "XGBoost मॉडल प्रशिक्षित हो रहा है...", "running_backtest": "बैकटेस्ट सिमुलेशन चल रही है...",
+        "running_bootstrap": "{n} Bootstrap सैंपल चल रहे हैं...", "training_lr": "रैखिक प्रतिगमन प्रशिक्षित हो रहा है...",
+        "fetching_market": "लाइव बाज़ार डेटा लोड हो रहा है...", "fetching_financial": "{ticker} का वित्तीय डेटा लाया जा रहा है...",
+        "not_enough_data": "प्रशिक्षण के लिए पर्याप्त डेटा नहीं। लंबी तिथि सीमा या छोटा लुकबैक आज़माएं।",
+        "enter_ticker": "कृपया टिकर प्रतीक दर्ज करें।", "max_holdings": "अधिकतम {n} होल्डिंग्स पहुंच गई।",
+        "loading_prices": "{sym} की लाइव कीमत लाई जा रही है...",
     },
     "Chinese": {
         "run": "▶  运行预测", "ticker": "股票代码", "from": "从", "to": "到",
@@ -455,6 +512,20 @@ LANGUAGES = {
         "already_in_portfolio": "{sym} 已在投资组合中。如需更新请先删除。",
         "added_success": "✓ 已添加 {sym} — 实时价格 ${price:.2f}",
         "footer": "⚠ STOCKCAST · 仅供教育目的 · 非财务建议 · 由 MUAWWIZ GHANI 开发",
+        "model_performance": "模型表现", "actual_vs_pred": "实际 vs 预测",
+        "feature_importance": "特征重要性", "signal_intelligence": "信号分析",
+        "forecast_next": "预测 — 未来 {n} 天", "backtest_engine": "回测引擎",
+        "trade_log": "交易记录", "forecast_ci": "带置信区间的预测",
+        "model_comparison": "模型对比 — XGBoost vs Prophet vs 线性回归",
+        "sector_heatmap": "板块热力图 · 实时", "fear_greed": "恐贪指数 · 实时",
+        "days_loaded": "✓ 已加载 {ticker} 的 {n} 个交易日", "fetching": "正在获取 {ticker} 数据...",
+        "engineering": "正在计算技术特征...", "building": "正在构建特征矩阵...",
+        "training": "XGBoost 模型训练中...", "running_backtest": "正在运行回测模拟...",
+        "running_bootstrap": "正在运行 {n} 次 Bootstrap 采样...", "training_lr": "正在训练线性回归...",
+        "fetching_market": "正在加载实时市场数据...", "fetching_financial": "正在获取 {ticker} 财务数据...",
+        "not_enough_data": "数据不足以训练模型。请尝试更长的日期范围或更小的回溯窗口。",
+        "enter_ticker": "请输入股票代码。", "max_holdings": "已达到最大持仓数 {n}。",
+        "loading_prices": "正在获取 {sym} 的实时价格...",
     },
 }
 if "lang" not in st.session_state:
@@ -2027,14 +2098,14 @@ else:
         st.error(f"⚠ '{ticker}' doesn't look like a valid ticker. Use formats like AAPL, RELIANCE.NS, ^GSPC")
         st.stop()
 
-    with st.spinner(f"Fetching {ticker} data..."):
+    with st.spinner(_L["fetching"].format(ticker=ticker)):
         df = fetch_data(ticker, start_date, end_date)
 
     if df.empty:
         st.error(f"⚠ No data found for '{ticker}'. Check the symbol — for Indian stocks use .NS suffix e.g. RELIANCE.NS, TCS.NS. For indices use ^ prefix e.g. ^GSPC")
         st.stop()
 
-    st.success(f"✓ {len(df)} trading days loaded for {ticker}")
+    st.success(_L["days_loaded"].format(n=len(df), ticker=ticker))
 
     st.markdown(f"""
     <div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.3);
@@ -2054,7 +2125,7 @@ else:
         render_methodology_page(seq_len_val=seq_len, ci_n=ci_bootstrap_n, show_ci=show_conf_interval)
 
     with tab_analysis:
-        with st.spinner("Engineering technical features..."):
+        with st.spinner(_L["engineering"]):
             df = add_technical_features(df)
         close_series = df['Close'].squeeze()
 
@@ -2117,7 +2188,7 @@ else:
             X, y = build_xgb_dataset(df, seq_len)
 
         if len(X) < 50:
-            st.error("Not enough data to train. Try a longer date range or smaller lookback window.")
+            st.error(_L["not_enough_data"])
             st.stop()
 
         split   = int(len(X) * 0.8)
@@ -2228,56 +2299,58 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # ── Add new holding ────────────────────────────────────────────────
-            # Expander always available so user can keep adding stocks (up to 500)
-            with st.expander(_L["add_holding"], expanded=len(st.session_state.portfolio) == 0):
-                pa1, pa2, pa3 = st.columns(3)
-                with pa1: add_sym   = st.text_input("Ticker", placeholder="e.g. AAPL", key="pt_sym").strip().upper()
-                with pa2: add_qty   = st.number_input("Quantity", min_value=0.0001, value=1.0, step=0.5, key="pt_qty")
-                with pa3: add_cost  = st.number_input("Avg Buy Price ($)", min_value=0.01, value=100.0, step=0.5, key="pt_cost")
+            # ── Add new holding — always expanded so users can add 1–500 stocks ──
+            MAX_HOLDINGS = 500
+            current_count = len(st.session_state.portfolio)
 
-                # Show current portfolio count
-                current_count = len(st.session_state.portfolio)
-                MAX_HOLDINGS = 500
+            with st.expander(_L["add_holding"], expanded=True):
                 st.markdown(
-                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#424754;margin-bottom:.4rem;">'
+                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#424754;margin-bottom:.6rem;">'
                     f'Holdings: {current_count} / {MAX_HOLDINGS}</div>',
                     unsafe_allow_html=True
                 )
+                with st.form(key="pt_add_form", clear_on_submit=True):
+                    pa1, pa2, pa3 = st.columns(3)
+                    with pa1: add_sym  = st.text_input("Ticker", placeholder="e.g. AAPL", key="pt_sym_f")
+                    with pa2: add_qty  = st.number_input("Quantity", min_value=0.0001, value=1.0, step=0.5, key="pt_qty_f")
+                    with pa3: add_cost = st.number_input("Avg Buy Price ($)", min_value=0.01, value=100.0, step=0.5, key="pt_cost_f")
+                    submitted = st.form_submit_button(_L["add_to_portfolio"], use_container_width=True)
 
-                if st.button(_L["add_to_portfolio"], use_container_width=True, key="pt_add_btn"):
-                    if add_sym:
-                        if current_count >= MAX_HOLDINGS:
-                            st.warning(f"Maximum {MAX_HOLDINGS} holdings reached.")
+                if submitted:
+                    add_sym = add_sym.strip().upper()
+                    if not add_sym:
+                        st.warning("Please enter a ticker symbol.")
+                    elif current_count >= MAX_HOLDINGS:
+                        st.warning(f"Maximum {MAX_HOLDINGS} holdings reached.")
+                    else:
+                        existing = [h for h in st.session_state.portfolio if h["ticker"] == add_sym]
+                        if existing:
+                            st.warning(_L["already_in_portfolio"].format(sym=add_sym))
                         else:
-                            existing = [h for h in st.session_state.portfolio if h["ticker"] == add_sym]
-                            if existing:
-                                st.warning(_L["already_in_portfolio"].format(sym=add_sym))
-                            else:
-                                with st.spinner(f"Fetching live price for {add_sym}..."):
-                                    _q = av_get_quote(add_sym)
-                                    _live_px = _q["price"] if _q["price"] > 0 else add_cost
-                                    try:
-                                        _info = yf.Ticker(add_sym).info
-                                        _name = _info.get("longName", add_sym)
-                                        _sector = _info.get("sector","Unknown") + " • " + _info.get("industry","")
-                                    except Exception:
-                                        _name = add_sym; _sector = "Unknown"
-                                _pl = (_live_px - add_cost) * add_qty
-                                _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
-                                st.session_state.portfolio.append({
-                                    "ticker": add_sym, "name": _name, "sector": _sector,
-                                    "qty": add_qty, "avg_cost": add_cost,
-                                    "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
-                                })
-                                _date = pd.Timestamp.today().strftime("%b %d")
-                                st.session_state.portfolio_history.insert(0, {
-                                    "date": _date, "type": "BUY", "ticker": add_sym,
-                                    "shares": add_qty, "price": add_cost,
-                                    "amount": -(add_qty * add_cost)
-                                })
-                                st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
-                                st.rerun()
+                            with st.spinner(f"Fetching live price for {add_sym}..."):
+                                _q = av_get_quote(add_sym)
+                                _live_px = _q["price"] if _q["price"] > 0 else add_cost
+                                try:
+                                    _info = yf.Ticker(add_sym).info
+                                    _name = _info.get("longName", add_sym)
+                                    _sector = _info.get("sector", "Unknown") + " • " + _info.get("industry", "")
+                                except Exception:
+                                    _name = add_sym; _sector = "Unknown"
+                            _pl = (_live_px - add_cost) * add_qty
+                            _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
+                            st.session_state.portfolio.append({
+                                "ticker": add_sym, "name": _name, "sector": _sector,
+                                "qty": add_qty, "avg_cost": add_cost,
+                                "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
+                            })
+                            _date = pd.Timestamp.today().strftime("%b %d")
+                            st.session_state.portfolio_history.insert(0, {
+                                "date": _date, "type": "BUY", "ticker": add_sym,
+                                "shares": add_qty, "price": add_cost,
+                                "amount": -(add_qty * add_cost)
+                            })
+                            st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
+                            st.rerun()
 
             port = st.session_state.portfolio
 
