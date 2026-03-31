@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import requests
+import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.preprocessing import MinMaxScaler
@@ -10,86 +11,83 @@ from xgboost import XGBRegressor
 from supabase import create_client
 import warnings
 import os
+import time
 warnings.filterwarnings('ignore')
 
-# ── Alpha Vantage config ───────────────────────────────────────────────────────
-AV_KEY = "RTPYOZDYUO352HK8"
-AV_BASE = "https://www.alphavantage.co/query"
+# ── yfinance helpers ───────────────────────────────────────────────────────────
+
+def _yf_download_with_retry(ticker, retries=3, **kwargs):
+    """Download yfinance data with retry logic for rate limiting."""
+    for attempt in range(retries):
+        try:
+            df = yf.download(ticker, progress=False, auto_adjust=True, **kwargs)
+            if not df.empty:
+                return df
+        except Exception:
+            pass
+        if attempt < retries - 1:
+            time.sleep(2 + attempt * 2)
+    return pd.DataFrame()
 
 @st.cache_data(ttl=300)
 def av_get_daily(ticker):
-    """Fetch full daily OHLCV from Alpha Vantage. Returns DataFrame."""
-    r = requests.get(AV_BASE, params={
-        "function": "TIME_SERIES_DAILY",
-        "symbol": ticker,
-        "outputsize": "compact",
-        "datatype": "json",
-        "apikey": AV_KEY
-    }, timeout=30)
-    data = r.json()
-    ts = data.get("Time Series (Daily)", {})
-    if not ts:
-        return pd.DataFrame()
-    rows = []
-    for date, vals in ts.items():
-        rows.append({
-            "Date": pd.to_datetime(date),
-            "Open":   float(vals["1. open"]),
-            "High":   float(vals["2. high"]),
-            "Low":    float(vals["3. low"]),
-            "Close":  float(vals["4. close"]),
-            "Volume": float(vals["5. volume"]),
-        })
-    df = pd.DataFrame(rows).set_index("Date").sort_index()
-    return df
+    """Fetch full daily OHLCV via yfinance. Returns DataFrame."""
+    df = _yf_download_with_retry(ticker, period="7y", interval="1d")
+    if df.empty:
+        return df
+    # Flatten MultiIndex columns if present
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+    idx = pd.to_datetime(df.index)
+    df.index = idx.tz_localize(None) if idx.tz is not None else idx
+    df.index.name = "Date"
+    return df.sort_index()
 
 @st.cache_data(ttl=60)
 def av_get_quote(ticker):
-    """Fetch live quote from Alpha Vantage. Returns dict with price, change%, prev_close."""
-    r = requests.get(AV_BASE, params={
-        "function": "GLOBAL_QUOTE",
-        "symbol": ticker,
-        "apikey": AV_KEY
-    }, timeout=15)
-    q = r.json().get("Global Quote", {})
-    if not q:
+    """Fetch live quote via yfinance. Returns dict with price, change%, prev_close."""
+    try:
+        info = yf.Ticker(ticker).fast_info
+        price      = float(getattr(info, "last_price", 0) or 0)
+        prev_close = float(getattr(info, "previous_close", 0) or 0)
+        change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0.0
+        open_price = float(getattr(info, "open", 0) or 0)
+        return {"price": price, "change_pct": change_pct, "prev_close": prev_close, "open": open_price}
+    except Exception:
         return {"price": 0.0, "change_pct": 0.0, "prev_close": 0.0, "open": 0.0}
-    price      = float(q.get("05. price", 0))
-    prev_close = float(q.get("08. previous close", 0))
-    change_pct = float(q.get("10. change percent", "0").replace("%",""))
-    open_price = float(q.get("02. open", 0))
-    return {"price": price, "change_pct": change_pct, "prev_close": prev_close, "open": open_price}
 
 @st.cache_data(ttl=3600)
 def av_get_overview(ticker):
-    """Fetch company overview (sector, industry, market cap etc) from Alpha Vantage."""
-    r = requests.get(AV_BASE, params={
-        "function": "OVERVIEW",
-        "symbol": ticker,
-        "apikey": AV_KEY
-    }, timeout=15)
-    return r.json()
+    """Fetch company overview via yfinance. Returns dict compatible with existing Shariah logic."""
+    try:
+        info = yf.Ticker(ticker).info
+        return {
+            "Symbol":                              ticker,
+            "Name":                                info.get("longName", ticker),
+            "Sector":                              info.get("sector", "Unknown"),
+            "Industry":                            info.get("industry", "Unknown"),
+            "MarketCapitalization":                str(info.get("marketCap", 0) or 0),
+            "TotalDebt":                           str(info.get("totalDebt", 0) or 0),
+            "TotalAssets":                         str(info.get("totalAssets", 0) or 0),
+            "CashAndCashEquivalentsAtCarryingValue": str(info.get("totalCash", 0) or 0),
+        }
+    except Exception:
+        return {}
 
 @st.cache_data(ttl=300)
 def av_search(query):
-    """Search tickers via Alpha Vantage symbol search."""
-    r = requests.get(AV_BASE, params={
-        "function": "SYMBOL_SEARCH",
-        "keywords": query,
-        "apikey": AV_KEY
-    }, timeout=15)
-    return r.json().get("bestMatches", [])
+    """Search tickers — returns empty list (yfinance has no search API; app falls back to POPULAR_TICKERS)."""
+    return []
 
 @st.cache_data(ttl=300)
 def av_get_news(ticker):
-    """Fetch news sentiment from Alpha Vantage."""
-    r = requests.get(AV_BASE, params={
-        "function": "NEWS_SENTIMENT",
-        "tickers": ticker,
-        "limit": 10,
-        "apikey": AV_KEY
-    }, timeout=15)
-    return r.json().get("feed", [])
+    """Fetch news via yfinance. Returns list of dicts with 'title' key."""
+    try:
+        news = yf.Ticker(ticker).news or []
+        return [{"title": n.get("title", "")} for n in news[:10] if n.get("title")]
+    except Exception:
+        return []
 import nltk
 try:
     nltk.data.find('tokenizers/punkt')
@@ -771,7 +769,9 @@ def search_tickers(query):
 
 @st.cache_data(ttl=300)
 def fetch_data(ticker, start, end):
-    ticker = ticker.strip().upper()
+    # Preserve suffix for international tickers (e.g. RELIANCE.NS, 7203.T)
+    parts = ticker.strip().split(".")
+    ticker = parts[0].upper() + ("." + parts[1].upper() if len(parts) > 1 else "")
     df = av_get_daily(ticker)
     if df.empty:
         return df
@@ -1664,7 +1664,7 @@ else:
         df = fetch_data(ticker, start_date, end_date)
 
     if df.empty:
-        st.error(f"⚠ No data found for '{ticker}'. Check symbol or try again in 30s — Alpha Vantage may be rate limiting (25 req/day on free tier). Try: AAPL, MSFT, TSLA")
+        st.error(f"⚠ No data found for '{ticker}'. Check symbol or try again in 30s. For Indian stocks use .NS suffix e.g. RELIANCE.NS, TCS.NS")
         st.stop()
 
     st.success(f"✓ {len(df)} trading days loaded for {ticker}")
@@ -2324,11 +2324,11 @@ else:
                             fig_sent.add_vline(x=0, line_color=C_GREY)
                             fig_sent.add_vline(x=avg_polarity, line_dash="dot", line_color=sent_color, line_width=1.5)
                             fig_sent.update_layout(**PLOTLY_LAYOUT,
-                                title=dict(text=f"{ticker} · Headline Sentiment (Alpha Vantage + TextBlob)", font=dict(color=C_GREEN, size=11)),
+                                title=dict(text=f"{ticker} · Headline Sentiment (Yahoo Finance + TextBlob)", font=dict(color=C_GREEN, size=11)),
                                 height=max(220, len(scored)*32), xaxis_title="Polarity (negative ← 0 → positive)",
                                 xaxis=dict(range=[-1,1], gridcolor="#2d3449", linecolor="#2d3449", zeroline=False, tickfont=dict(color="#424754",size=9)))
                             st.plotly_chart(fig_sent, use_container_width=True)
-                            st.caption("⚠ Sentiment is based on headline text only. Powered by Alpha Vantage News API.")
+                            st.caption("⚠ Sentiment is based on headline text only. Powered by Yahoo Finance News + TextBlob.")
                     else:
                         st.info("No recent news found for this ticker.")
                 except ImportError:
