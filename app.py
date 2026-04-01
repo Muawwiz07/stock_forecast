@@ -17,15 +17,19 @@ warnings.filterwarnings('ignore')
 
 def _yf_download_with_retry(ticker, retries=3, **kwargs):
     """Download yfinance data with retry logic for rate limiting."""
+    import logging
+    last_exc = None
     for attempt in range(retries):
         try:
             df = yf.download(ticker, progress=False, auto_adjust=True, **kwargs)
             if not df.empty:
                 return df
-        except Exception:
-            pass
+        except Exception as e:
+            last_exc = e
         if attempt < retries - 1:
             time.sleep(2 + attempt * 2)
+    if last_exc is not None:
+        logging.warning(f"yfinance download failed for '{ticker}' after {retries} attempts: {type(last_exc).__name__}: {last_exc}")
     return pd.DataFrame()
 
 @st.cache_data(ttl=300)
@@ -56,8 +60,37 @@ def av_get_quote(ticker):
     except Exception:
         return {"price": 0.0, "change_pct": 0.0, "prev_close": 0.0, "open": 0.0}
 
-@st.cache_data(ttl=3600)
-def av_get_overview(ticker):
+@st.cache_data(ttl=180)
+def get_live_ticker_tape():
+    """Fetch live prices for ticker tape symbols — single batched download."""
+    tape_syms = ["AAPL","TSLA","NVDA","MSFT","GOOGL","META","AMZN","AMD","JPM","SPY","QQQ","NFLX"]
+    try:
+        raw = yf.download(tape_syms, period="2d", interval="1d", progress=False, auto_adjust=True)
+        close = raw["Close"] if "Close" in raw.columns else raw
+        if isinstance(close.columns, pd.MultiIndex):
+            close = close.droplevel(0, axis=1)
+        items = []
+        for sym in tape_syms:
+            try:
+                prices = close[sym].dropna()
+                if len(prices) >= 2:
+                    price, prev = float(prices.iloc[-1]), float(prices.iloc[-2])
+                elif len(prices) == 1:
+                    price = prev = float(prices.iloc[-1])
+                else:
+                    continue
+                chg_pct = ((price - prev) / prev * 100) if prev else 0.0
+                sign    = "+" if chg_pct >= 0 else ""
+                arrow   = "▲" if chg_pct >= 0 else "▼"
+                css     = "tape-up" if chg_pct >= 0 else "tape-down"
+                items.append((sym, f"${price:,.2f}", f"{sign}{chg_pct:.2f}%", arrow, css))
+            except Exception:
+                continue
+        return items
+    except Exception:
+        return []
+
+
     """Fetch company overview via yfinance. Returns dict compatible with existing Shariah logic."""
     try:
         info = yf.Ticker(ticker).info
@@ -90,42 +123,68 @@ def av_get_news(ticker):
 
 @st.cache_data(ttl=120)
 def get_live_market_indices():
-    """Fetch live S&P500, NASDAQ, DOW, VIX via yfinance."""
+    """Fetch live S&P500, NASDAQ, DOW, VIX via yfinance — single batched download."""
     symbols = {"S&P 500":"^GSPC","NASDAQ 100":"^NDX","DOW JONES":"^DJI","VIX":"^VIX"}
+    syms = list(symbols.values())
     result = []
-    for name, sym in symbols.items():
-        try:
-            info = yf.Ticker(sym).fast_info
-            price = float(getattr(info, "last_price", 0) or 0)
-            prev  = float(getattr(info, "previous_close", 0) or 0)
-            chg_pct = ((price - prev) / prev * 100) if prev else 0.0
-            col = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
-            sign = "+" if chg_pct >= 0 else ""
-            fmt_price = f"{price:,.2f}" if sym != "^VIX" else f"{price:.2f}"
-            result.append((name, fmt_price, f"{sign}{chg_pct:.2f}%", col))
-        except Exception:
+    try:
+        raw = yf.download(syms, period="2d", interval="1d", progress=False, auto_adjust=True)
+        close = raw["Close"] if "Close" in raw.columns else raw
+        if isinstance(close.columns, pd.MultiIndex):
+            close = close.droplevel(0, axis=1)
+        for name, sym in symbols.items():
+            try:
+                prices = close[sym].dropna()
+                if len(prices) >= 2:
+                    price, prev = float(prices.iloc[-1]), float(prices.iloc[-2])
+                elif len(prices) == 1:
+                    price, prev = float(prices.iloc[-1]), float(prices.iloc[-1])
+                else:
+                    raise ValueError("no data")
+                chg_pct = ((price - prev) / prev * 100) if prev else 0.0
+                col  = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
+                sign = "+" if chg_pct >= 0 else ""
+                fmt_price = f"{price:,.2f}" if sym != "^VIX" else f"{price:.2f}"
+                result.append((name, fmt_price, f"{sign}{chg_pct:.2f}%", col))
+            except Exception:
+                result.append((name, "—", "—", "#424754"))
+    except Exception:
+        for name in symbols:
             result.append((name, "—", "—", "#424754"))
     return result
 
 @st.cache_data(ttl=300)
 def get_live_sector_heatmap():
-    """Fetch live sector ETF performance via yfinance."""
+    """Fetch live sector ETF performance via yfinance — single batched download."""
     sector_etfs = {
         "Technology":"XLK","Healthcare":"XLV","Financials":"XLF",
         "Energy":"XLE","Consumer Disc.":"XLY","Industrials":"XLI",
         "Utilities":"XLU","Real Estate":"XLRE","Materials":"XLB","Comm. Services":"XLC"
     }
+    syms = list(sector_etfs.values())
     result = []
-    for name, sym in sector_etfs.items():
-        try:
-            info = yf.Ticker(sym).fast_info
-            price = float(getattr(info, "last_price", 0) or 0)
-            prev  = float(getattr(info, "previous_close", 0) or 0)
-            chg_pct = ((price - prev) / prev * 100) if prev else 0.0
-            col = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
-            sign = "+" if chg_pct >= 0 else ""
-            result.append((name, f"{sign}{chg_pct:.2f}%", col))
-        except Exception:
+    try:
+        raw = yf.download(syms, period="2d", interval="1d", progress=False, auto_adjust=True)
+        close = raw["Close"] if "Close" in raw.columns else raw
+        if isinstance(close.columns, pd.MultiIndex):
+            close = close.droplevel(0, axis=1)
+        for name, sym in sector_etfs.items():
+            try:
+                prices = close[sym].dropna()
+                if len(prices) >= 2:
+                    price, prev = float(prices.iloc[-1]), float(prices.iloc[-2])
+                elif len(prices) == 1:
+                    price, prev = float(prices.iloc[-1]), float(prices.iloc[-1])
+                else:
+                    raise ValueError("no data")
+                chg_pct = ((price - prev) / prev * 100) if prev else 0.0
+                col  = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
+                sign = "+" if chg_pct >= 0 else ""
+                result.append((name, f"{sign}{chg_pct:.2f}%", col))
+            except Exception:
+                result.append((name, "—", "#424754"))
+    except Exception:
+        for name in sector_etfs:
             result.append((name, "—", "#424754"))
     return result
 
@@ -347,6 +406,25 @@ LANGUAGES = {
         "not_enough_data": "Not enough data to train. Try a longer date range or smaller lookback window.",
         "enter_ticker": "Please enter a ticker symbol.", "max_holdings": "Maximum {n} holdings reached.",
         "loading_prices": "Fetching live price for {sym}...",
+        "deep_analysis": "📈  Deep Analysis",
+        "model_conf_score": "MODEL CONFIDENCE SCORE",
+        "high_confidence": "HIGH CONFIDENCE", "moderate_confidence": "MODERATE CONFIDENCE", "low_confidence": "LOW CONFIDENCE",
+        "r2_fit": "R² fit", "mape_accuracy": "MAPE accuracy", "directional_acc": "Directional acc.", "data_volume": "Data volume",
+        "composite_signal": "Composite Signal", "forecast_lbl": "forecast",
+        "score_lbl": "Score",
+        "take_profit_lbl": "Take Profit", "stop_loss_lbl": "Stop Loss", "risk_reward_lbl": "Risk / Reward",
+        "rsi_lbl": "RSI (14)",
+        "favorable": "✓ Favorable", "marginal": "⚠ Marginal", "unfavorable": "✗ Unfavorable",
+        "oversold_zone": "Oversold zone", "overbought_zone": "Overbought zone", "neutral_zone": "Neutral zone",
+        "factor_breakdown": "6-Factor Signal Breakdown",
+        "last_close_lbl": "Last Close", "model_confidence_lbl": "Model Confidence",
+        "high_lbl": "High", "moderate_lbl": "Moderate", "low_lbl": "Low",
+        "at_above_target": "AT or ABOVE your target of",
+        "below_target": "below target of",
+        "shariah_debt_mktcap": "Debt/MarketCap",
+        "shariah_debt_assets": "Debt/Assets",
+        "shariah_cash_assets": "Cash/Assets",
+        "known_noncompliant": "Known non-compliant ticker",
     },
     "Arabic": {
         "run": "▶  تشغيل التنبؤ", "ticker": "الرمز", "from": "من", "to": "إلى",
@@ -417,6 +495,25 @@ LANGUAGES = {
         "not_enough_data": "بيانات غير كافية للتدريب. جرّب نطاقاً زمنياً أطول أو نافذة استرجاع أصغر.",
         "enter_ticker": "الرجاء إدخال رمز السهم.", "max_holdings": "تم الوصول إلى الحد الأقصى {n} حيازة.",
         "loading_prices": "جارٍ جلب السعر المباشر لـ {sym}...",
+        "deep_analysis": "📈  تحليل عميق",
+        "model_conf_score": "نقاط ثقة النموذج",
+        "high_confidence": "ثقة عالية", "moderate_confidence": "ثقة متوسطة", "low_confidence": "ثقة منخفضة",
+        "r2_fit": "دقة R²", "mape_accuracy": "دقة MAPE", "directional_acc": "الدقة الاتجاهية", "data_volume": "حجم البيانات",
+        "composite_signal": "الإشارة المركبة", "forecast_lbl": "توقع",
+        "score_lbl": "النقاط",
+        "take_profit_lbl": "جني الأرباح", "stop_loss_lbl": "وقف الخسارة", "risk_reward_lbl": "المخاطرة / العائد",
+        "rsi_lbl": "RSI (14)",
+        "favorable": "✓ مناسب", "marginal": "⚠ هامشي", "unfavorable": "✗ غير مناسب",
+        "oversold_zone": "منطقة البيع الزائد", "overbought_zone": "منطقة الشراء الزائد", "neutral_zone": "المنطقة المحايدة",
+        "factor_breakdown": "تحليل 6 عوامل للإشارة",
+        "last_close_lbl": "آخر إغلاق", "model_confidence_lbl": "ثقة النموذج",
+        "high_lbl": "عالية", "moderate_lbl": "متوسطة", "low_lbl": "منخفضة",
+        "at_above_target": "عند الهدف أو أعلاه",
+        "below_target": "تحت الهدف بـ",
+        "shariah_debt_mktcap": "الدين / القيمة السوقية",
+        "shariah_debt_assets": "الدين / الأصول",
+        "shariah_cash_assets": "النقد / الأصول",
+        "known_noncompliant": "رمز غير متوافق معروف",
     },
     "Urdu": {
         "run": "▶  پیشن گوئی چلائیں", "ticker": "ٹکر", "from": "سے", "to": "تک",
@@ -487,6 +584,25 @@ LANGUAGES = {
         "not_enough_data": "تربیت کے لیے کافی ڈیٹا نہیں۔ طویل تاریخی رینج یا چھوٹا لُک بیک آزمائیں۔",
         "enter_ticker": "براہ کرم ٹکر علامت درج کریں۔", "max_holdings": "زیادہ سے زیادہ {n} ہولڈنگز پہنچ گئی۔",
         "loading_prices": "{sym} کی لائیو قیمت لا رہے ہیں...",
+        "deep_analysis": "📈  گہرا تجزیہ",
+        "model_conf_score": "ماڈل اعتماد اسکور",
+        "high_confidence": "اعلی اعتماد", "moderate_confidence": "اوسط اعتماد", "low_confidence": "کم اعتماد",
+        "r2_fit": "R² فٹ", "mape_accuracy": "MAPE درستگی", "directional_acc": "سمتی درستگی", "data_volume": "ڈیٹا حجم",
+        "composite_signal": "مرکب سگنل", "forecast_lbl": "پیشن گوئی",
+        "score_lbl": "اسکور",
+        "take_profit_lbl": "منافع لیں", "stop_loss_lbl": "نقصان روکیں", "risk_reward_lbl": "خطرہ / انعام",
+        "rsi_lbl": "RSI (14)",
+        "favorable": "✓ موزوں", "marginal": "⚠ معمولی", "unfavorable": "✗ ناموزوں",
+        "oversold_zone": "زیادہ فروخت زون", "overbought_zone": "زیادہ خریداری زون", "neutral_zone": "غیر جانبدار زون",
+        "factor_breakdown": "6 عوامل سگنل تجزیہ",
+        "last_close_lbl": "آخری بندش", "model_confidence_lbl": "ماڈل اعتماد",
+        "high_lbl": "اعلی", "moderate_lbl": "اوسط", "low_lbl": "کم",
+        "at_above_target": "ہدف پر یا اوپر",
+        "below_target": "ہدف سے نیچے",
+        "shariah_debt_mktcap": "قرض / مارکیٹ کیپ",
+        "shariah_debt_assets": "قرض / اثاثے",
+        "shariah_cash_assets": "نقد / اثاثے",
+        "known_noncompliant": "معروف غیر موافق ٹکر",
     },
     "Hindi": {
         "run": "▶  पूर्वानुमान चलाएं", "ticker": "टिकर", "from": "से", "to": "तक",
@@ -557,6 +673,25 @@ LANGUAGES = {
         "not_enough_data": "प्रशिक्षण के लिए पर्याप्त डेटा नहीं। लंबी तिथि सीमा या छोटा लुकबैक आज़माएं।",
         "enter_ticker": "कृपया टिकर प्रतीक दर्ज करें।", "max_holdings": "अधिकतम {n} होल्डिंग्स पहुंच गई।",
         "loading_prices": "{sym} की लाइव कीमत लाई जा रही है...",
+        "deep_analysis": "📈  गहरा विश्लेषण",
+        "model_conf_score": "मॉडल विश्वास स्कोर",
+        "high_confidence": "उच्च विश्वास", "moderate_confidence": "मध्यम विश्वास", "low_confidence": "कम विश्वास",
+        "r2_fit": "R² फिट", "mape_accuracy": "MAPE सटीकता", "directional_acc": "दिशात्मक सटीकता", "data_volume": "डेटा मात्रा",
+        "composite_signal": "समग्र सिग्नल", "forecast_lbl": "पूर्वानुमान",
+        "score_lbl": "स्कोर",
+        "take_profit_lbl": "लाभ लें", "stop_loss_lbl": "नुकसान रोकें", "risk_reward_lbl": "जोखिम / पुरस्कार",
+        "rsi_lbl": "RSI (14)",
+        "favorable": "✓ अनुकूल", "marginal": "⚠ सीमांत", "unfavorable": "✗ प्रतिकूल",
+        "oversold_zone": "ओवरसोल्ड ज़ोन", "overbought_zone": "ओवरबॉट ज़ोन", "neutral_zone": "तटस्थ क्षेत्र",
+        "factor_breakdown": "6-कारक सिग्नल विश्लेषण",
+        "last_close_lbl": "अंतिम बंद", "model_confidence_lbl": "मॉडल विश्वास",
+        "high_lbl": "उच्च", "moderate_lbl": "मध्यम", "low_lbl": "कम",
+        "at_above_target": "लक्ष्य पर या ऊपर",
+        "below_target": "लक्ष्य से नीचे",
+        "shariah_debt_mktcap": "ऋण / बाज़ार पूंजी",
+        "shariah_debt_assets": "ऋण / संपत्ति",
+        "shariah_cash_assets": "नकद / संपत्ति",
+        "known_noncompliant": "ज्ञात गैर-अनुपालन टिकर",
     },
     "Chinese": {
         "run": "▶  运行预测", "ticker": "股票代码", "from": "从", "to": "到",
@@ -627,6 +762,25 @@ LANGUAGES = {
         "not_enough_data": "数据不足以训练模型。请尝试更长的日期范围或更小的回溯窗口。",
         "enter_ticker": "请输入股票代码。", "max_holdings": "已达到最大持仓数 {n}。",
         "loading_prices": "正在获取 {sym} 的实时价格...",
+        "deep_analysis": "📈  深度分析",
+        "model_conf_score": "模型置信度评分",
+        "high_confidence": "高置信度", "moderate_confidence": "中等置信度", "low_confidence": "低置信度",
+        "r2_fit": "R² 拟合", "mape_accuracy": "MAPE 准确率", "directional_acc": "方向准确率", "data_volume": "数据量",
+        "composite_signal": "综合信号", "forecast_lbl": "预测",
+        "score_lbl": "评分",
+        "take_profit_lbl": "止盈", "stop_loss_lbl": "止损", "risk_reward_lbl": "风险 / 收益",
+        "rsi_lbl": "RSI (14)",
+        "favorable": "✓ 有利", "marginal": "⚠ 边际", "unfavorable": "✗ 不利",
+        "oversold_zone": "超卖区域", "overbought_zone": "超买区域", "neutral_zone": "中性区域",
+        "factor_breakdown": "6因子信号分析",
+        "last_close_lbl": "最新收盘", "model_confidence_lbl": "模型置信度",
+        "high_lbl": "高", "moderate_lbl": "中", "low_lbl": "低",
+        "at_above_target": "等于或高于目标",
+        "below_target": "低于目标",
+        "shariah_debt_mktcap": "债务/市值",
+        "shariah_debt_assets": "债务/资产",
+        "shariah_cash_assets": "现金/资产",
+        "known_noncompliant": "已知不合规代码",
     },
 }
 if "lang" not in st.session_state:
@@ -1266,17 +1420,6 @@ def search_tickers(query):
     for sym, name in POPULAR_TICKERS.items():
         if sym != q and (ql in name.lower() or ql in sym.lower()):
             results.append(f"{sym} — {name}")
-    try:
-        matches = av_search(query)
-        for m in matches:
-            sym  = m.get("1. symbol","")
-            name = m.get("2. name","")
-            mtype = m.get("3. type","")
-            entry = f"{sym} — {name}"
-            if sym and mtype in ("Equity","ETF") and entry not in results:
-                results.append(entry)
-    except Exception:
-        pass
     return results[:10]
 
 @st.cache_data(ttl=300)
@@ -1341,7 +1484,7 @@ def add_technical_features(df):
     return df
 
 FEATURE_COLS = [
-    'MA5','MA10','MA20','MA50','EMA12','EMA26',
+    'MA5','MA10','MA20','MA50','MA200','EMA12','EMA26',
     'RSI','MACD','MACD_Signal','MACD_Hist',
     'BB_Width','BB_Pct','Returns','Returns_5d','Volatility','Momentum',
     'Volume_Ratio','High_Low_Pct','Close_Open_Pct','ATR'
@@ -1362,7 +1505,6 @@ def build_xgb_dataset(df, seq_len):
     mask = ~np.isnan(X).any(axis=1) & ~np.isnan(y)
     dropped = (~mask).sum()
     if dropped > 0:
-        import warnings
         warnings.warn(f"build_xgb_dataset: dropped {dropped} rows containing NaN (out of {len(mask)} total)")
     return X[mask], y[mask]
 
@@ -1433,6 +1575,7 @@ def run_backtest_engine(actual_prices, predicted_prices, initial_capital, commis
                 capital -= shares * price_now + commission
                 position = shares; entry_price = price_now
                 trades.append({"Day":i,"Type":"BUY","Price":price_now,"Shares":shares,"Capital":capital})
+            # shares==0 means the stock price exceeds available capital — silently skip
         elif diff_pct < -threshold_pct and position > 0:
             proceeds = position * price_now - commission
             pnl = proceeds - (entry_price * position + commission)
@@ -1469,7 +1612,16 @@ def run_backtest_engine(actual_prices, predicted_prices, initial_capital, commis
             "total_trades":total_trades,"avg_win":avg_win,"avg_loss":avg_loss,"profit_factor":pf,
             "equity_curve":equity,"bh_equity":bh_equity,"trades_df":trades_df,"drawdown_series":drawdown.tolist()}
 
-def bootstrap_confidence_intervals(model, X_input, n_bootstrap=100, noise_std=0.02):
+def bootstrap_confidence_intervals(model, X_input, n_bootstrap=100, noise_std=None):
+    # Adapt noise to asset's recent volatility if not explicitly provided.
+    # The last feature column index for 'Volatility' is position 14 in FEATURE_COLS.
+    if noise_std is None:
+        try:
+            vol_idx = FEATURE_COLS.index('Volatility')
+            recent_vol = float(np.nanmedian(X_input[-20:, vol_idx]))
+            noise_std = max(0.005, min(0.05, recent_vol))  # clamp between 0.5% and 5%
+        except Exception:
+            noise_std = 0.02
     # Use relative noise scaled to each feature's std, so a $500 stock
     # and a $5 stock both get proportionally equivalent perturbations.
     feature_scale = np.std(X_input, axis=0, keepdims=True)
@@ -1482,16 +1634,19 @@ def bootstrap_confidence_intervals(model, X_input, n_bootstrap=100, noise_std=0.
     return np.percentile(a, 5, axis=0), np.percentile(a, 50, axis=0), np.percentile(a, 95, axis=0)
 
 HARAM_TICKERS = {
-    "BUD","STZ","SAM","BREW","ABEV","DEO","BF-B",
-    "MO","PM","BTI","LO","VGR",
-    "LVS","MGM","WYNN","CZR","PENN","DKNG","BYD",
-    "JPM","BAC","WFC","C","GS","MS","AXP",
-    "MET","PRU","AIG","ALL","TRV","CB",
-    "HRL","TSN","SFD","CAG","LMT","RTX","NOC","GD","HII",
+    "BUD","STZ","SAM","BREW","ABEV","DEO","BF-B",       # Alcohol
+    "MO","PM","BTI","LO","VGR",                          # Tobacco
+    "LVS","MGM","WYNN","CZR","PENN","DKNG","BYD",        # Gambling
+    "MET","PRU","AIG","ALL","TRV","CB",                   # Pure insurance
+    "HRL","TSN","SFD","CAG","LMT","RTX","NOC","GD","HII", # Pork/Defense
 }
+# Per AAOIFI Standard No.21: banks and financial firms require ratio screening,
+# not a blanket ban. Moved here so the app performs the debt/assets check.
 QUESTIONABLE_TICKERS = {
     "DIS","NFLX","PARA","WBD","FOXA","SPOT",
-    "MAR","HLT","H","IHG","WH","V","MA","AXP","COF","USB","PNC",
+    "MAR","HLT","H","IHG","WH",
+    "JPM","BAC","WFC","C","GS","MS",   # Banks — require ratio screening
+    "V","MA","AXP","COF","USB","PNC",  # Payment/finance — require ratio screening
 }
 HARAM_SECTORS_KW = ["bank","insurance","casino","gambling","alcohol","tobacco",
                     "brewing","distill","porn","adult","weapons","defense","firearm"]
@@ -1522,18 +1677,23 @@ def get_shariah_data(ticker_sym):
         "company_name": info.get("Name", ticker_sym)
     }
 
-def check_shariah_compliance(ticker_sym, data):
+def check_shariah_compliance(ticker_sym, data, _L=None):
+    if _L is None:
+        _L = {}
     t = ticker_sym.upper(); ind_lower = data["industry"].lower(); haram_hit = None
-    if t in HARAM_TICKERS: haram_hit = "Known non-compliant ticker"
+    if t in HARAM_TICKERS: haram_hit = _L.get("known_noncompliant", "Known non-compliant ticker")
     else:
         for kw in HARAM_SECTORS_KW:
             if kw in ind_lower: haram_hit = data["industry"]; break
     questionable = t in QUESTIONABLE_TICKERS
     r = {
         "business":    {"pass": haram_hit is None, "haram_hit": haram_hit, "questionable": questionable},
-        "debt_mktcap": {"pass": data["debt_to_mktcap"] < 0.30, "value": data["debt_to_mktcap"], "label": f"Debt/MarketCap = {data['debt_to_mktcap']*100:.1f}% (< 30%)"},
-        "debt_assets": {"pass": data["debt_to_assets"] < 0.33, "value": data["debt_to_assets"], "label": f"Debt/Assets = {data['debt_to_assets']*100:.1f}% (< 33%)"},
-        "cash_assets": {"pass": data["cash_to_assets"] < 0.33, "value": data["cash_to_assets"], "label": f"Cash/Assets = {data['cash_to_assets']*100:.1f}% (< 33%)"},
+        "debt_mktcap": {"pass": data["debt_to_mktcap"] < 0.30, "value": data["debt_to_mktcap"],
+                        "label": _L.get("shariah_debt_mktcap", "Debt/MarketCap") + f" = {data['debt_to_mktcap']*100:.1f}% (< 30%)"},
+        "debt_assets": {"pass": data["debt_to_assets"] < 0.33, "value": data["debt_to_assets"],
+                        "label": _L.get("shariah_debt_assets", "Debt/Assets") + f" = {data['debt_to_assets']*100:.1f}% (< 33%)"},
+        "cash_assets": {"pass": data["cash_to_assets"] < 0.33, "value": data["cash_to_assets"],
+                        "label": _L.get("shariah_cash_assets", "Cash/Assets") + f" = {data['cash_to_assets']*100:.1f}% (< 33%)"},
     }
     all_pass = all(r[k]["pass"] for k in ["business","debt_mktcap","debt_assets","cash_assets"])
     r["verdict"] = "NON-COMPLIANT" if not r["business"]["pass"] or not all_pass else ("QUESTIONABLE" if questionable else "COMPLIANT")
@@ -1602,7 +1762,7 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 # ── Auth Gate: Login / Signup ──────────────────────────────────────────────────
 if st.session_state.user is None:
 
-    import streamlit.components.v1 as _ac
+    import streamlit.components.v1 as _components
 
     _auth_error   = ""
     _auth_success = ""
@@ -1670,7 +1830,7 @@ if st.session_state.user is None:
     # ── Three.js animated background (visual only, no form inside) ────────────
     _is_login   = (st.session_state.auth_view == "login")
 
-    _ac.html("""
+    _components.html("""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -1711,7 +1871,7 @@ canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;z-index:
   <div class="bento">
     <div class="bento-card"><div class="bc-label">XGBoost RMSE</div><div class="bc-val">$2.14</div></div>
     <div class="bento-card"><div class="bc-label">Latency</div><div class="bc-val" id="lat2">14ms</div></div>
-    <div class="bento-card"><div class="bc-label">Data Integrity</div><div class="bc-val" style="font-size:0.75rem;">AES-512</div></div>
+    <div class="bento-card"><div class="bc-label">Auth Provider</div><div class="bc-val" style="font-size:0.75rem;">Supabase</div></div>
     <div class="bento-card"><div class="bc-label">Signal Strength</div><div class="bc-val" style="color:#00f1fe;">STRONG</div></div>
   </div>
 </div>
@@ -1790,7 +1950,7 @@ setInterval(()=>{const v=12+Math.floor(Math.random()*6);const l2=document.getEle
                 st.rerun()
 
         if _is_login:
-            st.markdown('<div style="text-align:center;margin-bottom:1rem;"><div style="font-size:0.9rem;font-weight:700;letter-spacing:0.12em;color:#e0e3e6;text-transform:uppercase;">SECURE ACCESS</div><div style="font-size:0.5rem;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:monospace;">ENCRYPTION: QUANTUM AES-512</div></div>', unsafe_allow_html=True)
+            st.markdown('<div style="text-align:center;margin-bottom:1rem;"><div style="font-size:0.9rem;font-weight:700;letter-spacing:0.12em;color:#e0e3e6;text-transform:uppercase;">SECURE ACCESS</div><div style="font-size:0.5rem;color:rgba(224,227,230,0.35);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:monospace;">POWERED BY SUPABASE AUTH</div></div>', unsafe_allow_html=True)
             st.markdown('<div style="font-family:monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-bottom:4px;">IDENTITY TOKEN (EMAIL)</div>', unsafe_allow_html=True)
             _login_email = st.text_input("Email", placeholder="name@firm.com", key="login_email_input", label_visibility="collapsed")
             st.markdown('<div style="font-family:monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(74,225,118,0.7);margin-bottom:4px;margin-top:0.8rem;">ACCESS KEY</div>', unsafe_allow_html=True)
@@ -1884,41 +2044,29 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Ticker tape
-st.markdown("""
+# Ticker tape — live prices
+_tape_items = get_live_ticker_tape()
+if _tape_items:
+    _dot = '<span style="color:#2d3449;">·</span>'
+    _tape_spans = f" {_dot} ".join(
+        f'<span><span class="tape-sym">{sym}</span>'
+        f'<span class="{css}">{arrow} {price} {pct}</span></span>'
+        for sym, price, pct, arrow, css in _tape_items * 2  # duplicate for seamless scroll
+    )
+    st.markdown(f"""
+<div class="ticker-tape-wrap">
+  <div class="ticker-tape">{_tape_spans}</div>
+</div>
+""", unsafe_allow_html=True)
+else:
+    # Fallback: show symbols only if live fetch fails
+    st.markdown("""
 <div class="ticker-tape-wrap">
   <div class="ticker-tape">
-    <span><span class="tape-sym">AAPL</span><span class="tape-up">▲ $189.42 +1.2%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">TSLA</span><span class="tape-down">▼ $248.11 -0.8%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">NVDA</span><span class="tape-up">▲ $875.33 +2.1%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">MSFT</span><span class="tape-up">▲ $421.05 +0.5%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">GOOGL</span><span class="tape-down">▼ $168.22 -0.3%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">META</span><span class="tape-up">▲ $512.88 +1.7%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">AMZN</span><span class="tape-up">▲ $186.44 +0.9%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">AMD</span><span class="tape-up">▲ $167.55 +3.2%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">JPM</span><span class="tape-down">▼ $198.30 -0.4%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">SPY</span><span class="tape-up">▲ $521.67 +0.6%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">QQQ</span><span class="tape-up">▲ $448.90 +0.8%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">AAPL</span><span class="tape-up">▲ $189.42 +1.2%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">TSLA</span><span class="tape-down">▼ $248.11 -0.8%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">NVDA</span><span class="tape-up">▲ $875.33 +2.1%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">MSFT</span><span class="tape-up">▲ $421.05 +0.5%</span></span>
-    <span style="color:#2d3449;">·</span>
-    <span><span class="tape-sym">META</span><span class="tape-up">▲ $512.88 +1.7%</span></span>
+    <span class="tape-sym">AAPL</span> · <span class="tape-sym">TSLA</span> ·
+    <span class="tape-sym">NVDA</span> · <span class="tape-sym">MSFT</span> ·
+    <span class="tape-sym">GOOGL</span> · <span class="tape-sym">META</span> ·
+    <span class="tape-sym">AMZN</span> · <span class="tape-sym">SPY</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -2343,7 +2491,7 @@ else:
         st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#424754;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
 
         # Tabs
-        dash_tab, port_tab, mkt_tab, deep_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], "📈  Deep Analysis"])
+        dash_tab, port_tab, mkt_tab, deep_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], _L["deep_analysis"]])
 
         # ──────────────────────────────────────────────────────────────────────
         with dash_tab:
@@ -2360,14 +2508,14 @@ else:
             st.markdown(f"""
             <div class="stat-grid">
               <div class="stat-card">
-                <div class="stat-label">Last Close</div>
+                <div class="stat-label">{_L["last_close_lbl"]}</div>
                 <div class="stat-value">${_dash_close:.2f}</div>
                 <div class="stat-sub" style="color:{_dash_color};font-weight:700;">{_dash_arrow} {_dash_sign}{_dash_chg:.2f} ({_dash_sign}{_dash_pct:.2f}%)</div>
               </div>
               <div class="stat-card" style="border-top-color:#adc6ff;">
-                <div class="stat-label">Model Confidence</div>
+                <div class="stat-label">{_L["model_confidence_lbl"]}</div>
                 <div class="stat-value" style="color:#adc6ff;">{confidence_score:.0f}<span style="font-size:.9rem;color:#8c909f;">/100</span></div>
-                <div class="stat-sub">{"High" if confidence_score>=80 else "Moderate" if confidence_score>=60 else "Low"}</div>
+                <div class="stat-sub">{_L["high_lbl"] if confidence_score>=80 else _L["moderate_lbl"] if confidence_score>=60 else _L["low_lbl"]}</div>
               </div>
               <div class="stat-card" style="border-top-color:#ffdd2d;">
                 <div class="stat-label">MAPE</div>
@@ -2633,13 +2781,13 @@ else:
             if alert_price > 0:
                 diff = alert_price - last_close
                 if last_close >= alert_price:
-                    st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — {_L["at_above_target"]} ${alert_price:.2f}</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — ${diff:.2f} below target of ${alert_price:.2f}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — ${diff:.2f} {_L["below_target"]} ${alert_price:.2f}</div>', unsafe_allow_html=True)
 
             # Confidence score bar
             conf_color = "#00e5b0" if confidence_score>=80 else "#ffdd2d" if confidence_score>=60 else "#ff6b6b"
-            conf_label = "HIGH CONFIDENCE" if confidence_score>=80 else "MODERATE CONFIDENCE" if confidence_score>=60 else "LOW CONFIDENCE"
+            conf_label = _L["high_confidence"] if confidence_score>=80 else _L["moderate_confidence"] if confidence_score>=60 else _L["low_confidence"]
             filled = int(confidence_score / 5)
             bar_html = "".join(f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;background:{conf_color};opacity:{1.0 if i<filled else 0.1};border-radius:1px;"></span>' for i in range(20))
             st.markdown(f"""
@@ -2647,17 +2795,17 @@ else:
                  padding:1.2rem 1.6rem;margin:1rem 0;border-radius:0 .5rem .5rem 0;">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
                 <div>
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#424754;margin-bottom:.3rem;font-weight:700;">MODEL CONFIDENCE SCORE</div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#424754;margin-bottom:.3rem;font-weight:700;">{_L["model_conf_score"]}</div>
                   <div style="font-family:IBM Plex Mono,monospace;font-size:2.2rem;font-weight:700;color:{conf_color};">{confidence_score:.0f}<span style="font-size:1rem;color:#8c909f;">/100</span></div>
                   <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.14em;color:{conf_color};margin-top:.3rem;font-weight:700;">{conf_label}</div>
                 </div>
                 <div style="flex:1;min-width:220px;">
                   <div style="margin-bottom:.6rem;">{bar_html}</div>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#424754;">
-                    <span>R² fit <b style="color:#8c909f;">{r2_norm:.0f}/100</b> <span style="color:#2d3449;">(×0.40)</span></span>
-                    <span>MAPE accuracy <b style="color:#8c909f;">{mape_norm:.0f}/100</b> <span style="color:#2d3449;">(×0.30)</span></span>
-                    <span>Directional acc. <b style="color:#8c909f;">{dir_acc:.0f}/100</b> <span style="color:#2d3449;">(×0.20)</span></span>
-                    <span>Data volume <b style="color:#8c909f;">{data_score:.0f}/100</b> <span style="color:#2d3449;">(×0.10)</span></span>
+                    <span>{_L["r2_fit"]} <b style="color:#8c909f;">{r2_norm:.0f}/100</b> <span style="color:#2d3449;">(×0.40)</span></span>
+                    <span>{_L["mape_accuracy"]} <b style="color:#8c909f;">{mape_norm:.0f}/100</b> <span style="color:#2d3449;">(×0.30)</span></span>
+                    <span>{_L["directional_acc"]} <b style="color:#8c909f;">{dir_acc:.0f}/100</b> <span style="color:#2d3449;">(×0.20)</span></span>
+                    <span>{_L["data_volume"]} <b style="color:#8c909f;">{data_score:.0f}/100</b> <span style="color:#2d3449;">(×0.10)</span></span>
                   </div>
                 </div>
               </div>
@@ -2665,7 +2813,7 @@ else:
             """, unsafe_allow_html=True)
 
             # ── Signal Intelligence ────────────────────────────────────────────────
-            st.subheader("Signal Intelligence")
+            st.subheader(_L["signal_intelligence"])
             composite    = compute_composite_signal(df, last_close, preds[-1], preds, actual)
             verdict      = composite['verdict']
             verdict_short= composite['verdict_short']
@@ -2694,38 +2842,38 @@ else:
             st.markdown(f"""
             <div class="signal-panel">
               <div class="signal-main {verdict_css}">
-                <div class="signal-lbl">Composite Signal</div>
+                <div class="signal-lbl">{_L["composite_signal"]}</div>
                 <div class="signal-action {verdict_css}">{verdict}</div>
-                <div class="signal-pct">{sign}{xgb_pct:.2f}% forecast</div>
-                <div class="signal-lbl" style="margin-top:8px;">Score: <span style="color:{score_color};font-size:.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
+                <div class="signal-pct">{sign}{xgb_pct:.2f}% {_L["forecast_lbl"]}</div>
+                <div class="signal-lbl" style="margin-top:8px;">{_L["score_lbl"]}: <span style="color:{score_color};font-size:.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
               </div>
               <div class="signal-details">
                 <div class="sig-card positive">
-                  <div class="sig-lbl">Take Profit</div>
+                  <div class="sig-lbl">{_L["take_profit_lbl"]}</div>
                   <div class="sig-val">${take_profit:.2f}</div>
                   <div class="sig-sub">+{((take_profit-last_close)/last_close*100):.1f}% · 3× ATR</div>
                 </div>
                 <div class="sig-card negative">
-                  <div class="sig-lbl">Stop Loss</div>
+                  <div class="sig-lbl">{_L["stop_loss_lbl"]}</div>
                   <div class="sig-val">${stop_loss:.2f}</div>
                   <div class="sig-sub">{((stop_loss-last_close)/last_close*100):.1f}% · 2× ATR</div>
                 </div>
                 <div class="sig-card {rr_color}">
-                  <div class="sig-lbl">Risk / Reward</div>
+                  <div class="sig-lbl">{_L["risk_reward_lbl"]}</div>
                   <div class="sig-val">{risk_reward:.2f}×</div>
-                  <div class="sig-sub">{"✓ Favorable" if risk_reward>=1.5 else "⚠ Marginal" if risk_reward>=1 else "✗ Unfavorable"}</div>
+                  <div class="sig-sub">{_L["favorable"] if risk_reward>=1.5 else _L["marginal"] if risk_reward>=1 else _L["unfavorable"]}</div>
                 </div>
                 <div class="sig-card {'positive' if rsi_val<50 else 'negative'}">
-                  <div class="sig-lbl">RSI (14)</div>
+                  <div class="sig-lbl">{_L["rsi_lbl"]}</div>
                   <div class="sig-val">{rsi_val:.1f}</div>
-                  <div class="sig-sub">{'Oversold zone' if rsi_val<30 else 'Overbought zone' if rsi_val>70 else 'Neutral zone'}</div>
+                  <div class="sig-sub">{_L["oversold_zone"] if rsi_val<30 else _L["overbought_zone"] if rsi_val>70 else _L["neutral_zone"]}</div>
                 </div>
               </div>
             </div>
             """, unsafe_allow_html=True)
 
             # Composite meter
-            st.markdown('<div class="composite-meter"><div class="meter-title">6-Factor Signal Breakdown</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="composite-meter"><div class="meter-title">{_L["factor_breakdown"]}</div>', unsafe_allow_html=True)
             for sig_name, (sig_action, sig_score, sig_val, sig_pol) in sigs.items():
                 bar_width = min(100, abs(sig_score))
                 st.markdown(f"""
@@ -2738,7 +2886,7 @@ else:
             st.markdown('</div>', unsafe_allow_html=True)
 
             # ── Future Forecast ────────────────────────────────────────────────
-            st.subheader(f"Forecast — Next {future_days} Days")
+            st.subheader(_L["forecast_next"].format(n=future_days))
             future_prices    = []
             last_row_feats   = X[-1].copy()
             for d in range(future_days):
@@ -2800,6 +2948,9 @@ else:
                 k6.markdown(f'<div class="bt-card"><div class="bt-label">Total Trades</div><div class="bt-val">{bt["total_trades"]}</div></div>', unsafe_allow_html=True)
                 k7.markdown(f'<div class="bt-card"><div class="bt-label">Win Rate</div><div class="bt-val">{bt["win_rate"]:.1f}%</div></div>', unsafe_allow_html=True)
                 k8.markdown(f'<div class="bt-card"><div class="bt-label">Profit Factor</div><div class="bt-val">{bt["profit_factor"]:.2f}x</div></div>', unsafe_allow_html=True)
+
+                if bt["total_trades"] == 0 and last_close > bt_initial_capital:
+                    st.warning(f"⚠ No trades executed — {ticker} (${last_close:.2f}/share) exceeds the initial capital of ${bt_initial_capital:,.0f}. Increase the capital in the sidebar to enable backtesting for this stock.")
 
                 fig_eq = go.Figure()
                 fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy", line=dict(color=C_EMERALD, width=2), fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
@@ -2895,7 +3046,7 @@ else:
                           "sector":"Unknown","industry":"Unknown","company_name":ticker}
                     st.warning(f"⚠ Could not fetch detailed financial data for {ticker}. Using ticker-list screening only.")
                 if sd is not None:
-                    compliance_result = check_shariah_compliance(ticker, sd)
+                    compliance_result = check_shariah_compliance(ticker, sd, _L)
                     sh_verdict = compliance_result["verdict"]
                     v_color = {"COMPLIANT":C_EMERALD,"NON-COMPLIANT":C_RED,"QUESTIONABLE":C_YELLOW}[sh_verdict]
                     v_bg    = {"COMPLIANT":"rgba(0,229,176,0.05)","NON-COMPLIANT":"rgba(255,107,107,0.05)","QUESTIONABLE":"rgba(255,221,45,0.05)"}[sh_verdict]
