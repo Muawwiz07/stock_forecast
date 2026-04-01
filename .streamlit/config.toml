@@ -1,0 +1,19 @@
+[theme]
+base            = "dark"
+primaryColor    = "#00e5b0"
+backgroundColor = "#0b0f1a"
+secondaryBackgroundColor = "#111827"
+textColor       = "#dae2fd"
+font            = "monospace"
+
+[server]
+maxUploadSize   = 10        # MB — reasonable for CSV/Excel uploads
+headless        = true      # Required for Streamlit Cloud
+enableCORS      = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false    # Disable Streamlit telemetry
+
+[runner]
+fastReruns = true
