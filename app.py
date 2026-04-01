@@ -1804,9 +1804,8 @@ if st.session_state.user is None:
         background: #010a06 !important;
         font-family: 'Space Grotesk', sans-serif !important;
         color: #e0e3e6 !important;
-        overflow: hidden !important;
     }
-    .block-container { padding: 0 !important; max-width: 100% !important; }
+    .block-container { padding: 1rem 1rem 3rem !important; max-width: 100% !important; }
     header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="stTextInput"] input {
@@ -1907,7 +1906,7 @@ html,body{width:100%;height:100%;background:#010a06;overflow:hidden;font-family:
     </div>
     <div class="footer-bar"><span>&#9888; For educational purposes only</span><span id="liveTime"></span></div>
   </div>
-  <div class="live-ticker"><div class="ticker-inner" id="ticker"></div></div>
+  <div class="live-ticker" style="display:none;"><div class="ticker-inner" id="ticker"></div></div>
 </div>
 <script>
 // ── Ticker tape ──
@@ -2093,15 +2092,44 @@ function loop(){updateLive();drawBg();drawChart();requestAnimationFrame(loop);}
 loop();
 </script>
 </body></html>
-""", height=820, scrolling=False)
+""", height=480, scrolling=False)
 
-    # ── Native Streamlit form overlaid on top ─────────────────────────────────
-    # Positioned to appear over the right side of the Three.js canvas
-    _col1, _col2 = st.columns([1.1, 1])
+    # ── Ticker tape strip ──────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="overflow:hidden;background:#020f07;border-top:1px solid #0d3320;border-bottom:1px solid #0d3320;
+         padding:0.28rem 0;margin:0 -1rem 1.2rem;">
+      <div style="display:inline-flex;gap:36px;animation:tapeScroll 28s linear infinite;white-space:nowrap;
+           font-size:9px;font-family:'Space Mono',monospace;color:#2a5a3a;letter-spacing:0.08em;padding-left:100%;
+           animation-name:tapeScroll;">
+        <span style="display:flex;gap:7px;"><span>AAPL</span><span>$189.43</span><span style="color:#00ffaa">+1.2%</span></span>
+        <span style="display:flex;gap:7px;"><span>TSLA</span><span>$247.18</span><span style="color:#ff4455">-0.8%</span></span>
+        <span style="display:flex;gap:7px;"><span>NVDA</span><span>$876.55</span><span style="color:#00ffaa">+3.4%</span></span>
+        <span style="display:flex;gap:7px;"><span>MSFT</span><span>$412.20</span><span style="color:#00ffaa">+0.6%</span></span>
+        <span style="display:flex;gap:7px;"><span>AMZN</span><span>$185.92</span><span style="color:#ff4455">-0.3%</span></span>
+        <span style="display:flex;gap:7px;"><span>META</span><span>$519.77</span><span style="color:#00ffaa">+2.1%</span></span>
+        <span style="display:flex;gap:7px;"><span>GOOG</span><span>$172.44</span><span style="color:#00ffaa">+0.9%</span></span>
+        <span style="display:flex;gap:7px;"><span>BTC</span><span>$68,241</span><span style="color:#00ffaa">+4.7%</span></span>
+        <span style="display:flex;gap:7px;"><span>ETH</span><span>$3,847</span><span style="color:#00ffaa">+2.3%</span></span>
+        <span style="display:flex;gap:7px;"><span>SPY</span><span>$524.88</span><span style="color:#00ffaa">+0.4%</span></span>
+        <span style="display:flex;gap:7px;"><span>AAPL</span><span>$189.43</span><span style="color:#00ffaa">+1.2%</span></span>
+        <span style="display:flex;gap:7px;"><span>TSLA</span><span>$247.18</span><span style="color:#ff4455">-0.8%</span></span>
+        <span style="display:flex;gap:7px;"><span>NVDA</span><span>$876.55</span><span style="color:#00ffaa">+3.4%</span></span>
+        <span style="display:flex;gap:7px;"><span>MSFT</span><span>$412.20</span><span style="color:#00ffaa">+0.6%</span></span>
+        <span style="display:flex;gap:7px;"><span>AMZN</span><span>$185.92</span><span style="color:#ff4455">-0.3%</span></span>
+        <span style="display:flex;gap:7px;"><span>META</span><span>$519.77</span><span style="color:#00ffaa">+2.1%</span></span>
+      </div>
+    </div>
+    <style>
+    @keyframes tapeScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Native Streamlit form — centered below the animated canvas ────────────
+    _col1, _col2, _col3 = st.columns([1, 2, 1])
     with _col2:
         st.markdown("""
-        <div style="background:rgba(2,15,9,0.95);border:1px solid rgba(0,255,136,0.18);
-             border-radius:0.5rem;padding:1.8rem 1.6rem 1.4rem;margin-top:-800px;
+        <div style="background:rgba(2,15,9,0.97);border:1px solid rgba(0,255,136,0.18);
+             border-radius:0.5rem;padding:1.8rem 1.6rem 1.4rem;
              position:relative;z-index:100;box-shadow:0 25px 60px rgba(0,0,0,0.8),0 0 40px rgba(0,255,136,0.06);">
         <div style="display:flex;background:rgba(1,10,6,0.7);border:1px solid rgba(0,255,136,0.12);
              border-radius:0.25rem;padding:3px;margin-bottom:1.2rem;gap:4px;">
