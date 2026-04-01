@@ -1792,448 +1792,318 @@ if st.session_state.user is None:
     _auth_error   = ""
     _auth_success = ""
 
-    # ── Use native Streamlit widgets as the auth form (no iframe issues) ──────
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    # ── Override CSS for auth page ─────────────────────────────────────────────
+    # ── Handle credentials submitted via query params (from iframe postMessage) ─
+    _qp = st.query_params
+    _pm_email  = _qp.get("_ae", "")
+    _pm_pass   = _qp.get("_ap", "")
+    _pm_action = _qp.get("_aa", "")
+
+    if _pm_action and _pm_email and _pm_pass:
+        st.query_params.clear()
+        if _pm_action == "login":
+            try:
+                _res = supabase.auth.sign_in_with_password({"email": _pm_email, "password": _pm_pass})
+                if _res.user:
+                    st.session_state.user = _res.user
+                    st.rerun()
+                else:
+                    _auth_error = "Invalid credentials."
+            except Exception as _e:
+                _auth_error = str(_e)
+        elif _pm_action == "signup":
+            try:
+                _res = supabase.auth.sign_up({"email": _pm_email, "password": _pm_pass})
+                if _res.user:
+                    _auth_success = f"Verification sent to {_pm_email}. Check your inbox."
+                    st.session_state.auth_view = "login"
+                else:
+                    _auth_error = "Sign up failed."
+            except Exception as _e:
+                _auth_error = str(_e)
+
+    # ── Collapse Streamlit chrome completely ──────────────────────────────────
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;600;700&display=swap');
-    html, body {
-        background: #010a06 !important;
-        height: auto !important;
-        min-height: unset !important;
-        overflow-y: auto !important;
+    html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
+    [data-testid="stAppViewContainer"]>section,.main,.block-container{
+        background:#010a06!important;margin:0!important;padding:0!important;
+        height:100vh!important;max-height:100vh!important;overflow:hidden!important;
+        max-width:100%!important;
     }
-    [data-testid="stApp"] {
-        background: #010a06 !important;
-        min-height: unset !important;
-        height: auto !important;
-    }
-    [data-testid="stAppViewContainer"] {
-        background: #010a06 !important;
-        min-height: unset !important;
-        height: auto !important;
-    }
-    [data-testid="stAppViewContainer"] > section.main {
-        min-height: unset !important;
-        height: auto !important;
-        overflow: visible !important;
-    }
-    .main .block-container {
-        padding: 0 0.75rem 1.5rem !important;
-        max-width: 100% !important;
-        min-height: unset !important;
-    }
-    /* Hide stray open div from tab bar markdown */
-    .stMarkdown > div > div:empty { display: none !important; }
-    /* Kill Streamlit's forced viewport-height spacer */
-    .main > div:last-child { display: none !important; }
-    iframe { border: none !important; display: block !important; }
-    header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
-    [data-testid="stSidebar"] { display: none !important; }
-    [data-testid="stTextInput"] input {
-        background: rgba(1,10,6,0.8) !important;
-        border: 1px solid rgba(0,255,136,0.25) !important;
-        border-radius: 0.2rem !important;
-        color: #00ffaa !important;
-        font-family: 'Space Mono', monospace !important;
-        font-size: 0.78rem !important;
-        padding: 11px 14px !important;
-        transition: all 0.2s !important;
-    }
-    [data-testid="stTextInput"] input:focus {
-        border-color: rgba(0,255,136,0.6) !important;
-        box-shadow: 0 0 0 1px rgba(0,255,136,0.2), 0 0 12px rgba(0,255,136,0.08) !important;
-    }
-    [data-testid="stTextInput"] input::placeholder { color: rgba(0,255,136,0.2) !important; }
-    [data-testid="stTextInput"] label { display: none !important; }
-    .stButton > button {
-        width: 100% !important;
-        padding: 0.85rem !important;
-        background: linear-gradient(90deg, #0d3320, #00cc77, #00ffaa, #00cc77, #0d3320) !important;
-        background-size: 300% auto !important;
-        animation: gflow 3.5s linear infinite !important;
-        color: #010a06 !important;
-        font-family: 'Orbitron', monospace !important;
-        font-weight: 800 !important;
-        font-size: 0.65rem !important;
-        border: none !important;
-        border-radius: 0.15rem !important;
-        letter-spacing: 0.2em !important;
-        text-transform: uppercase !important;
-        box-shadow: 0 0 20px rgba(0,255,136,0.2) !important;
-        transition: all 0.15s !important;
-    }
-    .stButton > button:hover { filter: brightness(1.12) !important; transform: translateY(-1px) !important; box-shadow: 0 0 30px rgba(0,255,136,0.4) !important; }
-    .stButton > button:active { transform: scale(0.98) !important; }
-    [data-testid="stAlert"] { border-radius: 0.15rem !important; font-size: 0.8rem !important; }
-    @keyframes gflow { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    header[data-testid="stHeader"],footer,#MainMenu,
+    [data-testid="stSidebar"],[data-testid="stToolbar"],
+    [data-testid="stDecoration"]{display:none!important;}
+    iframe{border:none!important;display:block!important;}
     </style>
     """, unsafe_allow_html=True)
 
-    if "auth_view" not in st.session_state:
-        st.session_state.auth_view = "login"
+    _is_login = (st.session_state.auth_view == "login")
+    _err_msg  = _auth_error or ""
+    _ok_msg   = _auth_success or ""
+    _view     = "login" if _is_login else "signup"
 
-    # ── Futuristic v4 animated background (hex grid + Canvas 2D candlesticks) ──
-    _is_login   = (st.session_state.auth_view == "login")
-
-    _components.html("""
+    _components.html(f"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&display=swap');
-*{box-sizing:border-box;margin:0;padding:0;}
-html,body{width:100%;height:100%;background:#010a06;overflow:hidden;font-family:'Rajdhani',sans-serif;}
-.root{background:#010a06;min-height:100vh;display:flex;overflow:hidden;position:relative;font-family:'Rajdhani',sans-serif;}
-.scan-line{position:absolute;left:0;right:0;height:80px;pointer-events:none;z-index:10;animation:scanMove 5s linear infinite;background:linear-gradient(to bottom,transparent,rgba(0,255,136,0.025),transparent);}
-@keyframes scanMove{0%{top:-80px}100%{top:100%}}
-.left-panel{flex:1;padding:2rem;position:relative;z-index:3;display:flex;flex-direction:column;justify-content:flex-end;}
-.neural-badge{display:inline-flex;align-items:center;gap:7px;font-family:'Orbitron',monospace;font-size:8px;color:#00ffaa;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:1.4rem;padding:5px 12px;border:1px solid #00ffaa33;border-radius:2px;width:fit-content;position:relative;overflow:hidden;}
-.neural-badge::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:#00ffaa;animation:sidePulse 2s ease-in-out infinite;}
-@keyframes sidePulse{0%,100%{opacity:1;height:100%}50%{opacity:0.3;height:60%}}
-.pulse-dot{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:pdot 1.2s ease-in-out infinite;}
-@keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.2;transform:scale(0.7)}}
-.hero-title{font-family:'Orbitron',monospace;font-size:clamp(16px,2.5vw,26px);font-weight:700;color:#d0ffe8;line-height:1.2;letter-spacing:-0.01em;margin-bottom:0.8rem;text-shadow:0 0 40px rgba(0,255,136,0.15);}
-.hero-title span{color:#00ffaa;}
-.hero-sub{font-size:10px;color:#3a6b50;line-height:1.8;max-width:280px;font-family:'Space Mono',monospace;margin-bottom:1.4rem;}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:280px;}
-.stat-box{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:10px 12px;position:relative;overflow:hidden;}
-.stat-box::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:#00ffaa22;}
-.stat-label{font-size:7px;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:5px;}
-.stat-value{font-size:14px;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}
-.stat-value.green{color:#00ffaa;}
-.footer-bar{font-size:7px;color:#1a4030;font-family:'Space Mono',monospace;letter-spacing:0.08em;margin-top:1.2rem;display:flex;justify-content:space-between;max-width:280px;}
-.live-ticker{position:absolute;bottom:0;left:0;right:0;height:22px;background:#020f07;border-top:1px solid #0d3320;display:flex;align-items:center;overflow:hidden;z-index:5;}
-.ticker-inner{display:flex;gap:36px;animation:tickerScroll 28s linear infinite;white-space:nowrap;font-size:8px;font-family:'Space Mono',monospace;color:#2a5a3a;letter-spacing:0.08em;padding-left:100%;}
-@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-.ticker-item{display:flex;gap:7px;}
-.t-up{color:#00ffaa;}
-.t-dn{color:#ff4455;}
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{width:100%;height:100%;background:#010a06;overflow:hidden;font-family:'Rajdhani',sans-serif;}}
+/* Layout */
+.root{{display:flex;height:100vh;position:relative;overflow:hidden;}}
+/* Left: hero + chart */
+.left{{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;justify-content:flex-end;padding:1.5rem;z-index:3;}}
+/* Right: login panel */
+.right{{width:320px;flex-shrink:0;background:rgba(2,10,6,0.96);border-left:1px solid #0d3320;
+       display:flex;flex-direction:column;z-index:10;overflow-y:auto;}}
+/* Scan line */
+.scan{{position:absolute;left:0;right:0;height:80px;pointer-events:none;z-index:10;
+      animation:scanMove 5s linear infinite;
+      background:linear-gradient(to bottom,transparent,rgba(0,255,136,0.025),transparent);}}
+@keyframes scanMove{{0%{{top:-80px}}100%{{top:100%}}}}
+/* Hero */
+.badge{{display:inline-flex;align-items:center;gap:7px;font-family:'Orbitron',monospace;font-size:8px;
+       color:#00ffaa;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:1rem;
+       padding:5px 12px;border:1px solid #00ffaa33;border-radius:2px;width:fit-content;position:relative;}}
+.badge::before{{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:#00ffaa;
+               animation:sp 2s ease-in-out infinite;}}
+@keyframes sp{{0%,100%{{opacity:1}}50%{{opacity:0.3}}}}
+.pdot{{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:pd 1.2s ease-in-out infinite;}}
+@keyframes pd{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:0.2;transform:scale(0.7)}}}}
+.hero-title{{font-family:'Orbitron',monospace;font-size:clamp(14px,2.2vw,22px);font-weight:700;
+            color:#d0ffe8;line-height:1.2;margin-bottom:0.6rem;
+            text-shadow:0 0 40px rgba(0,255,136,0.15);}}
+.hero-title span{{color:#00ffaa;}}
+.hero-sub{{font-size:9px;color:#3a6b50;line-height:1.7;max-width:260px;font-family:'Space Mono',monospace;margin-bottom:1rem;}}
+.stat-grid{{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:260px;}}
+.stat-box{{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:8px 10px;}}
+.stat-label{{font-size:6px;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;}}
+.stat-value{{font-size:12px;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}}
+.stat-value.green{{color:#00ffaa;}}
+/* Ticker */
+.ticker{{height:20px;background:#020f07;border-top:1px solid #0d3320;overflow:hidden;display:flex;align-items:center;position:absolute;bottom:0;left:0;right:0;z-index:5;}}
+.ticker-inner{{display:flex;gap:28px;animation:tscroll 28s linear infinite;white-space:nowrap;font-size:8px;font-family:'Space Mono',monospace;color:#2a5a3a;letter-spacing:0.08em;padding-left:100%;}}
+@keyframes tscroll{{0%{{transform:translateX(0)}}100%{{transform:translateX(-50%)}}}}
+.t-up{{color:#00ffaa;}} .t-dn{{color:#ff4455;}}
+/* Right panel */
+.tab-bar{{display:flex;border-bottom:1px solid #0d3320;flex-shrink:0;}}
+.tab{{flex:1;padding:11px;text-align:center;font-size:8px;font-family:'Orbitron',monospace;
+     letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;color:#2a5a3a;
+     border-bottom:2px solid transparent;transition:all 0.2s;background:none;border-top:none;border-left:none;border-right:none;}}
+.tab.active{{color:#00ffaa;border-bottom:2px solid #00ffaa;background:rgba(0,255,136,0.04);}}
+.form-body{{padding:1.2rem;flex:1;display:flex;flex-direction:column;gap:0.75rem;}}
+.form-title{{text-align:center;}}
+.form-title h3{{font-size:0.8rem;font-weight:700;letter-spacing:0.12em;color:#d0ffe8;text-transform:uppercase;font-family:'Orbitron',monospace;}}
+.form-title p{{font-size:0.45rem;color:#2a5a3a;letter-spacing:0.16em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;}}
+.field-label{{font-family:'Space Mono',monospace;font-size:0.5rem;letter-spacing:0.16em;text-transform:uppercase;color:#00ffaa77;margin-bottom:3px;}}
+.field-input{{background:#010a06;border:1px solid rgba(0,255,136,0.2);color:#00ffaa;
+             font-family:'Space Mono',monospace;font-size:11px;padding:9px 11px;
+             outline:none;transition:all 0.2s;width:100%;border-radius:2px;}}
+.field-input:focus{{border-color:rgba(0,255,136,0.5);box-shadow:0 0 0 1px rgba(0,255,136,0.15);}}
+.field-input::placeholder{{color:rgba(0,255,136,0.2);}}
+.pw-wrap{{position:relative;}}
+.pw-toggle{{position:absolute;right:9px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#2a5a3a;font-size:13px;padding:0;line-height:1;}}
+.pw-toggle:hover{{color:#00ffaa;}}
+.auth-btn{{width:100%;padding:11px;background:linear-gradient(90deg,#0d3320,#00cc77,#00ffaa,#00cc77,#0d3320);
+          background-size:300% auto;animation:gflow 3s linear infinite;
+          border:none;color:#010a06;font-family:'Orbitron',monospace;font-size:8px;font-weight:800;
+          letter-spacing:0.18em;text-transform:uppercase;cursor:pointer;border-radius:2px;margin-top:0.2rem;}}
+@keyframes gflow{{0%{{background-position:0% 50%}}50%{{background-position:100% 50%}}100%{{background-position:0% 50%}}}}
+.auth-btn:hover{{filter:brightness(1.1);}}
+.beta-box{{border:1px solid #0d3320;padding:10px;text-align:center;background:rgba(0,255,136,0.02);}}
+.beta-label{{font-size:8px;font-family:'Orbitron',monospace;letter-spacing:0.15em;color:#00ffaa;text-transform:uppercase;}}
+.beta-sub{{font-size:7px;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.08em;margin-top:2px;}}
+.msg-error{{background:rgba(255,51,68,0.08);border:1px solid rgba(255,51,68,0.3);border-left:3px solid #ff3344;
+           padding:8px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#ff8899;border-radius:2px;}}
+.msg-ok{{background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.25);border-left:3px solid #00ffaa;
+         padding:8px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#00ffaa;border-radius:2px;}}
+/* Mobile: stack vertically */
+@media(max-width:600px){{
+  .root{{flex-direction:column;}}
+  .left{{flex:0 0 auto;min-height:340px;padding:1rem;}}
+  .right{{width:100%;flex:1;border-left:none;border-top:1px solid #0d3320;}}
+}}
 </style>
-</head>
-<body>
+</head><body>
 <div class="root" id="root">
-  <div class="scan-line"></div>
+  <div class="scan"></div>
   <canvas id="bgCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none;"></canvas>
   <canvas id="chartCanvas" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></canvas>
-  <div class="left-panel">
-    <div class="neural-badge"><div class="pulse-dot"></div>Neural engine active</div>
+
+  <div class="left">
+    <div class="badge"><div class="pdot"></div>Neural engine active</div>
     <h1 class="hero-title">Predicting the<br>pulse of <span>global markets.</span></h1>
-    <p class="hero-sub">Institutional-grade XGBoost forecasting, 8-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment — all in one unified terminal.</p>
+    <p class="hero-sub">Institutional-grade XGBoost forecasting, 8-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment.</p>
     <div class="stat-grid">
       <div class="stat-box"><div class="stat-label">Forecast RMSE</div><div class="stat-value" id="rmse-val">$2.14</div></div>
       <div class="stat-box"><div class="stat-label">Latency</div><div class="stat-value" id="lat-val">15ms</div></div>
       <div class="stat-box"><div class="stat-label">Auth Provider</div><div class="stat-value" style="font-size:10px;">Supabase</div></div>
       <div class="stat-box"><div class="stat-label">Signal Strength</div><div class="stat-value green">STRONG</div></div>
     </div>
-    <div class="footer-bar"><span>&#9888; For educational purposes only</span><span id="liveTime"></span></div>
+    <div class="ticker">
+      <div class="ticker-inner" id="ticker"></div>
+    </div>
   </div>
-  <div class="live-ticker" style="display:none;"><div class="ticker-inner" id="ticker"></div></div>
+
+  <div class="right">
+    <div class="tab-bar">
+      <button class="tab {'active' if _is_login else ''}" id="tabLogin" onclick="switchTab('login')">Terminal Access</button>
+      <button class="tab {'active' if not _is_login else ''}" id="tabSignup" onclick="switchTab('signup')">Create Account</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="form-body" id="loginPanel" style="display:{'flex' if _is_login else 'none'}">
+      <div class="form-title"><h3>Secure Access</h3><p>Powered by Supabase Auth</p></div>
+      {'<div class="msg-error">⚠ ' + _err_msg + '</div>' if _err_msg and _is_login else ''}
+      {'<div class="msg-ok">✓ ' + _ok_msg + '</div>' if _ok_msg else ''}
+      <div>
+        <div class="field-label">Identity Token (Email)</div>
+        <input class="field-input" type="email" id="loginEmail" placeholder="name@firm.com" />
+      </div>
+      <div>
+        <div class="field-label">Access Key</div>
+        <div class="pw-wrap">
+          <input class="field-input" type="password" id="loginPass" placeholder="••••••••••" style="padding-right:34px;" />
+          <button class="pw-toggle" onclick="togglePw('loginPass')">👁</button>
+        </div>
+      </div>
+      <button class="auth-btn" onclick="submitAuth('login')">⚡ Authorize Terminal</button>
+      <div class="beta-box"><div class="beta-label">Beta Alpha</div><div class="beta-sub">Only access pathways active</div></div>
+    </div>
+
+    <!-- SIGNUP -->
+    <div class="form-body" id="signupPanel" style="display:{'none' if _is_login else 'flex'}">
+      <div class="form-title"><h3>Register Node</h3><p>Create your terminal identity</p></div>
+      {'<div class="msg-error">⚠ ' + _err_msg + '</div>' if _err_msg and not _is_login else ''}
+      <div>
+        <div class="field-label">Identity Token (Email)</div>
+        <input class="field-input" type="email" id="signupEmail" placeholder="user@live.com" />
+      </div>
+      <div>
+        <div class="field-label">Access Key</div>
+        <input class="field-input" type="password" id="signupPass" placeholder="••••••••••" />
+      </div>
+      <div>
+        <div class="field-label">Confirm Key</div>
+        <input class="field-input" type="password" id="signupConf" placeholder="••••••••••" />
+      </div>
+      <button class="auth-btn" onclick="submitAuth('signup')">⚡ Initialize Terminal</button>
+      <div class="beta-box"><div class="beta-label">Beta Alpha</div><div class="beta-sub">Only access pathways active</div></div>
+    </div>
+  </div>
 </div>
+
 <script>
-// ── Ticker tape ──
+// ── Ticker ──
 const tickers=[
-  {sym:'AAPL',p:'189.43',d:'+1.2%',up:true},{sym:'TSLA',p:'247.18',d:'-0.8%',up:false},
-  {sym:'NVDA',p:'876.55',d:'+3.4%',up:true},{sym:'MSFT',p:'412.20',d:'+0.6%',up:true},
-  {sym:'AMZN',p:'185.92',d:'-0.3%',up:false},{sym:'META',p:'519.77',d:'+2.1%',up:true},
-  {sym:'GOOG',p:'172.44',d:'+0.9%',up:true},{sym:'BTC',p:'68,241',d:'+4.7%',up:true},
-  {sym:'ETH',p:'3,847',d:'+2.3%',up:true},{sym:'SPY',p:'524.88',d:'+0.4%',up:true},
+  {{sym:'AAPL',p:'189.43',d:'+1.2%',up:true}},{{sym:'TSLA',p:'247.18',d:'-0.8%',up:false}},
+  {{sym:'NVDA',p:'876.55',d:'+3.4%',up:true}},{{sym:'MSFT',p:'412.20',d:'+0.6%',up:true}},
+  {{sym:'AMZN',p:'185.92',d:'-0.3%',up:false}},{{sym:'META',p:'519.77',d:'+2.1%',up:true}},
+  {{sym:'GOOG',p:'172.44',d:'+0.9%',up:true}},{{sym:'SPY',p:'524.88',d:'+0.4%',up:true}},
 ];
-const doubled=[...tickers,...tickers];
-document.getElementById('ticker').innerHTML=doubled.map(t=>`<span class="ticker-item"><span>${t.sym}</span><span>${t.p}</span><span class="${t.up?'t-up':'t-dn'}">${t.d}</span></span>`).join('');
+const d2=[...tickers,...tickers];
+document.getElementById('ticker').innerHTML=d2.map(t=>`<span style="display:flex;gap:6px;"><span>${{t.sym}}</span><span>${{t.p}}</span><span class="${{t.up?'t-up':'t-dn'}}">${{t.d}}</span></span>`).join('');
+setInterval(()=>{{const v=12+Math.floor(Math.random()*6);const l=document.getElementById('lat-val');if(l)l.textContent=v+'ms';}},2400);
 
-// ── Live clock ──
-function updateTime(){const n=new Date();document.getElementById('liveTime').textContent='LIVE '+n.toLocaleDateString('en-GB').replace(/\\//g,'.')+' '+n.toTimeString().slice(0,8);}
-updateTime();setInterval(updateTime,1000);
-setInterval(()=>{const v=12+Math.floor(Math.random()*6);const l=document.getElementById('lat-val');if(l)l.textContent=v+'ms';},2400);
+// ── Tab switch ──
+function switchTab(t){{
+  document.getElementById('tabLogin').classList.toggle('active',t==='login');
+  document.getElementById('tabSignup').classList.toggle('active',t==='signup');
+  document.getElementById('loginPanel').style.display=t==='login'?'flex':'none';
+  document.getElementById('signupPanel').style.display=t==='signup'?'flex':'none';
+}}
+function togglePw(id){{const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}}
 
-// ── BG Canvas: hex grid + data streams + particles ──
-const bgC=document.getElementById('bgCanvas');
-const bgX=bgC.getContext('2d');
-const cc=document.getElementById('chartCanvas');
-const ctx=cc.getContext('2d');
+// ── Submit via parent URL query params ──
+function submitAuth(action){{
+  let email,pass;
+  if(action==='login'){{
+    email=document.getElementById('loginEmail').value.trim();
+    pass=document.getElementById('loginPass').value;
+  }}else{{
+    email=document.getElementById('signupEmail').value.trim();
+    pass=document.getElementById('signupPass').value;
+    const conf=document.getElementById('signupConf').value;
+    if(pass!==conf){{alert('Passwords do not match.');return;}}
+    if(pass.length<6){{alert('Password must be at least 6 characters.');return;}}
+  }}
+  if(!email||!pass){{alert('Please fill in all fields.');return;}}
+  const url=new URL(window.parent.location.href);
+  url.searchParams.set('_ae',email);
+  url.searchParams.set('_ap',pass);
+  url.searchParams.set('_aa',action);
+  window.parent.location.href=url.toString();
+}}
 
-function resize(){
-  const r=document.getElementById('root');
-  bgC.width=cc.width=r.offsetWidth;
-  bgC.height=cc.height=r.offsetHeight;
-}
+// ── Canvas BG ──
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+const cc=document.getElementById('chartCanvas'),ctx=cc.getContext('2d');
+function resize(){{const r=document.getElementById('root');bgC.width=cc.width=r.offsetWidth;bgC.height=cc.height=r.offsetHeight;}}
 resize();window.addEventListener('resize',resize);
 
-// Particle streams
 const streams=[];
-for(let i=0;i<22;i++){
-  streams.push({x:Math.random()*0.62,y:Math.random(),speed:0.0004+Math.random()*0.0008,len:0.06+Math.random()*0.14,alpha:0.08+Math.random()*0.18,width:Math.random()>0.7?1.5:0.5});
-}
-// Floating particles
+for(let i=0;i<22;i++)streams.push({{x:Math.random()*0.62,y:Math.random(),speed:0.0004+Math.random()*0.0008,len:0.06+Math.random()*0.14,alpha:0.08+Math.random()*0.18,width:Math.random()>0.7?1.5:0.5}});
 const particles=[];
-for(let i=0;i<40;i++){
-  particles.push({x:Math.random(),y:Math.random(),vx:(Math.random()-0.5)*0.00015,vy:(Math.random()-0.5)*0.00015,r:0.5+Math.random()*1.5,alpha:0.1+Math.random()*0.3});
-}
+for(let i=0;i<40;i++)particles.push({{x:Math.random(),y:Math.random(),vx:(Math.random()-0.5)*0.00015,vy:(Math.random()-0.5)*0.00015,r:0.5+Math.random()*1.5,alpha:0.1+Math.random()*0.3}});
 
-function hexPath(c,cx,cy,r){
-  c.beginPath();
-  for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);const x=cx+r*Math.cos(a),y=cy+r*Math.sin(a);i===0?c.moveTo(x,y):c.lineTo(x,y);}
-  c.closePath();
-}
+function hexPath(c,cx,cy,r){{c.beginPath();for(let i=0;i<6;i++){{const a=Math.PI/180*(60*i-30);i===0?c.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):c.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));}}c.closePath();}}
 
-function drawBg(){
-  const W=bgC.width,H=bgC.height;
-  bgX.clearRect(0,0,W,H);
-  // Hex grid
-  const sz=36;
-  bgX.lineWidth=0.5;
-  for(let row=0;row<H/sz+2;row++){
-    for(let col2=0;col2<W*0.62/sz+2;col2++){
-      const ox=col2%2===0?0:sz*0.866;
-      const x=col2*sz*0.866*1.5;const y=row*sz+ox;
-      hexPath(bgX,x,y,sz*0.5);
-      bgX.strokeStyle='rgba(0,255,136,0.045)';bgX.stroke();
-    }
-  }
-  // Data streams
-  streams.forEach(s=>{
-    s.y+=s.speed;if(s.y>1+s.len)s.y=-s.len;
-    const x=s.x*W,y0=(s.y-s.len)*H,y1=s.y*H;
-    const g=bgX.createLinearGradient(0,y0,0,y1);
-    g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(0.5,`rgba(0,255,136,${s.alpha})`);g.addColorStop(1,'rgba(0,255,136,0)');
-    bgX.strokeStyle=g;bgX.lineWidth=s.width;
-    bgX.beginPath();bgX.moveTo(x,y0);bgX.lineTo(x,y1);bgX.stroke();
-  });
-  // Particles
-  particles.forEach(p=>{
-    p.x+=p.vx;p.y+=p.vy;
-    if(p.x<0)p.x=1;if(p.x>1)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
-    if(p.x>0.62)return;
-    bgX.fillStyle=`rgba(0,255,136,${p.alpha})`;bgX.beginPath();bgX.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgX.fill();
-  });
-  // Radial glow
-  const rg=bgX.createRadialGradient(W*0.22,H*0.55,0,W*0.22,H*0.55,W*0.35);
-  rg.addColorStop(0,'rgba(0,255,136,0.04)');rg.addColorStop(1,'rgba(0,255,136,0)');
-  bgX.fillStyle=rg;bgX.fillRect(0,0,W,H);
-}
+function drawBg(){{
+  const W=bgC.width,H=bgC.height;bgX.clearRect(0,0,W,H);
+  const sz=36;bgX.lineWidth=0.5;
+  for(let row=0;row<H/sz+2;row++)for(let c2=0;c2<W*0.62/sz+2;c2++){{const ox=c2%2===0?0:sz*0.866;hexPath(bgX,c2*sz*0.866*1.5,row*sz+ox,sz*0.5);bgX.strokeStyle='rgba(0,255,136,0.045)';bgX.stroke();}}
+  streams.forEach(s=>{{s.y+=s.speed;if(s.y>1+s.len)s.y=-s.len;const x=s.x*W,y0=(s.y-s.len)*H,y1=s.y*H;const g=bgX.createLinearGradient(0,y0,0,y1);g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(0.5,`rgba(0,255,136,${{s.alpha}})`);g.addColorStop(1,'rgba(0,255,136,0)');bgX.strokeStyle=g;bgX.lineWidth=s.width;bgX.beginPath();bgX.moveTo(x,y0);bgX.lineTo(x,y1);bgX.stroke();}});
+  particles.forEach(p=>{{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=1;if(p.x>1)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;if(p.x>0.62)return;bgX.fillStyle=`rgba(0,255,136,${{p.alpha}})`;bgX.beginPath();bgX.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgX.fill();}});
+  const rg=bgX.createRadialGradient(W*0.22,H*0.55,0,W*0.22,H*0.55,W*0.35);rg.addColorStop(0,'rgba(0,255,136,0.04)');rg.addColorStop(1,'rgba(0,255,136,0)');bgX.fillStyle=rg;bgX.fillRect(0,0,W,H);
+}}
 
-// ── Candlestick chart engine ──
-const CWIDTH=14,CGAP=7,STEP=CWIDTH+CGAP;
-const GREEN='#00cc77',RED='#ff3344';
+// ── Candlestick ──
+const CWIDTH=12,CGAP=5,STEP=CWIDTH+CGAP,GREEN='#00cc77',RED='#ff3344';
 const GFILL='rgba(0,204,119,0.15)',RFILL='rgba(255,51,68,0.15)';
-let price=150,candles=[],livePrice=150,lastCandle=Date.now();
-const CDUR=2800;
-
-function nextCandle(startPrice){
-  const open=startPrice;let close=open,hi=open,lo=open;
-  for(let i=0;i<10;i++){const d=(Math.random()-0.478)*2.2;close+=d;if(close>hi)hi=close;if(close<lo)lo=close;}
-  hi+=Math.random()*1.2;lo-=Math.random()*1.2;price=close;
-  return{open,high:hi,low:lo,close,live:true};
-}
-for(let i=0;i<80;i++){const c=nextCandle(price);c.live=false;candles.push(c);}
+let price=150,candles=[],livePrice=150,lastCandle=Date.now();const CDUR=2800;
+function nextCandle(sp){{const open=sp;let close=open,hi=open,lo=open;for(let i=0;i<10;i++){{const d=(Math.random()-0.478)*2.2;close+=d;if(close>hi)hi=close;if(close<lo)lo=close;}}hi+=Math.random()*1.2;lo-=Math.random()*1.2;price=close;return{{open,high:hi,low:lo,close,live:true}};}}
+for(let i=0;i<80;i++){{const c=nextCandle(price);c.live=false;candles.push(c);}}
 candles.push(nextCandle(price));livePrice=candles[candles.length-1].open;
+function genFuture(n){{let p=livePrice;const out=[];for(let i=0;i<n;i++){{const open=p;let close=open,hi=open,lo=open;for(let j=0;j<8;j++){{const d=(Math.random()-0.46)*1.8;close+=d;if(close>hi)hi=close;if(close<lo)lo=close;}}hi+=Math.random()*0.8;lo-=Math.random()*0.8;p=close;out.push({{open,high:hi,low:lo,close}});}}return out;}}
+let futureCandles=genFuture(8);setInterval(()=>{{futureCandles=genFuture(8);}},2000);
 
-function genFuture(n){
-  let p=livePrice;const out=[];
-  for(let i=0;i<n;i++){
-    const open=p;let close=open,hi=open,lo=open;
-    for(let j=0;j<8;j++){const d=(Math.random()-0.46)*1.8;close+=d;if(close>hi)hi=close;if(close<lo)lo=close;}
-    hi+=Math.random()*0.8;lo-=Math.random()*0.8;p=close;out.push({open,high:hi,low:lo,close});
-  }
-  return out;
-}
-let futureCandles=genFuture(8);
-setInterval(()=>{futureCandles=genFuture(8);},2000);
-
-function drawChart(){
-  const W=cc.width,H=cc.height;
-  ctx.clearRect(0,0,W,H);
-  const panelW=W*0.62;
-  const topM=50,botM=28,chartH=H-topM-botM;
+function drawChart(){{
+  const W=cc.width,H=cc.height;ctx.clearRect(0,0,W,H);
+  const rw=document.querySelector('.right');const panelW=W-(rw?rw.offsetWidth:280);
+  const topM=40,botM=22,chartH=H-topM-botM;
   const maxVisible=Math.floor(panelW/STEP)+2;
-  const visible=[...candles.slice(-maxVisible),...futureCandles.slice(0,Math.min(8,Math.floor(panelW/STEP/4)))];
-  let minP=Infinity,maxP=-Infinity;
-  visible.forEach(c=>{if(c.low<minP)minP=c.low;if(c.high>maxP)maxP=c.high;});
-  const pad=(maxP-minP)*0.18;minP-=pad;maxP+=pad;
-  const range=maxP-minP||1;
+  const visible=[...candles.slice(-maxVisible),...futureCandles.slice(0,8)];
+  let minP=Infinity,maxP=-Infinity;visible.forEach(c=>{{if(c.low<minP)minP=c.low;if(c.high>maxP)maxP=c.high;}});
+  const pad=(maxP-minP)*0.18;minP-=pad;maxP+=pad;const range=maxP-minP||1;
   const toY=p=>topM+chartH*(1-(p-minP)/range);
-  ctx.font='9px "Space Mono",monospace';
-  for(let i=0;i<=4;i++){
-    const y=topM+(chartH/4)*i;const pval=(maxP-(range/4)*i).toFixed(2);
-    ctx.strokeStyle='rgba(0,255,136,0.055)';ctx.lineWidth=0.5;ctx.setLineDash([3,6]);
-    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(panelW-10,y);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='rgba(0,255,136,0.3)';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(pval,4,y);
-  }
+  ctx.font='8px "Space Mono",monospace';
+  for(let i=0;i<=4;i++){{const y=topM+(chartH/4)*i;const pval=(maxP-(range/4)*i).toFixed(2);ctx.strokeStyle='rgba(0,255,136,0.055)';ctx.lineWidth=0.5;ctx.setLineDash([3,6]);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(panelW-10,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(0,255,136,0.3)';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(pval,4,y);}}
   const startX=panelW-CWIDTH-6;
-  futureCandles.forEach((c,idx)=>{
-    const x=startX+(idx+1)*STEP;if(x>panelW-4)return;
-    const isG=c.close>=c.open;const oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);
-    const bTop=Math.min(oY,cY),bH=Math.max(Math.abs(cY-oY),1);
-    ctx.globalAlpha=0.25;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=1;ctx.setLineDash([2,3]);
-    ctx.beginPath();ctx.moveTo(x+CWIDTH/2,hY);ctx.lineTo(x+CWIDTH/2,lY);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=isG?GFILL:RFILL;ctx.fillRect(x,bTop,CWIDTH,bH);ctx.strokeRect(x,bTop,CWIDTH,bH);ctx.globalAlpha=1;
-  });
-  if(futureCandles.length>0){
-    ctx.font='8px "Orbitron",monospace';ctx.fillStyle='rgba(0,255,136,0.35)';ctx.textAlign='left';ctx.fillText('AI FORECAST',startX+STEP+2,topM-10);
-    ctx.strokeStyle='rgba(0,255,136,0.2)';ctx.lineWidth=0.5;ctx.setLineDash([2,4]);
-    ctx.beginPath();ctx.moveTo(startX+STEP-2,topM-20);ctx.lineTo(startX+STEP-2,H-botM);ctx.stroke();ctx.setLineDash([]);
-  }
-  for(let i=candles.length-1;i>=0;i--){
-    const c=candles[i];const idx=candles.length-1-i;const x=startX-idx*STEP;
-    if(x+CWIDTH<0)break;
-    const isG=c.close>=c.open;const oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);
-    const bTop=Math.min(oY,cY),bH=Math.max(Math.abs(cY-oY),1);const isLive=i===candles.length-1;
-    if(isLive){ctx.shadowColor=isG?'rgba(0,255,136,0.6)':'rgba(255,51,68,0.6)';ctx.shadowBlur=8;}
-    ctx.globalAlpha=isLive?1:0.7;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=isLive?1.5:1;
-    ctx.beginPath();ctx.moveTo(x+CWIDTH/2,hY);ctx.lineTo(x+CWIDTH/2,lY);ctx.stroke();
-    ctx.fillStyle=isG?GFILL:RFILL;ctx.fillRect(x,bTop,CWIDTH,bH);ctx.strokeRect(x,bTop,CWIDTH,bH);
-    ctx.shadowBlur=0;ctx.globalAlpha=1;
-  }
-  const lY2=toY(livePrice);
-  ctx.setLineDash([3,5]);ctx.strokeStyle='rgba(0,255,170,0.45)';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(0,lY2);ctx.lineTo(panelW-70,lY2);ctx.stroke();ctx.setLineDash([]);
-  const tag=livePrice.toFixed(2);const tagW=62,tagH=17,tagX=panelW-tagW-4,tagY2=lY2-tagH/2;
-  ctx.fillStyle='#00ffaa';ctx.beginPath();ctx.roundRect(tagX,tagY2,tagW,tagH,2);ctx.fill();
-  ctx.fillStyle='#010a06';ctx.font='700 9px "Orbitron",monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tag,tagX+tagW/2,lY2);
-  const volH=18;
-  for(let i=candles.length-1;i>=0;i--){
-    const c=candles[i];const idx=candles.length-1-i;const x=startX-idx*STEP;if(x+CWIDTH<0)break;
-    const isG=c.close>=c.open;const vol=0.3+Math.random()*0.7;
-    ctx.fillStyle=isG?'rgba(0,204,119,0.25)':'rgba(255,51,68,0.2)';ctx.fillRect(x,H-botM-volH*vol,CWIDTH,volH*vol);
-  }
-}
+  futureCandles.forEach((c,idx)=>{{const x=startX+(idx+1)*STEP;if(x>panelW-4)return;const isG=c.close>=c.open;const oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);const bTop=Math.min(oY,cY),bH=Math.max(Math.abs(cY-oY),1);ctx.globalAlpha=0.25;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=1;ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(x+CWIDTH/2,hY);ctx.lineTo(x+CWIDTH/2,lY);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=isG?GFILL:RFILL;ctx.fillRect(x,bTop,CWIDTH,bH);ctx.strokeRect(x,bTop,CWIDTH,bH);ctx.globalAlpha=1;}});
+  if(futureCandles.length>0){{ctx.font='7px "Orbitron",monospace';ctx.fillStyle='rgba(0,255,136,0.35)';ctx.textAlign='left';ctx.fillText('AI FORECAST',startX+STEP+2,topM-8);ctx.strokeStyle='rgba(0,255,136,0.2)';ctx.lineWidth=0.5;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(startX+STEP-2,topM-16);ctx.lineTo(startX+STEP-2,H-botM);ctx.stroke();ctx.setLineDash([]);}}
+  for(let i=candles.length-1;i>=0;i--){{const c=candles[i];const idx=candles.length-1-i;const x=startX-idx*STEP;if(x+CWIDTH<0)break;const isG=c.close>=c.open;const oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);const bTop=Math.min(oY,cY),bH=Math.max(Math.abs(cY-oY),1);const isLive=i===candles.length-1;if(isLive){{ctx.shadowColor=isG?'rgba(0,255,136,0.6)':'rgba(255,51,68,0.6)';ctx.shadowBlur=8;}}ctx.globalAlpha=isLive?1:0.7;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=isLive?1.5:1;ctx.beginPath();ctx.moveTo(x+CWIDTH/2,hY);ctx.lineTo(x+CWIDTH/2,lY);ctx.stroke();ctx.fillStyle=isG?GFILL:RFILL;ctx.fillRect(x,bTop,CWIDTH,bH);ctx.strokeRect(x,bTop,CWIDTH,bH);ctx.shadowBlur=0;ctx.globalAlpha=1;}}
+  const lY2=toY(livePrice);ctx.setLineDash([3,5]);ctx.strokeStyle='rgba(0,255,170,0.45)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,lY2);ctx.lineTo(panelW-60,lY2);ctx.stroke();ctx.setLineDash([]);
+  const tag=livePrice.toFixed(2);const tagW=56,tagH=15,tagX=panelW-tagW-4,tagY2=lY2-tagH/2;ctx.fillStyle='#00ffaa';ctx.beginPath();ctx.roundRect(tagX,tagY2,tagW,tagH,2);ctx.fill();ctx.fillStyle='#010a06';ctx.font='700 8px "Orbitron",monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tag,tagX+tagW/2,lY2);
+  const volH=14;for(let i=candles.length-1;i>=0;i--){{const c=candles[i];const idx=candles.length-1-i;const x=startX-idx*STEP;if(x+CWIDTH<0)break;const isG=c.close>=c.open;const vol=0.3+Math.random()*0.7;ctx.fillStyle=isG?'rgba(0,204,119,0.25)':'rgba(255,51,68,0.2)';ctx.fillRect(x,H-botM-volH*vol,CWIDTH,volH*vol);}}
+}}
 
-function updateLive(){
+function updateLive(){{
   const now=Date.now();const live=candles[candles.length-1];
   const tick=(Math.random()-0.478)*0.25;livePrice+=tick;
   if(livePrice>live.high)live.high=livePrice;if(livePrice<live.low)live.low=livePrice;live.close=livePrice;
-  if(now-lastCandle>=CDUR){
-    live.live=false;const nc=nextCandle(livePrice);nc.open=livePrice;nc.close=livePrice;nc.high=livePrice;nc.low=livePrice;
-    candles.push(nc);if(candles.length>200)candles.shift();lastCandle=now;
-  }
+  if(now-lastCandle>=CDUR){{live.live=false;const nc=nextCandle(livePrice);nc.open=livePrice;nc.close=livePrice;nc.high=livePrice;nc.low=livePrice;candles.push(nc);if(candles.length>200)candles.shift();lastCandle=now;}}
   const rv=document.getElementById('rmse-val');if(rv)rv.textContent='$'+livePrice.toFixed(2);
-}
+}}
 
-function loop(){updateLive();drawBg();drawChart();requestAnimationFrame(loop);}
+function loop(){{updateLive();drawBg();drawChart();requestAnimationFrame(loop);}}
 loop();
 </script>
 </body></html>
-""", height=480, scrolling=False)
-
-    # ── Ticker tape strip ──────────────────────────────────────────────────────
-    st.markdown("""
-    <div style="overflow:hidden;background:#020f07;border-top:1px solid #0d3320;border-bottom:1px solid #0d3320;
-         padding:0.28rem 0;margin:0 -1rem 1.2rem;">
-      <div style="display:inline-flex;gap:36px;animation:tapeScroll 28s linear infinite;white-space:nowrap;
-           font-size:9px;font-family:'Space Mono',monospace;color:#2a5a3a;letter-spacing:0.08em;padding-left:100%;
-           animation-name:tapeScroll;">
-        <span style="display:flex;gap:7px;"><span>AAPL</span><span>$189.43</span><span style="color:#00ffaa">+1.2%</span></span>
-        <span style="display:flex;gap:7px;"><span>TSLA</span><span>$247.18</span><span style="color:#ff4455">-0.8%</span></span>
-        <span style="display:flex;gap:7px;"><span>NVDA</span><span>$876.55</span><span style="color:#00ffaa">+3.4%</span></span>
-        <span style="display:flex;gap:7px;"><span>MSFT</span><span>$412.20</span><span style="color:#00ffaa">+0.6%</span></span>
-        <span style="display:flex;gap:7px;"><span>AMZN</span><span>$185.92</span><span style="color:#ff4455">-0.3%</span></span>
-        <span style="display:flex;gap:7px;"><span>META</span><span>$519.77</span><span style="color:#00ffaa">+2.1%</span></span>
-        <span style="display:flex;gap:7px;"><span>GOOG</span><span>$172.44</span><span style="color:#00ffaa">+0.9%</span></span>
-        <span style="display:flex;gap:7px;"><span>BTC</span><span>$68,241</span><span style="color:#00ffaa">+4.7%</span></span>
-        <span style="display:flex;gap:7px;"><span>ETH</span><span>$3,847</span><span style="color:#00ffaa">+2.3%</span></span>
-        <span style="display:flex;gap:7px;"><span>SPY</span><span>$524.88</span><span style="color:#00ffaa">+0.4%</span></span>
-        <span style="display:flex;gap:7px;"><span>AAPL</span><span>$189.43</span><span style="color:#00ffaa">+1.2%</span></span>
-        <span style="display:flex;gap:7px;"><span>TSLA</span><span>$247.18</span><span style="color:#ff4455">-0.8%</span></span>
-        <span style="display:flex;gap:7px;"><span>NVDA</span><span>$876.55</span><span style="color:#00ffaa">+3.4%</span></span>
-        <span style="display:flex;gap:7px;"><span>MSFT</span><span>$412.20</span><span style="color:#00ffaa">+0.6%</span></span>
-        <span style="display:flex;gap:7px;"><span>AMZN</span><span>$185.92</span><span style="color:#ff4455">-0.3%</span></span>
-        <span style="display:flex;gap:7px;"><span>META</span><span>$519.77</span><span style="color:#00ffaa">+2.1%</span></span>
-      </div>
-    </div>
-    <style>
-    @keyframes tapeScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ── Native Streamlit form — centered below the animated canvas ────────────
-    _col1, _col2, _col3 = st.columns([1, 2, 1])
-    with _col2:
-        st.markdown("""
-        <div style="background:rgba(2,15,9,0.97);border:1px solid rgba(0,255,136,0.35);
-             border-top: 2px solid #00ffaa55;
-             border-radius:0.5rem;padding:1.8rem 1.6rem 1.4rem;
-             position:relative;z-index:100;box-shadow:0 0 60px rgba(0,0,0,0.9),0 0 30px rgba(0,255,136,0.08),inset 0 1px 0 rgba(0,255,136,0.1);">
-        </div>
-        """, unsafe_allow_html=True)
-
-        _t1_style = "flex:1;padding:0.5rem;border-radius:0.25rem;text-align:center;cursor:pointer;font-family:'Orbitron',monospace;font-size:0.58rem;letter-spacing:0.14em;text-transform:uppercase;"
-        _active   = "background:linear-gradient(90deg,#0d3320,#00cc77);color:#010a06;font-weight:800;border:1px solid #00ffaa44;"
-        _inactive = "color:rgba(42,90,58,0.8);"
-
-        _login_style  = _t1_style + (_active if _is_login else _inactive)
-        _signup_style = _t1_style + (_active if not _is_login else _inactive)
-
-        _c1, _c2 = st.columns(2)
-        with _c1:
-            if st.button("TERMINAL ACCESS", key="tab_login", use_container_width=True):
-                st.session_state.auth_view = "login"
-                st.rerun()
-        with _c2:
-            if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
-                st.session_state.auth_view = "signup"
-                st.rerun()
-
-        if _is_login:
-            st.markdown('<div style="text-align:center;margin-bottom:1rem;"><div style="font-size:0.9rem;font-weight:700;letter-spacing:0.12em;color:#d0ffe8;text-transform:uppercase;font-family:Orbitron,monospace;">SECURE ACCESS</div><div style="font-size:0.5rem;color:#2a5a3a;letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:Space Mono,monospace;">POWERED BY SUPABASE AUTH</div></div>', unsafe_allow_html=True)
-            st.markdown('<div style="font-family:Space Mono,monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:#00ffaa88;margin-bottom:4px;">IDENTITY TOKEN (EMAIL)</div>', unsafe_allow_html=True)
-            _login_email = st.text_input("Email", placeholder="name@firm.com", key="login_email_input", label_visibility="collapsed")
-            st.markdown('<div style="font-family:Space Mono,monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:#00ffaa88;margin-bottom:4px;margin-top:0.8rem;">ACCESS KEY</div>', unsafe_allow_html=True)
-            _login_pass  = st.text_input("Password", type="password", placeholder="••••••••••", key="login_pass_input", label_visibility="collapsed")
-
-            if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn", use_container_width=True):
-                if _login_email and _login_pass:
-                    with st.spinner("Authenticating…"):
-                        try:
-                            _res = supabase.auth.sign_in_with_password({"email": _login_email, "password": _login_pass})
-                            if _res.user:
-                                st.session_state.user = _res.user
-                                st.rerun()
-                            else:
-                                _auth_error = "Invalid credentials. Please try again."
-                        except Exception as _e:
-                            _auth_error = str(_e)
-                else:
-                    _auth_error = "Please enter your email and access key."
-
-            st.markdown('<div style="border:1px solid #0d3320;border-radius:0.25rem;background:rgba(0,255,136,0.03);padding:0.7rem 1rem;text-align:center;margin-top:0.8rem;"><div style="font-family:Orbitron,monospace;font-size:0.55rem;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#00ffaa;">BETA ALPHA</div><div style="font-size:0.48rem;color:#2a5a3a;letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:Space Mono,monospace;">Only access pathways active</div></div>', unsafe_allow_html=True)
-
-        else:
-            st.markdown('<div style="text-align:center;margin-bottom:1rem;"><div style="font-size:0.9rem;font-weight:700;letter-spacing:0.12em;color:#d0ffe8;text-transform:uppercase;font-family:Orbitron,monospace;">REGISTER NODE</div><div style="font-size:0.5rem;color:#2a5a3a;letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:Space Mono,monospace;">CREATE YOUR TERMINAL IDENTITY</div></div>', unsafe_allow_html=True)
-            st.markdown('<div style="font-family:Space Mono,monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:#00ffaa88;margin-bottom:4px;">IDENTITY TOKEN (EMAIL)</div>', unsafe_allow_html=True)
-            _signup_email = st.text_input("Email", placeholder="SECURE@NODE.CAST", key="signup_email_input", label_visibility="collapsed")
-            st.markdown('<div style="font-family:Space Mono,monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:#00ffaa88;margin-bottom:4px;margin-top:0.8rem;">ACCESS KEY</div>', unsafe_allow_html=True)
-            _signup_pass  = st.text_input("Password", type="password", placeholder="••••••••••", key="signup_pass_input", label_visibility="collapsed")
-            st.markdown('<div style="font-family:Space Mono,monospace;font-size:0.55rem;letter-spacing:0.16em;text-transform:uppercase;color:#00ffaa88;margin-bottom:4px;margin-top:0.8rem;">CONFIRM KEY</div>', unsafe_allow_html=True)
-            _signup_conf  = st.text_input("Confirm", type="password", placeholder="••••••••••", key="signup_conf_input", label_visibility="collapsed")
-
-            if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn", use_container_width=True):
-                if not _signup_email or not _signup_pass or not _signup_conf:
-                    _auth_error = "Please fill in all fields."
-                elif _signup_pass != _signup_conf:
-                    _auth_error = "Passwords do not match."
-                elif len(_signup_pass) < 6:
-                    _auth_error = "Password must be at least 6 characters."
-                else:
-                    with st.spinner("Initializing terminal…"):
-                        try:
-                            _res = supabase.auth.sign_up({"email": _signup_email, "password": _signup_pass})
-                            if _res.user:
-                                _auth_success = f"✅ Account created! A verification link has been sent to {_signup_email}. Please check your inbox (and spam folder) and verify your email before logging in."
-                                st.session_state.auth_view = "login"
-                                st.rerun()
-                            else:
-                                _auth_error = "Sign up failed. Please try again."
-                        except Exception as _e:
-                            _auth_error = str(_e)
-
-        if _auth_error:
-            st.error(f"⚠ {_auth_error}")
-        if _auth_success:
-            st.success(f"✓ {_auth_success}")
+""", height=700, scrolling=False)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
