@@ -91,12 +91,14 @@ def get_live_ticker_tape():
         return []
 
 
+@st.cache_data(ttl=3600)
+def av_get_overview(ticker_sym):
     """Fetch company overview via yfinance. Returns dict compatible with existing Shariah logic."""
     try:
-        info = yf.Ticker(ticker).info
+        info = yf.Ticker(ticker_sym).info
         return {
-            "Symbol":                              ticker,
-            "Name":                                info.get("longName", ticker),
+            "Symbol":                              ticker_sym,
+            "Name":                                info.get("longName", ticker_sym),
             "Sector":                              info.get("sector", "Unknown"),
             "Industry":                            info.get("industry", "Unknown"),
             "MarketCapitalization":                str(info.get("marketCap", 0) or 0),
@@ -3130,4 +3132,3 @@ st.markdown(f"""
   </div>
 </div>
 """, unsafe_allow_html=True)
-
