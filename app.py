@@ -116,10 +116,20 @@ def av_search(query):
 
 @st.cache_data(ttl=300)
 def av_get_news(ticker):
-    """Fetch news via yfinance. Returns list of dicts with 'title' key."""
+    """Fetch news via yfinance. Handles both old (title at root) and
+    new yfinance API (title nested under content dict)."""
     try:
         news = yf.Ticker(ticker).news or []
-        return [{"title": n.get("title", "")} for n in news[:10] if n.get("title")]
+        results = []
+        for n in news[:10]:
+            title = (
+                n.get("title")
+                or (n.get("content") or {}).get("title")
+                or ""
+            )
+            if title:
+                results.append({"title": title})
+        return results
     except Exception:
         return []
 
