@@ -202,14 +202,17 @@ def get_fear_greed_index():
         return None
 
 import nltk
-for _nltk_pkg in ['punkt', 'punkt_tab']:
-    try:
-        nltk.data.find(f'tokenizers/{_nltk_pkg}')
-    except LookupError:
+
+def _ensure_nltk_data():
+    """Lazily download required NLTK tokenizer data on first use."""
+    for _nltk_pkg in ['punkt', 'punkt_tab']:
         try:
-            nltk.download(_nltk_pkg, quiet=True)
-        except Exception:
-            pass
+            nltk.data.find(f'tokenizers/{_nltk_pkg}')
+        except LookupError:
+            try:
+                nltk.download(_nltk_pkg, quiet=True)
+            except Exception:
+                pass
 
 # ── Supabase config ────────────────────────────────────────────────────────────
 # Credentials are loaded from Streamlit secrets (secrets.toml) or environment variables.
@@ -1994,7 +1997,7 @@ setInterval(()=>{const v=12+Math.floor(Math.random()*6);const l2=document.getEle
                         try:
                             _res = supabase.auth.sign_up({"email": _signup_email, "password": _signup_pass})
                             if _res.user:
-                                _auth_success = "Account created! You can now log in."
+                                _auth_success = f"✅ Account created! A verification link has been sent to {_signup_email}. Please check your inbox (and spam folder) and verify your email before logging in."
                                 st.session_state.auth_view = "login"
                                 st.rerun()
                             else:
@@ -3082,6 +3085,7 @@ else:
                 st.subheader(_L["news_sentiment"])
                 try:
                     from textblob import TextBlob
+                    _ensure_nltk_data()
                     raw_news = av_get_news(ticker)
                     if raw_news:
                         scored = []
@@ -3118,6 +3122,11 @@ st.markdown(f"""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
     {_L["footer"]}
+  </div>
+  <div style="margin-top:.6rem;font-family:IBM Plex Mono,monospace;font-size:.55rem;letter-spacing:.08em;">
+    <a href="/privacy" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
+    <span style="color:#2d3449;">·</span>
+    <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
   </div>
 </div>
 """, unsafe_allow_html=True)
