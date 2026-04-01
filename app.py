@@ -93,21 +93,31 @@ def get_live_ticker_tape():
 
 @st.cache_data(ttl=3600)
 def av_get_overview(ticker_sym):
-    """Fetch company overview via yfinance. Returns dict compatible with existing Shariah logic."""
-    try:
-        info = yf.Ticker(ticker_sym).info
-        return {
-            "Symbol":                              ticker_sym,
-            "Name":                                info.get("longName", ticker_sym),
-            "Sector":                              info.get("sector", "Unknown"),
-            "Industry":                            info.get("industry", "Unknown"),
-            "MarketCapitalization":                str(info.get("marketCap", 0) or 0),
-            "TotalDebt":                           str(info.get("totalDebt", 0) or 0),
-            "TotalAssets":                         str(info.get("totalAssets", 0) or 0),
-            "CashAndCashEquivalentsAtCarryingValue": str(info.get("totalCash", 0) or 0),
-        }
-    except Exception:
-        return {}
+    """Fetch company overview via yfinance. Uses get_info() with retries for rate-limit resilience."""
+    for attempt in range(3):
+        try:
+            t    = yf.Ticker(ticker_sym)
+            info = t.get_info() or {}
+            if not info.get("symbol") and not info.get("longName"):
+                # Empty info dict — yfinance returned nothing useful
+                if attempt < 2:
+                    time.sleep(2 + attempt * 2)
+                    continue
+                return {}
+            return {
+                "Symbol":                              ticker_sym,
+                "Name":                                info.get("longName", ticker_sym),
+                "Sector":                              info.get("sector", "Unknown"),
+                "Industry":                            info.get("industry", "Unknown"),
+                "MarketCapitalization":                str(info.get("marketCap", 0) or 0),
+                "TotalDebt":                           str(info.get("totalDebt", 0) or 0),
+                "TotalAssets":                         str(info.get("totalAssets", 0) or 0),
+                "CashAndCashEquivalentsAtCarryingValue": str(info.get("totalCash", 0) or 0),
+            }
+        except Exception:
+            if attempt < 2:
+                time.sleep(2 + attempt * 2)
+    return {}
 
 @st.cache_data(ttl=300)
 def av_search(query):
@@ -3118,8 +3128,8 @@ else:
                             fig_sent.add_vline(x=avg_polarity, line_dash="dot", line_color=sent_color, line_width=1.5)
                             fig_sent.update_layout(**PLOTLY_LAYOUT,
                                 title=dict(text=f"{ticker} · Headline Sentiment (Yahoo Finance + TextBlob)", font=dict(color=C_GREEN, size=11)),
-                                height=max(220, len(scored)*32), xaxis_title="Polarity (negative ← 0 → positive)",
-                                xaxis=dict(range=[-1,1], gridcolor="#2d3449", linecolor="#2d3449", zeroline=False, tickfont=dict(color="#424754",size=9)))
+                                height=max(220, len(scored)*32),
+                                xaxis=dict(title="Polarity (negative ← 0 → positive)", range=[-1,1], gridcolor="#2d3449", linecolor="#2d3449", zeroline=False, tickfont=dict(color="#424754",size=9)))
                             st.plotly_chart(fig_sent, use_container_width=True)
                             st.caption("⚠ Sentiment is based on headline text only. Powered by Yahoo Finance News + TextBlob.")
                     else:
