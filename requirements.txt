@@ -5,7 +5,7 @@ streamlit>=1.32.0
 requests>=2.31.0
 xgboost==2.0.3
 plotly==5.20.0
-supabase==2.4.2
+supabase>=2.4.2
 nltk==3.9.1
 textblob==0.18.0
 yfinance>=0.2.61
