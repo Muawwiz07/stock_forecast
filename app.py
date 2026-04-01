@@ -1804,25 +1804,32 @@ if st.session_state.user is None:
         background: #010a06 !important;
         font-family: 'Space Grotesk', sans-serif !important;
         color: #e0e3e6 !important;
+        min-height: unset !important;
+        height: auto !important;
     }
-    .block-container { padding: 1rem 1rem 3rem !important; max-width: 100% !important; }
+    [data-testid="stAppViewContainer"] > section {
+        min-height: unset !important;
+        height: auto !important;
+        padding-bottom: 0 !important;
+    }
+    .block-container { padding: 0 0.5rem 1rem !important; max-width: 100% !important; }
     header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="stTextInput"] input {
-        background: rgba(2,6,23,0.55) !important;
-        border: 1px solid rgba(74,225,118,0.15) !important;
-        border-radius: 0.375rem !important;
-        color: #e0e3e6 !important;
-        font-family: 'JetBrains Mono', monospace !important;
-        font-size: 0.8rem !important;
-        padding: 11px 14px 11px 36px !important;
+        background: rgba(1,10,6,0.8) !important;
+        border: 1px solid rgba(0,255,136,0.25) !important;
+        border-radius: 0.2rem !important;
+        color: #00ffaa !important;
+        font-family: 'Space Mono', monospace !important;
+        font-size: 0.78rem !important;
+        padding: 11px 14px !important;
         transition: all 0.2s !important;
     }
     [data-testid="stTextInput"] input:focus {
-        border-color: rgba(74,225,118,0.5) !important;
-        box-shadow: 0 0 0 1px rgba(74,225,118,0.3), 0 0 12px rgba(74,225,118,0.1) !important;
+        border-color: rgba(0,255,136,0.6) !important;
+        box-shadow: 0 0 0 1px rgba(0,255,136,0.2), 0 0 12px rgba(0,255,136,0.08) !important;
     }
-    [data-testid="stTextInput"] input::placeholder { color: rgba(224,227,230,0.2) !important; }
+    [data-testid="stTextInput"] input::placeholder { color: rgba(0,255,136,0.2) !important; }
     [data-testid="stTextInput"] label { display: none !important; }
     .stButton > button {
         width: 100% !important;
@@ -2128,10 +2135,11 @@ loop();
     _col1, _col2, _col3 = st.columns([1, 2, 1])
     with _col2:
         st.markdown("""
-        <div style="background:rgba(2,15,9,0.97);border:1px solid rgba(0,255,136,0.18);
+        <div style="background:rgba(2,15,9,0.97);border:1px solid rgba(0,255,136,0.35);
+             border-top: 2px solid #00ffaa55;
              border-radius:0.5rem;padding:1.8rem 1.6rem 1.4rem;
-             position:relative;z-index:100;box-shadow:0 25px 60px rgba(0,0,0,0.8),0 0 40px rgba(0,255,136,0.06);">
-        <div style="display:flex;background:rgba(1,10,6,0.7);border:1px solid rgba(0,255,136,0.12);
+             position:relative;z-index:100;box-shadow:0 0 60px rgba(0,0,0,0.9),0 0 30px rgba(0,255,136,0.08),inset 0 1px 0 rgba(0,255,136,0.1);">
+        <div style="display:flex;background:rgba(1,10,6,0.7);border:1px solid rgba(0,255,136,0.15);
              border-radius:0.25rem;padding:3px;margin-bottom:1.2rem;gap:4px;">
         """, unsafe_allow_html=True)
 
