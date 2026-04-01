@@ -1405,6 +1405,16 @@ label, [data-testid="stSelectbox"] label,
 }
 .wl-badge:hover { background: var(--bg4); }
 
+/* ── COPYRIGHT BAR ── */
+.copyright-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: rgba(11,19,38,0.97); border-bottom: 1px solid #1e2840;
+    padding: 3px 1rem; display: flex; align-items: center; justify-content: center;
+    font-family: IBM Plex Mono, monospace; font-size: .52rem;
+    color: #2d3449; letter-spacing: .12em; pointer-events: none; user-select: none;
+}
+.copyright-bar span { color: #3a4460; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -2045,6 +2055,13 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
     st.session_state.portfolio_history = _loaded_hist
     st.session_state._portfolio_loaded_for = _current_uid
 
+
+# ── Copyright Bar (fixed, all pages) ─────────────────────────────────────────
+st.markdown('''
+<div class="copyright-bar">
+  © 2024–2025 <span>STOCKCAST</span> &nbsp;·&nbsp; <span>MUAWWIZ GHANI</span> &nbsp;·&nbsp; All Rights Reserved &nbsp;·&nbsp; For Educational Purposes Only
+</div>
+''', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════
 # HEADER
@@ -3142,14 +3159,17 @@ else:
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
-<div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
+<div style="text-align:center;margin-top:3rem;padding:2rem 1.5rem 1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
     {_L["footer"]}
   </div>
-  <div style="margin-top:.6rem;font-family:IBM Plex Mono,monospace;font-size:.55rem;letter-spacing:.08em;">
-    <a href="/privacy" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
-    <span style="color:#2d3449;">·</span>
-    <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
+  <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#3a4460;letter-spacing:.1em;">
+    © 2024–2025 STOCKCAST · MUAWWIZ GHANI · All Rights Reserved
+  </div>
+  <div style="margin-top:.5rem;font-family:IBM Plex Mono,monospace;font-size:.52rem;letter-spacing:.08em;">
+    <a href="/privacy" target="_blank" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
+    <span style="color:#1e2840;">·</span>
+    <a href="/terms" target="_blank" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
   </div>
 </div>
 """, unsafe_allow_html=True)
