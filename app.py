@@ -1800,19 +1800,37 @@ if st.session_state.user is None:
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;600;700&display=swap');
-    html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
+    html, body {
         background: #010a06 !important;
-        font-family: 'Space Grotesk', sans-serif !important;
-        color: #e0e3e6 !important;
+        height: auto !important;
+        min-height: unset !important;
+        overflow-y: auto !important;
+    }
+    [data-testid="stApp"] {
+        background: #010a06 !important;
         min-height: unset !important;
         height: auto !important;
     }
-    [data-testid="stAppViewContainer"] > section {
+    [data-testid="stAppViewContainer"] {
+        background: #010a06 !important;
         min-height: unset !important;
         height: auto !important;
-        padding-bottom: 0 !important;
     }
-    .block-container { padding: 0 0.5rem 1rem !important; max-width: 100% !important; }
+    [data-testid="stAppViewContainer"] > section.main {
+        min-height: unset !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    .main .block-container {
+        padding: 0 0.75rem 1.5rem !important;
+        max-width: 100% !important;
+        min-height: unset !important;
+    }
+    /* Hide stray open div from tab bar markdown */
+    .stMarkdown > div > div:empty { display: none !important; }
+    /* Kill Streamlit's forced viewport-height spacer */
+    .main > div:last-child { display: none !important; }
+    iframe { border: none !important; display: block !important; }
     header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="stTextInput"] input {
@@ -2139,8 +2157,7 @@ loop();
              border-top: 2px solid #00ffaa55;
              border-radius:0.5rem;padding:1.8rem 1.6rem 1.4rem;
              position:relative;z-index:100;box-shadow:0 0 60px rgba(0,0,0,0.9),0 0 30px rgba(0,255,136,0.08),inset 0 1px 0 rgba(0,255,136,0.1);">
-        <div style="display:flex;background:rgba(1,10,6,0.7);border:1px solid rgba(0,255,136,0.15);
-             border-radius:0.25rem;padding:3px;margin-bottom:1.2rem;gap:4px;">
+        </div>
         """, unsafe_allow_html=True)
 
         _t1_style = "flex:1;padding:0.5rem;border-radius:0.25rem;text-align:center;cursor:pointer;font-family:'Orbitron',monospace;font-size:0.58rem;letter-spacing:0.14em;text-transform:uppercase;"
@@ -2217,8 +2234,6 @@ loop();
             st.error(f"⚠ {_auth_error}")
         if _auth_success:
             st.success(f"✓ {_auth_success}")
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
