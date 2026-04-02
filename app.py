@@ -1799,10 +1799,12 @@ if st.session_state.user is None:
     html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
     [data-testid="stAppViewContainer"]>section,.main,.block-container{
         background:#010a06 !important;
+        height:100vh !important;overflow:hidden !important;
     }
     .block-container{max-width:420px !important;margin:0 auto !important;padding:2rem 1rem !important;}
     header,footer,#MainMenu,[data-testid="stSidebar"],
     [data-testid="stToolbar"],[data-testid="stDecoration"]{display:none !important;}
+    .stButton>button{white-space:nowrap !important;}
     [data-testid="stTextInput"] label{display:none !important;}
     [data-testid="stTextInput"] input{
         background:#020f07 !important;
