@@ -1852,7 +1852,11 @@ if st.session_state.user is None:
     _ok_msg   = _auth_success or ""
     _view     = "login" if _is_login else "signup"
 
-    st.html(f"""
+    import streamlit.components.v1 as _components
+    import warnings as _w
+    with _w.catch_warnings():
+        _w.simplefilter("ignore")
+        _components.html(f"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1885,7 +1889,7 @@ html,body{{width:100%;height:100%;background:#010a06;overflow:hidden;font-family
             color:#d0ffe8;line-height:1.2;margin-bottom:0.6rem;
             text-shadow:0 0 40px rgba(0,255,136,0.15);}}
 .hero-title span{{color:#00ffaa;}}
-.hero-sub{{font-size:9px;color:#3a6b50;line-height:1.7;max-width:260px;font-family:'Space Mono',monospace;margin-bottom:1rem;}}
+.hero-sub{{font-size:9px;color:#3a6b50;line-height:1.6;max-width:260px;font-family:'Rajdhani',sans-serif;margin-bottom:1rem;letter-spacing:0.02em;}}
 .stat-grid{{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:260px;}}
 .stat-box{{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:8px 10px;}}
 .stat-label{{font-size:6px;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;}}
@@ -1904,8 +1908,8 @@ html,body{{width:100%;height:100%;background:#010a06;overflow:hidden;font-family
 .tab.active{{color:#00ffaa;border-bottom:2px solid #00ffaa;background:rgba(0,255,136,0.04);}}
 .form-body{{padding:1.2rem;flex:1;display:flex;flex-direction:column;gap:0.75rem;}}
 .form-title{{text-align:center;}}
-.form-title h3{{font-size:0.8rem;font-weight:700;letter-spacing:0.12em;color:#d0ffe8;text-transform:uppercase;font-family:'Orbitron',monospace;}}
-.form-title p{{font-size:0.45rem;color:#2a5a3a;letter-spacing:0.16em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;}}
+.form-title h3{{font-size:11px;font-weight:700;letter-spacing:0.12em;color:#d0ffe8;text-transform:uppercase;font-family:'Orbitron',monospace;}}
+.form-title p{{font-size:8px;color:#2a5a3a;letter-spacing:0.16em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;}}
 .field-label{{font-family:'Space Mono',monospace;font-size:0.5rem;letter-spacing:0.16em;text-transform:uppercase;color:#00ffaa77;margin-bottom:3px;}}
 .field-input{{background:#010a06;border:1px solid rgba(0,255,136,0.2);color:#00ffaa;
              font-family:'Space Mono',monospace;font-size:11px;padding:9px 11px;
@@ -2133,7 +2137,7 @@ function loop(){{updateLive();drawBg();drawChart();requestAnimationFrame(loop);}
 loop();
 </script>
 </body></html>
-""")
+""", height=720, scrolling=False)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
