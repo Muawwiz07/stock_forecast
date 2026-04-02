@@ -1793,76 +1793,87 @@ if st.session_state.user is None:
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    # Full-screen dark green page — canvas bg + right-panel form
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Space+Mono&display=swap');
     html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
-    [data-testid="stAppViewContainer"]>section,.main{
-        background:#010a06!important;margin:0!important;padding:0!important;
-        overflow:hidden!important;height:100vh!important;max-height:100vh!important;
+    [data-testid="stAppViewContainer"]>section,.main,.block-container{
+        background:#010a06 !important;
     }
-    .block-container{padding:0!important;max-width:100%!important;margin:0!important;height:100vh!important;}
-    header[data-testid="stHeader"],footer,#MainMenu,
-    [data-testid="stSidebar"],[data-testid="stToolbar"],[data-testid="stDecoration"]{display:none!important;}
-    /* Canvas iframe = full-screen fixed background */
-    iframe{position:fixed!important;inset:0!important;width:100vw!important;
-           height:100vh!important;border:none!important;z-index:1!important;}
-    /* Right panel form = fixed on right side, above canvas */
-    [data-testid="stVerticalBlock"]>div{position:fixed!important;top:0!important;right:0!important;
-        width:min(300px,100vw)!important;height:100vh!important;
-        background:rgba(2,10,6,0.97)!important;border-left:1px solid #0d3320!important;
-        z-index:10!important;overflow-y:auto!important;padding:1rem!important;
-        display:flex!important;flex-direction:column!important;gap:0.5rem!important;}
-    /* Inputs */
+    .block-container{max-width:420px !important;margin:0 auto !important;padding:2rem 1rem !important;}
+    header,footer,#MainMenu,[data-testid="stSidebar"],
+    [data-testid="stToolbar"],[data-testid="stDecoration"]{display:none !important;}
+    [data-testid="stTextInput"] label{display:none !important;}
     [data-testid="stTextInput"] input{
-        background:#010a06!important;border:1px solid rgba(0,255,136,0.3)!important;
-        border-radius:2px!important;color:#00ffaa!important;
-        font-family:'Space Mono',monospace!important;font-size:13px!important;
-        padding:10px 12px!important;width:100%!important;
+        background:#020f07 !important;
+        border:1px solid #00ffaa44 !important;
+        border-radius:2px !important;
+        color:#00ffaa !important;
+        font-family:'Space Mono',monospace !important;
+        font-size:13px !important;
+        padding:11px 14px !important;
     }
-    [data-testid="stTextInput"] input:focus{border-color:#00ffaa!important;}
-    [data-testid="stTextInput"] input::placeholder{color:rgba(0,255,136,0.2)!important;}
-    [data-testid="stTextInput"] label{display:none!important;}
-    /* Buttons */
+    [data-testid="stTextInput"] input:focus{border-color:#00ffaa !important;}
+    [data-testid="stTextInput"] input::placeholder{color:#00ffaa33 !important;}
     .stButton>button{
-        width:100%!important;padding:11px!important;
-        background:linear-gradient(90deg,#0d3320,#00cc77,#00ffaa,#00cc77,#0d3320)!important;
-        background-size:300% auto!important;animation:gflow 3s linear infinite!important;
-        border:none!important;color:#010a06!important;
-        font-family:'Orbitron',monospace!important;font-weight:800!important;
-        font-size:10px!important;letter-spacing:0.18em!important;text-transform:uppercase!important;
-        border-radius:2px!important;margin-bottom:0!important;
+        width:100% !important; padding:13px !important;
+        background:linear-gradient(90deg,#064e3b,#00cc77,#00ffaa,#00cc77,#064e3b) !important;
+        background-size:300% auto !important;
+        animation:gflow 3s linear infinite !important;
+        border:none !important; color:#010a06 !important;
+        font-family:'Orbitron',monospace !important;
+        font-weight:900 !important; font-size:11px !important;
+        letter-spacing:0.2em !important; text-transform:uppercase !important;
+        border-radius:2px !important;
     }
-    @keyframes gflow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-    [data-testid="stAlert"]{border-radius:2px!important;font-size:11px!important;}
-    p{color:#00ffaa88!important;font-family:'Space Mono',monospace!important;font-size:9px!important;
-      letter-spacing:0.14em!important;text-transform:uppercase!important;margin:4px 0 2px!important;}
+    @keyframes gflow{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
     </style>
     """, unsafe_allow_html=True)
 
-    _is_login = (st.session_state.auth_view == "login")
+    # Header
+    st.markdown("""
+    <div style="text-align:center;padding:2rem 0 1.5rem;">
+      <div style="font-family:'Orbitron',monospace;font-size:10px;color:#00ffaa;
+                  letter-spacing:0.3em;text-transform:uppercase;margin-bottom:0.5rem;">
+        ● NEURAL ENGINE ACTIVE
+      </div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.3rem;font-weight:900;
+                  color:#d0ffe8;line-height:1.3;">
+        STOCK<span style="color:#00ffaa;">CAST</span>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:#2a5a3a;
+                  margin-top:0.4rem;letter-spacing:0.1em;">
+        XGBoost · Shariah Screening · NLP Sentiment
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Tab buttons
+    # Tab selector
+    _is_login = (st.session_state.auth_view == "login")
     _c1, _c2 = st.columns(2)
     with _c1:
         if st.button("⚡ TERMINAL ACCESS", key="tab_login", use_container_width=True):
-            st.session_state.auth_view = "login"; st.rerun()
+            st.session_state.auth_view = "login"
+            st.rerun()
     with _c2:
         if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
-            st.session_state.auth_view = "signup"; st.rerun()
+            st.session_state.auth_view = "signup"
+            st.rerun()
+
+    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
 
     if _is_login:
-        st.markdown('<p style="font-family:Space Mono,monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#00ffaa88;margin:0.8rem 0 4px;">IDENTITY TOKEN (EMAIL)</p>', unsafe_allow_html=True)
-        _login_email = st.text_input("Email", placeholder="name@firm.com", key="login_email_input", label_visibility="collapsed")
-        st.markdown('<p style="font-family:Space Mono,monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#00ffaa88;margin:0.6rem 0 4px;">ACCESS KEY</p>', unsafe_allow_html=True)
-        _login_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="login_pass_input", label_visibility="collapsed")
+        st.markdown("<p style='font-family:Space Mono,monospace;font-size:9px;color:#00ffaa88;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px;'>Identity Token (Email)</p>", unsafe_allow_html=True)
+        _email = st.text_input("Email", placeholder="name@firm.com", key="li_email", label_visibility="collapsed")
+        st.markdown("<p style='font-family:Space Mono,monospace;font-size:9px;color:#00ffaa88;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px;margin-top:0.5rem;'>Access Key</p>", unsafe_allow_html=True)
+        _pass = st.text_input("Password", type="password", placeholder="••••••••••", key="li_pass", label_visibility="collapsed")
 
+        st.markdown("<div style='height:0.3rem'></div>", unsafe_allow_html=True)
         if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn", use_container_width=True):
-            if _login_email and _login_pass:
+            if _email and _pass:
                 with st.spinner("Authenticating..."):
                     try:
-                        _res = supabase.auth.sign_in_with_password({"email": _login_email, "password": _login_pass})
+                        _res = supabase.auth.sign_in_with_password({"email": _email, "password": _pass})
                         if _res.user:
                             st.session_state.user = _res.user
                             st.rerun()
@@ -1879,29 +1890,35 @@ if st.session_state.user is None:
             else:
                 _auth_error = "Please enter your email and password."
 
-        st.markdown('''<div style="border:1px solid #0d3320;padding:10px;text-align:center;margin-top:0.5rem;background:rgba(0,255,136,0.02);"><div style="font-family:Orbitron,monospace;font-size:9px;font-weight:700;letter-spacing:0.28em;color:#00ffaa;">BETA ALPHA</div><div style="font-size:8px;color:#2a5a3a;font-family:Space Mono,monospace;margin-top:2px;">Only access pathways active</div></div>''', unsafe_allow_html=True)
+        st.markdown("""<div style="border:1px solid #0d3320;padding:10px;text-align:center;
+            margin-top:1rem;background:rgba(0,255,136,0.02);">
+            <div style="font-family:Orbitron,monospace;font-size:9px;font-weight:700;
+            letter-spacing:0.28em;color:#00ffaa;">BETA ALPHA</div>
+            <div style="font-size:8px;color:#2a5a3a;font-family:Space Mono,monospace;margin-top:2px;">
+            Only access pathways active</div></div>""", unsafe_allow_html=True)
 
     else:
-        st.markdown('<p style="font-family:Space Mono,monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#00ffaa88;margin:0.8rem 0 4px;">EMAIL</p>', unsafe_allow_html=True)
-        _signup_email = st.text_input("Email", placeholder="user@live.com", key="signup_email_input", label_visibility="collapsed")
-        st.markdown('<p style="font-family:Space Mono,monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#00ffaa88;margin:0.6rem 0 4px;">ACCESS KEY</p>', unsafe_allow_html=True)
-        _signup_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="signup_pass_input", label_visibility="collapsed")
-        st.markdown('<p style="font-family:Space Mono,monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#00ffaa88;margin:0.6rem 0 4px;">CONFIRM KEY</p>', unsafe_allow_html=True)
-        _signup_conf = st.text_input("Confirm", type="password", placeholder="••••••••••", key="signup_conf_input", label_visibility="collapsed")
+        st.markdown("<p style='font-family:Space Mono,monospace;font-size:9px;color:#00ffaa88;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px;'>Email</p>", unsafe_allow_html=True)
+        _su_email = st.text_input("Email", placeholder="user@live.com", key="su_email", label_visibility="collapsed")
+        st.markdown("<p style='font-family:Space Mono,monospace;font-size:9px;color:#00ffaa88;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px;margin-top:0.5rem;'>Access Key</p>", unsafe_allow_html=True)
+        _su_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="su_pass", label_visibility="collapsed")
+        st.markdown("<p style='font-family:Space Mono,monospace;font-size:9px;color:#00ffaa88;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:2px;margin-top:0.5rem;'>Confirm Key</p>", unsafe_allow_html=True)
+        _su_conf = st.text_input("Confirm", type="password", placeholder="••••••••••", key="su_conf", label_visibility="collapsed")
 
+        st.markdown("<div style='height:0.3rem'></div>", unsafe_allow_html=True)
         if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn", use_container_width=True):
-            if not _signup_email or not _signup_pass or not _signup_conf:
+            if not _su_email or not _su_pass or not _su_conf:
                 _auth_error = "Please fill in all fields."
-            elif _signup_pass != _signup_conf:
+            elif _su_pass != _su_conf:
                 _auth_error = "Passwords do not match."
-            elif len(_signup_pass) < 6:
+            elif len(_su_pass) < 6:
                 _auth_error = "Password must be at least 6 characters."
             else:
                 with st.spinner("Initializing..."):
                     try:
-                        _res = supabase.auth.sign_up({"email": _signup_email, "password": _signup_pass})
+                        _res = supabase.auth.sign_up({"email": _su_email, "password": _su_pass})
                         if _res.user:
-                            _auth_success = f"✅ Check {_signup_email} for a verification link."
+                            _auth_success = f"Verification sent to {_su_email}. Check your inbox."
                             st.session_state.auth_view = "login"
                             st.rerun()
                         else:
