@@ -1787,7 +1787,6 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 # ── Auth Gate: Login / Signup ──────────────────────────────────────────────────
 if st.session_state.user is None:
 
-    import streamlit.components.v1 as _components
 
     _auth_error   = ""
     _auth_success = ""
@@ -1844,13 +1843,7 @@ if st.session_state.user is None:
     header[data-testid="stHeader"],footer,#MainMenu,
     [data-testid="stSidebar"],[data-testid="stToolbar"],
     [data-testid="stDecoration"]{display:none!important;}
-    /* Pin iframe to fill the full viewport — kills the black gap completely */
-    iframe{
-        border:none!important;display:block!important;
-        position:fixed!important;top:0!important;left:0!important;
-        width:100vw!important;height:100vh!important;
-        z-index:9999!important;
-    }
+    iframe{border:none!important;display:block!important;width:100%!important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1859,7 +1852,7 @@ if st.session_state.user is None:
     _ok_msg   = _auth_success or ""
     _view     = "login" if _is_login else "signup"
 
-    _components.html(f"""
+    st.html(f"""
 <!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1937,11 +1930,13 @@ html,body{{width:100%;height:100%;background:#010a06;overflow:hidden;font-family
          padding:8px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#00ffaa;border-radius:2px;}}
 .auth-btn:disabled{{opacity:0.7;cursor:not-allowed;animation:none;background:#0d3320!important;color:#00ffaa!important;}}
 #authMsg{{margin-bottom:4px;}}
-/* Mobile: stack vertically */
-@media(max-width:600px){{
-  .root{{flex-direction:column;}}
-  .left{{flex:0 0 auto;min-height:340px;padding:1rem;}}
-  .right{{width:100%;flex:1;border-left:none;border-top:1px solid #0d3320;}}
+/* Mobile: stack vertically — trigger at 700px to catch most phones */
+@media(max-width:700px){{
+  .root{{flex-direction:column;height:auto;min-height:100vh;overflow-y:auto;overflow-x:hidden;}}
+  .left{{flex:0 0 auto;height:50vh;min-height:280px;padding:1rem;}}
+  .right{{width:100%;flex:0 0 auto;border-left:none;border-top:1px solid #0d3320;
+         overflow-y:auto;}}
+  canvas{{pointer-events:none;}}
 }}
 </style>
 </head><body>
@@ -2138,7 +2133,7 @@ function loop(){{updateLive();drawBg();drawChart();requestAnimationFrame(loop);}
 loop();
 </script>
 </body></html>
-""", height=1, scrolling=False)
+""")
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
