@@ -814,6 +814,23 @@ if "lang" not in st.session_state:
 # ── Session state ──────────────────────────────────────────────────────────────
 if "user" not in st.session_state:
     st.session_state.user = None
+
+# ── Restore Supabase session after browser full-reload (caused by query-param auth) ──
+# When window.parent.location.href fires, Streamlit reconnects fresh and loses
+# session_state. We recover by reading access/refresh tokens from the URL.
+if st.session_state.user is None:
+    _qp_init = st.query_params
+    _at = _qp_init.get("_at", "")
+    _rt = _qp_init.get("_rt", "")
+    if _at and _rt:
+        try:
+            _restored = supabase.auth.set_session(_at, _rt)
+            if _restored and _restored.user:
+                st.session_state.user = _restored.user
+                st.query_params.clear()
+                st.rerun()
+        except Exception:
+            st.query_params.clear()
 if "watchlist" not in st.session_state:
     st.session_state.watchlist = []
 if "alert_signals" not in st.session_state:
@@ -1804,7 +1821,12 @@ if st.session_state.user is None:
             _res = supabase.auth.sign_in_with_password({"email": _pm_email, "password": _pm_pass})
             if _res.user:
                 st.session_state.user = _res.user
-                st.query_params.clear()
+                # Pass tokens back in URL so session survives the Streamlit reload
+                if hasattr(_res, "session") and _res.session:
+                    st.query_params["_at"] = _res.session.access_token
+                    st.query_params["_rt"] = _res.session.refresh_token
+                else:
+                    st.query_params.clear()
                 st.rerun()
             else:
                 _auth_error = "Invalid credentials. Please try again."
