@@ -1797,20 +1797,22 @@ if st.session_state.user is None:
 
     _is_login = (st.session_state.auth_view == "login")
 
-    # ── Futuristic CSS override ────────────────────────────────────────────────
+    # ── Full-page CSS: hides ALL Streamlit chrome ──────────────────────────────
     st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
-    html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"], .main {
-        background: #010a06 !important;
-        font-family: 'Rajdhani', sans-serif !important;
-        color: #d0ffe8 !important;
-        overflow: hidden !important;
-    }
+    html, body,
+    [data-testid="stApp"],
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    .main { background: #010a06 !important; overflow-x: hidden !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; }
     header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
+    /* Streamlit adds default top padding — kill it */
+    [data-testid="stMain"] > div:first-child { padding-top: 0 !important; }
 
+    /* ── Input styling ── */
     [data-testid="stTextInput"] input {
         background: #020f07 !important;
         border: 1px solid #0d3320 !important;
@@ -1820,7 +1822,6 @@ if st.session_state.user is None:
         font-size: 0.72rem !important;
         padding: 10px 14px !important;
         transition: border-color 0.2s, box-shadow 0.2s !important;
-        letter-spacing: 0.04em !important;
     }
     [data-testid="stTextInput"] input:focus {
         border-color: #00ffaa !important;
@@ -1829,508 +1830,384 @@ if st.session_state.user is None:
     [data-testid="stTextInput"] input::placeholder { color: #1a4030 !important; }
     [data-testid="stTextInput"] label { display: none !important; }
 
+    /* ── Button styling ── */
     .stButton > button {
         width: 100% !important;
-        padding: 0.8rem !important;
+        padding: 0.75rem !important;
         background: #00ffaa !important;
         color: #010a06 !important;
         font-family: 'Orbitron', monospace !important;
         font-weight: 700 !important;
-        font-size: 0.62rem !important;
+        font-size: 0.58rem !important;
         border: none !important;
         border-radius: 2px !important;
-        letter-spacing: 0.18em !important;
+        letter-spacing: 0.15em !important;
         text-transform: uppercase !important;
         transition: all 0.2s !important;
-        position: relative !important;
-        overflow: hidden !important;
+        cursor: pointer !important;
     }
-    .stButton > button:hover {
-        background: #00dd99 !important;
-        transform: translateY(-1px) !important;
+    .stButton > button:hover { background: #00dd99 !important; }
+
+    /* Tab buttons — muted style */
+    [data-testid="stHorizontalBlock"] .stButton > button {
+        background: transparent !important;
+        color: rgba(0,255,170,0.4) !important;
+        border: 1px solid #0d3320 !important;
+        font-size: 0.52rem !important;
     }
-    .stButton > button:active { transform: scale(0.98) !important; }
+    [data-testid="stHorizontalBlock"] .stButton > button:hover {
+        color: #00ffaa !important;
+        border-color: rgba(0,255,170,0.3) !important;
+        background: rgba(0,255,170,0.05) !important;
+    }
 
     [data-testid="stAlert"] { border-radius: 2px !important; font-size: 0.75rem !important; }
+
+    /* ── The animated background iframe fills the whole screen ── */
+    .bg-iframe-wrap iframe {
+        position: fixed !important;
+        top: 0 !important; left: 0 !important;
+        width: 100% !important; height: 100% !important;
+        border: none !important;
+        z-index: 0 !important;
+        pointer-events: none !important;
+    }
+    .bg-iframe-wrap { height: 0 !important; overflow: visible !important; }
+
+    /* ── Auth card: centered, fixed, floats over background ── */
+    .auth-card-anchor {
+        position: fixed !important;
+        top: 0 !important; right: 0 !important;
+        width: min(380px, 100vw) !important;
+        height: 100dvh !important;
+        z-index: 100 !important;
+        overflow-y: auto !important;
+        padding: 1.5rem 1.2rem !important;
+        background: rgba(2,12,7,0.96) !important;
+        border-left: 1px solid rgba(0,255,170,0.12) !important;
+        box-shadow: -20px 0 60px rgba(0,0,0,0.6) !important;
+        scrollbar-width: none !important;
+    }
+    .auth-card-anchor::-webkit-scrollbar { display: none !important; }
+
+    /* On very narrow screens (phone portrait) take full width */
+    @media (max-width: 480px) {
+        .auth-card-anchor {
+            width: 100vw !important;
+            border-left: none !important;
+            background: rgba(1,10,6,0.98) !important;
+            padding: 1.2rem 1rem !important;
+        }
+    }
+
+    /* Streamlit injects form elements outside our control — push them into the card space */
+    [data-testid="stVerticalBlock"] {
+        position: relative !important;
+        z-index: 101 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Futuristic animated background (Three.js → canvas-based real-time chart) ──
+    # ── Animated background: full-screen fixed canvas (pointer-events:none) ────
+    st.markdown('<div class="bg-iframe-wrap">', unsafe_allow_html=True)
     _components.html("""
-<!DOCTYPE html><html lang="en"><head>
+<!DOCTYPE html><html><head>
 <meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Space+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0;}
-html,body{width:100%;height:100%;background:#010a06;overflow:hidden;font-family:'Rajdhani',sans-serif;color:#d0ffe8;}
-canvas{display:block;position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;}
-.scan-sweep{position:fixed;top:0;left:-100%;width:55%;height:100%;z-index:3;pointer-events:none;
-  background:linear-gradient(90deg,transparent,rgba(0,255,170,0.04),rgba(0,255,170,0.015),transparent);
-  animation:sweep 9s linear infinite;}
-@keyframes sweep{0%{left:-100%}100%{left:210%}}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;background:#010a06;overflow:hidden;}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;}
+.scan{position:fixed;left:0;right:0;height:90px;background:linear-gradient(to bottom,transparent,rgba(0,255,136,0.022),transparent);animation:sv 6s linear infinite;pointer-events:none;z-index:2;}
+@keyframes sv{0%{top:-90px}100%{top:100%}}
+.sweep{position:fixed;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,136,0.032),transparent);animation:sw 10s linear infinite;pointer-events:none;z-index:2;}
+@keyframes sw{0%{left:-60%}100%{left:120%}}
 
-.scan-line{position:fixed;left:0;right:0;height:100px;pointer-events:none;z-index:4;
-  background:linear-gradient(to bottom,transparent,rgba(0,255,170,0.025),transparent);
-  animation:scanV 6s linear infinite;}
-@keyframes scanV{0%{top:-100px}100%{top:100%}}
+/* Hero — hidden on very small screens to not block chart */
+.hero{position:fixed;top:50%;left:2rem;transform:translateY(-50%);z-index:3;pointer-events:none;max-width:46%;}
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:'Orbitron',monospace;font-size:0.48rem;color:#00ffaa;letter-spacing:0.2em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(0,255,170,0.22);border-radius:2px;margin-bottom:1rem;}
+.dot{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:p 1.2s ease-in-out infinite;}
+@keyframes p{0%,100%{opacity:1}50%{opacity:0.15}}
+h1{font-family:'Orbitron',monospace;font-size:clamp(1rem,2.5vw,1.9rem);font-weight:700;color:#d0ffe8;line-height:1.22;margin-bottom:0.6rem;}
+h1 em{font-style:normal;color:#00ffaa;}
+.sub{font-family:'Space Mono',monospace;font-size:0.6rem;color:#2a5a3a;line-height:1.8;border-left:2px solid rgba(0,255,170,0.2);padding-left:0.8rem;margin-bottom:1.2rem;}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:240px;}
+.s{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:8px 10px;}
+.sl{font-size:0.42rem;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:3px;}
+.sv{font-size:0.82rem;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}
+.sv.g{color:#00ffaa;}
+@media(max-width:520px){.hero{display:none;}}
 
-.hero{position:fixed;top:0;left:0;width:56%;height:100%;display:flex;flex-direction:column;
-  justify-content:flex-end;padding:0 3rem 6rem;z-index:10;}
-
-.neural-badge{display:inline-flex;align-items:center;gap:7px;font-family:'Orbitron',monospace;
-  font-size:0.5rem;color:#00ffaa;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:1.2rem;
-  padding:5px 12px;border:1px solid rgba(0,255,170,0.2);border-radius:2px;width:fit-content;
-  position:relative;overflow:hidden;}
-.neural-badge::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
-  background:#00ffaa;animation:sidePulse 2s ease-in-out infinite;}
-@keyframes sidePulse{0%,100%{opacity:1}50%{opacity:0.2}}
-.pulse-dot{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:pulse 1.2s ease-in-out infinite;}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.2;transform:scale(0.7)}}
-
-.hero h1{font-family:'Orbitron',monospace;font-size:clamp(1.4rem,3vw,2.2rem);font-weight:700;
-  color:#d0ffe8;line-height:1.2;letter-spacing:-0.01em;margin-bottom:0.8rem;}
-.hero h1 em{font-style:normal;color:#00ffaa;}
-.hero-sub{font-size:0.68rem;color:#3a6b50;line-height:1.8;max-width:340px;
-  font-family:'Space Mono',monospace;margin-bottom:1.4rem;border-left:2px solid rgba(0,255,170,0.2);padding-left:1rem;}
-
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:280px;}
-.stat-box{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:10px 12px;position:relative;overflow:hidden;}
-.stat-box::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:rgba(0,255,170,0.13);}
-.stat-label{font-size:0.45rem;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;}
-.stat-value{font-size:0.88rem;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}
-.stat-value.green{color:#00ffaa;}
-
-.bottom-bar{position:fixed;bottom:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;
-  align-items:center;padding:0.45rem 2rem;background:rgba(1,10,6,0.75);border-top:1px solid #0d3320;
-  font-size:0.45rem;font-family:'Space Mono',monospace;color:#1a4030;letter-spacing:0.1em;text-transform:uppercase;}
-.footer-live{display:flex;align-items:center;gap:6px;color:rgba(0,255,170,0.5);}
-.flive-dot{width:5px;height:5px;border-radius:50%;background:#00ffaa;animation:pulse 1.5s infinite;display:inline-block;}
-
-@media(max-width:700px){.hero{display:none;}}
+.bar{position:fixed;bottom:0;left:0;right:0;height:22px;background:rgba(1,10,6,0.8);border-top:1px solid #0d3320;display:flex;justify-content:space-between;align-items:center;padding:0 1rem;font-family:'Space Mono',monospace;font-size:0.42rem;color:#1a4030;letter-spacing:0.08em;z-index:3;pointer-events:none;}
+.live{display:flex;align-items:center;gap:5px;color:rgba(0,255,170,0.45);}
+.ld{width:5px;height:5px;border-radius:50%;background:#00ffaa;animation:p 1.5s infinite;}
 </style>
 </head><body>
-
-<canvas id="bgC"></canvas>
-<canvas id="chartC" style="z-index:1;"></canvas>
-<div class="scan-sweep"></div>
-<div class="scan-line"></div>
+<canvas id="bg"></canvas>
+<canvas id="ch" style="z-index:1;"></canvas>
+<div class="scan"></div>
+<div class="sweep"></div>
 
 <div class="hero">
-  <div class="neural-badge"><div class="pulse-dot"></div>Neural Engine Active</div>
+  <div class="badge"><div class="dot"></div>Neural Engine Active</div>
   <h1>Predicting the<br>pulse of <em>global markets.</em></h1>
-  <p class="hero-sub">Institutional-grade XGBoost forecasting, 8-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment — all in one unified terminal.</p>
-  <div class="stat-grid">
-    <div class="stat-box"><div class="stat-label">XGBoost RMSE</div><div class="stat-value" id="forecastPrice">$2.14</div></div>
-    <div class="stat-box"><div class="stat-label">Latency</div><div class="stat-value" id="latency">15ms</div></div>
-    <div class="stat-box"><div class="stat-label">Auth Provider</div><div class="stat-value" style="font-size:0.72rem;">Supabase</div></div>
-    <div class="stat-box"><div class="stat-label">Signal Strength</div><div class="stat-value green">STRONG</div></div>
+  <p class="sub">Institutional-grade XGBoost forecasting, 8-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment.</p>
+  <div class="stats">
+    <div class="s"><div class="sl">XGBoost RMSE</div><div class="sv" id="fp">$2.14</div></div>
+    <div class="s"><div class="sl">Latency</div><div class="sv" id="lat">15ms</div></div>
+    <div class="s"><div class="sl">Auth Provider</div><div class="sv" style="font-size:0.68rem;">Supabase</div></div>
+    <div class="s"><div class="sl">Signal Strength</div><div class="sv g">STRONG</div></div>
   </div>
 </div>
 
-<div class="bottom-bar">
-  <span>&#9888; For Educational Purposes Only · Not Financial Advice</span>
-  <div class="footer-live"><div class="flive-dot"></div><span>Live Grid <span id="footer-clock">00:00:00</span></span></div>
-  <span>Developed by Muawwiz Ghani</span>
+<div class="bar">
+  <span>For educational purposes only</span>
+  <div class="live"><div class="ld"></div><span>Live <span id="clk">00:00:00</span></span></div>
+  <span>Muawwiz Ghani</span>
 </div>
 
 <script>
-const bgC=document.getElementById('bgC');
-const bgX=bgC.getContext('2d');
-const cc=document.getElementById('chartC');
-const ctx=cc.getContext('2d');
-
-function resize(){
-  bgC.width=cc.width=innerWidth;
-  bgC.height=cc.height=innerHeight;
-}
+const bg=document.getElementById('bg'),bgx=bg.getContext('2d');
+const ch=document.getElementById('ch'),ctx=ch.getContext('2d');
+function resize(){bg.width=ch.width=innerWidth;bg.height=ch.height=innerHeight;}
 resize();window.addEventListener('resize',resize);
 
-// Data streams
+// streams
 const streams=[];
-for(let i=0;i<28;i++){
-  streams.push({
-    x:Math.random()*0.58,y:Math.random(),
-    speed:0.00035+Math.random()*0.0007,
-    len:0.06+Math.random()*0.16,
-    alpha:0.07+Math.random()*0.16,
-    width:Math.random()>0.7?1.5:0.5,
-  });
-}
+for(let i=0;i<24;i++) streams.push({x:Math.random()*0.6,y:Math.random(),sp:0.0004+Math.random()*0.0007,len:0.07+Math.random()*0.15,a:0.08+Math.random()*0.18,w:Math.random()>0.7?1.5:0.5});
+const pts=[];
+for(let i=0;i<45;i++) pts.push({x:Math.random()*0.6,y:Math.random(),vx:(Math.random()-.5)*0.00012,vy:(Math.random()-.5)*0.00012,r:.5+Math.random()*1.5,a:.08+Math.random()*.22});
 
-// Particles
-const particles=[];
-for(let i=0;i<50;i++){
-  particles.push({
-    x:Math.random()*0.58,y:Math.random(),
-    vx:(Math.random()-0.5)*0.00012,
-    vy:(Math.random()-0.5)*0.00012,
-    r:0.5+Math.random()*1.5,
-    alpha:0.08+Math.random()*0.25,
-  });
-}
-
-function hexPath(ctx,cx,cy,r){
-  ctx.beginPath();
-  for(let i=0;i<6;i++){
-    const a=Math.PI/180*(60*i-30);
-    i===0?ctx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):ctx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));
-  }
-  ctx.closePath();
-}
+function hexPath(cx,cy,r){bgx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);i?bgx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):bgx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a));}bgx.closePath();}
 
 function drawBg(){
-  const W=bgC.width,H=bgC.height;
-  bgX.clearRect(0,0,W,H);
-
-  // Hex grid
-  const sz=38;
-  for(let row=0;row<H/sz+2;row++){
-    for(let col=0;col<W*0.6/sz+2;col++){
-      const ox=col%2===0?0:sz*0.866;
-      hexPath(bgX,col*sz*0.866*1.5,row*sz+ox,sz*0.48);
-      bgX.strokeStyle='rgba(0,255,136,0.04)';bgX.lineWidth=0.5;bgX.stroke();
-    }
+  const W=bg.width,H=bg.height;bgx.clearRect(0,0,W,H);
+  // hex grid — only left 62%
+  const sz=36;
+  for(let row=0;row<=H/sz+1;row++) for(let col=0;col<=W*.62/sz+1;col++){
+    const ox=col%2===0?0:sz*.866;
+    hexPath(col*sz*.866*1.5,row*sz+ox,sz*.46);
+    bgx.strokeStyle='rgba(0,255,136,0.042)';bgx.lineWidth=.5;bgx.stroke();
   }
-
-  // Data streams (vertical falling lines)
+  // streams
   streams.forEach(s=>{
-    s.y+=s.speed;
-    if(s.y>1+s.len)s.y=-s.len;
+    s.y+=s.sp;if(s.y>1+s.len)s.y=-s.len;
     const x=s.x*W,y0=(s.y-s.len)*H,y1=s.y*H;
-    const g=bgX.createLinearGradient(0,y0,0,y1);
-    g.addColorStop(0,'rgba(0,255,136,0)');
-    g.addColorStop(0.5,`rgba(0,255,136,${s.alpha})`);
-    g.addColorStop(1,'rgba(0,255,136,0)');
-    bgX.strokeStyle=g;bgX.lineWidth=s.width;
-    bgX.beginPath();bgX.moveTo(x,y0);bgX.lineTo(x,y1);bgX.stroke();
+    const g=bgx.createLinearGradient(0,y0,0,y1);
+    g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(.5,`rgba(0,255,136,${s.a})`);g.addColorStop(1,'rgba(0,255,136,0)');
+    bgx.strokeStyle=g;bgx.lineWidth=s.w;bgx.beginPath();bgx.moveTo(x,y0);bgx.lineTo(x,y1);bgx.stroke();
   });
-
-  // Particles
-  particles.forEach(p=>{
+  // particles
+  pts.forEach(p=>{
     p.x+=p.vx;p.y+=p.vy;
-    if(p.x<0)p.x=0.58;if(p.x>0.58)p.x=0;
-    if(p.y<0)p.y=1;if(p.y>1)p.y=0;
-    bgX.fillStyle=`rgba(0,255,136,${p.alpha})`;
-    bgX.beginPath();bgX.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgX.fill();
+    if(p.x<0)p.x=.6;if(p.x>.6)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
+    bgx.fillStyle=`rgba(0,255,136,${p.a})`;bgx.beginPath();bgx.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgx.fill();
   });
-
-  // Radial glow
-  const rg=bgX.createRadialGradient(W*0.22,H*0.5,0,W*0.22,H*0.5,W*0.32);
-  rg.addColorStop(0,'rgba(0,255,136,0.045)');rg.addColorStop(1,'rgba(0,255,136,0)');
-  bgX.fillStyle=rg;bgX.fillRect(0,0,W,H);
+  // radial glow
+  const rg=bgx.createRadialGradient(W*.22,H*.5,0,W*.22,H*.5,W*.3);
+  rg.addColorStop(0,'rgba(0,255,136,0.04)');rg.addColorStop(1,'rgba(0,255,136,0)');
+  bgx.fillStyle=rg;bgx.fillRect(0,0,W,H);
 }
 
-// Candlestick engine
-const CWIDTH=14,CGAP=7,STEP=CWIDTH+CGAP;
-const GREEN='#00cc77',RED='#ff3344';
-const GFILL='rgba(0,204,119,0.15)',RFILL='rgba(255,51,68,0.15)';
-let price=150,candles=[],livePrice=150,lastCandle=Date.now();
+// candlestick engine
+const CW=14,CG=7,STEP=CW+CG,GREEN='#00cc77',RED='#ff3344',GF='rgba(0,204,119,0.15)',RF='rgba(255,51,68,0.15)';
+let price=150,candles=[],lp=150,lastC=Date.now();
 const CDUR=2800;
+function nextC(sp){const o=sp;let c=o,hi=o,lo=o;for(let i=0;i<10;i++){const d=(Math.random()-.478)*2.2;c+=d;if(c>hi)hi=c;if(c<lo)lo=c;}hi+=Math.random()*1.2;lo-=Math.random()*1.2;price=c;return{open:o,high:hi,low:lo,close:c,live:true};}
+for(let i=0;i<80;i++){const c=nextC(price);c.live=false;candles.push(c);}
+candles.push(nextC(price));lp=candles[candles.length-1].open;
 
-function nextCandle(startPrice){
-  const open=startPrice;let close=open,hi=open,lo=open;
-  for(let i=0;i<10;i++){const d=(Math.random()-0.478)*2.2;close+=d;if(close>hi)hi=close;if(close<lo)lo=close;}
-  hi+=Math.random()*1.2;lo-=Math.random()*1.2;price=close;
-  return{open,high:hi,low:lo,close,live:true};
-}
-for(let i=0;i<80;i++){const c=nextCandle(price);c.live=false;candles.push(c);}
-candles.push(nextCandle(price));
-livePrice=candles[candles.length-1].open;
-
-function genFuture(n){
-  let p=livePrice;const out=[];
-  for(let i=0;i<n;i++){
-    const open=p;let close=open,hi=open,lo=open;
-    for(let j=0;j<8;j++){const d=(Math.random()-0.46)*1.8;close+=d;if(close>hi)hi=close;if(close<lo)lo=close;}
-    hi+=Math.random()*0.8;lo-=Math.random()*0.8;p=close;out.push({open,high:hi,low:lo,close});
-  }
-  return out;
-}
-let futureCandles=genFuture(8);
-setInterval(()=>{futureCandles=genFuture(8);},2000);
+function genFut(n){let p=lp;const out=[];for(let i=0;i<n;i++){const o=p;let c=o,hi=o,lo=o;for(let j=0;j<8;j++){const d=(Math.random()-.46)*1.8;c+=d;if(c>hi)hi=c;if(c<lo)lo=c;}hi+=Math.random()*.8;lo-=Math.random()*.8;p=c;out.push({open:o,high:hi,low:lo,close:c});}return out;}
+let fut=genFut(8);setInterval(()=>{fut=genFut(8);},2000);
 
 function drawChart(){
-  const W=cc.width,H=cc.height;
-  ctx.clearRect(0,0,W,H);
-  const panelW=W*0.58;
-  const topM=50,botM=28,chartH=H-topM-botM;
-  const maxVisible=Math.floor(panelW/STEP)+2;
-  const visible=[...candles.slice(-maxVisible),...futureCandles.slice(0,8)];
-  let minP=Infinity,maxP=-Infinity;
-  visible.forEach(c=>{if(c.low<minP)minP=c.low;if(c.high>maxP)maxP=c.high;});
-  const pad=(maxP-minP)*0.18;minP-=pad;maxP+=pad;
-  const range=maxP-minP||1;
-  const toY=p=>topM+chartH*(1-(p-minP)/range);
+  const W=ch.width,H=ch.height;ctx.clearRect(0,0,W,H);
+  // On narrow screens use full width, on wide screens only left 60%
+  const panelW=W<520?W:W*.6;
+  const tM=44,bM=26,cH=H-tM-bM;
+  const vis=[...candles.slice(-Math.floor(panelW/STEP)-2),...fut.slice(0,8)];
+  let mn=Infinity,mx=-Infinity;vis.forEach(c=>{if(c.low<mn)mn=c.low;if(c.high>mx)mx=c.high;});
+  const pad=(mx-mn)*.18;mn-=pad;mx+=pad;const rng=mx-mn||1;
+  const toY=p=>tM+cH*(1-(p-mn)/rng);
 
-  // Grid
   ctx.font='8px "Space Mono",monospace';
   for(let i=0;i<=4;i++){
-    const y=topM+(chartH/4)*i;
-    const pval=(maxP-(range/4)*i).toFixed(2);
-    ctx.strokeStyle='rgba(0,255,136,0.05)';ctx.lineWidth=0.5;ctx.setLineDash([3,6]);
-    ctx.beginPath();ctx.moveTo(20,y);ctx.lineTo(panelW-10,y);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='rgba(0,255,136,0.28)';ctx.textAlign='left';ctx.textBaseline='middle';
-    ctx.fillText(pval,2,y);
+    const y=tM+(cH/4)*i,pv=(mx-(rng/4)*i).toFixed(1);
+    ctx.strokeStyle='rgba(0,255,136,0.048)';ctx.lineWidth=.5;ctx.setLineDash([3,6]);
+    ctx.beginPath();ctx.moveTo(18,y);ctx.lineTo(panelW-8,y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,255,136,0.28)';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(pv,2,y);
   }
 
-  const startX=panelW-CWIDTH-8;
-  const live=candles[candles.length-1];
-
-  // Future ghost candles
-  futureCandles.forEach((c,idx)=>{
-    const x=startX+(idx+1)*STEP;
-    if(x>panelW-4||x<0)return;
+  const sx=panelW-CW-6;
+  // future ghost
+  fut.forEach((c,idx)=>{
+    const x=sx+(idx+1)*STEP;if(x>panelW-2||x<0)return;
     const isG=c.close>=c.open;
     const oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);
-    const bTop=Math.min(oY,cY),bH=Math.max(Math.abs(cY-oY),1);
-    ctx.globalAlpha=0.22;
-    ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=1;ctx.setLineDash([2,3]);
-    ctx.beginPath();ctx.moveTo(x+CWIDTH/2,hY);ctx.lineTo(x+CWIDTH/2,lY);ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle=isG?GFILL:RFILL;ctx.fillRect(x,bTop,CWIDTH,bH);
-    ctx.strokeRect(x,bTop,CWIDTH,bH);
+    const bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1);
+    ctx.globalAlpha=.2;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=1;ctx.setLineDash([2,3]);
+    ctx.beginPath();ctx.moveTo(x+CW/2,hY);ctx.lineTo(x+CW/2,lY);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=isG?GF:RF;ctx.fillRect(x,bt,CW,bh);ctx.strokeRect(x,bt,CW,bh);
     ctx.globalAlpha=1;
   });
+  // forecast label
+  ctx.font='7px "Orbitron",monospace';ctx.fillStyle='rgba(0,255,170,0.3)';ctx.textAlign='left';ctx.fillText('AI FORECAST',sx+STEP+2,tM-10);
+  ctx.strokeStyle='rgba(0,255,170,0.15)';ctx.lineWidth=.5;ctx.setLineDash([2,5]);
+  ctx.beginPath();ctx.moveTo(sx+STEP-2,tM-20);ctx.lineTo(sx+STEP-2,H-bM);ctx.stroke();ctx.setLineDash([]);
 
-  // Forecast divider + label
-  ctx.font='7px "Orbitron",monospace';
-  ctx.fillStyle='rgba(0,255,170,0.35)';ctx.textAlign='left';
-  ctx.fillText('AI FORECAST',startX+STEP+2,topM-10);
-  ctx.strokeStyle='rgba(0,255,170,0.18)';ctx.lineWidth=0.5;ctx.setLineDash([2,5]);
-  ctx.beginPath();ctx.moveTo(startX+STEP-2,topM-22);ctx.lineTo(startX+STEP-2,H-botM);ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Historical candles
+  // historical candles
   for(let i=candles.length-1;i>=0;i--){
-    const c=candles[i];
-    const idx=candles.length-1-i;
-    const x=startX-idx*STEP;
-    if(x+CWIDTH<0)break;
-    const isG=c.close>=c.open;
-    const oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);
-    const bTop=Math.min(oY,cY),bH=Math.max(Math.abs(cY-oY),1);
-    const isLive=i===candles.length-1;
-    if(isLive){ctx.shadowColor=isG?'rgba(0,255,136,0.7)':'rgba(255,51,68,0.7)';ctx.shadowBlur=10;}
-    ctx.globalAlpha=isLive?1:0.72;
-    ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=isLive?1.5:1;
-    ctx.beginPath();ctx.moveTo(x+CWIDTH/2,hY);ctx.lineTo(x+CWIDTH/2,lY);ctx.stroke();
-    ctx.fillStyle=isG?GFILL:RFILL;ctx.fillRect(x,bTop,CWIDTH,bH);
-    ctx.strokeRect(x,bTop,CWIDTH,bH);
+    const c=candles[i],idx=candles.length-1-i,x=sx-idx*STEP;
+    if(x+CW<0)break;
+    const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);
+    const bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1),live=i===candles.length-1;
+    if(live){ctx.shadowColor=isG?'rgba(0,255,136,0.7)':'rgba(255,51,68,0.7)';ctx.shadowBlur=10;}
+    ctx.globalAlpha=live?1:.72;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=live?1.5:1;
+    ctx.beginPath();ctx.moveTo(x+CW/2,hY);ctx.lineTo(x+CW/2,lY);ctx.stroke();
+    ctx.fillStyle=isG?GF:RF;ctx.fillRect(x,bt,CW,bh);ctx.strokeRect(x,bt,CW,bh);
     ctx.shadowBlur=0;ctx.globalAlpha=1;
+    // volume
+    const vh=14*(0.3+Math.random()*.7);
+    ctx.fillStyle=isG?'rgba(0,204,119,0.2)':'rgba(255,51,68,0.17)';ctx.fillRect(x,H-bM-vh,CW,vh);
   }
 
-  // Volume bars
-  for(let i=candles.length-1;i>=0;i--){
-    const c=candles[i];const idx=candles.length-1-i;const x=startX-idx*STEP;
-    if(x+CWIDTH<0)break;
-    const isG=c.close>=c.open;const vol=0.3+Math.random()*0.7;const volH=16;
-    ctx.fillStyle=isG?'rgba(0,204,119,0.22)':'rgba(255,51,68,0.18)';
-    ctx.fillRect(x,H-botM-volH*vol,CWIDTH,volH*vol);
-  }
-
-  // Live price dashed line
-  const lY2=toY(livePrice);
-  ctx.setLineDash([3,5]);ctx.strokeStyle='rgba(0,255,170,0.4)';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(20,lY2);ctx.lineTo(panelW-72,lY2);ctx.stroke();ctx.setLineDash([]);
-  // Price tag
-  const tag=livePrice.toFixed(2);const tagW=62,tagH=16,tagX=panelW-tagW-6;
-  ctx.fillStyle='#00ffaa';
-  ctx.beginPath();ctx.roundRect(tagX,lY2-tagH/2,tagW,tagH,2);ctx.fill();
-  ctx.fillStyle='#010a06';ctx.font='600 8px "Orbitron",monospace';
-  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tag,tagX+tagW/2,lY2);
+  // live price line + tag
+  const ly=toY(lp);
+  ctx.setLineDash([3,5]);ctx.strokeStyle='rgba(0,255,170,0.38)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(18,ly);ctx.lineTo(panelW-68,ly);ctx.stroke();ctx.setLineDash([]);
+  const tw=60,th=16,tx=panelW-tw-4;
+  ctx.fillStyle='#00ffaa';ctx.beginPath();ctx.roundRect(tx,ly-th/2,tw,th,2);ctx.fill();
+  ctx.fillStyle='#010a06';ctx.font='600 8px "Orbitron",monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(lp.toFixed(2),tx+tw/2,ly);
 }
 
 function updateLive(){
-  const now=Date.now();
-  const live=candles[candles.length-1];
-  const tick=(Math.random()-0.478)*0.25;
-  livePrice+=tick;
-  if(livePrice>live.high)live.high=livePrice;
-  if(livePrice<live.low)live.low=livePrice;
-  live.close=livePrice;
-  if(now-lastCandle>=CDUR){
-    live.live=false;
-    const nc=nextCandle(livePrice);nc.open=livePrice;nc.close=livePrice;nc.high=livePrice;nc.low=livePrice;
-    candles.push(nc);if(candles.length>200)candles.shift();lastCandle=now;
+  const now=Date.now(),live=candles[candles.length-1];
+  lp+=(Math.random()-.478)*.25;
+  if(lp>live.high)live.high=lp;if(lp<live.low)live.low=lp;live.close=lp;
+  if(now-lastC>=CDUR){
+    live.live=false;const nc=nextC(lp);nc.open=lp;nc.close=lp;nc.high=lp;nc.low=lp;
+    candles.push(nc);if(candles.length>200)candles.shift();lastC=now;
   }
-  const fpEl=document.getElementById('forecastPrice');
-  if(fpEl)fpEl.textContent='$'+livePrice.toFixed(2);
+  const fe=document.getElementById('fp');if(fe)fe.textContent='$'+lp.toFixed(2);
 }
 
-// Clock + latency
-setInterval(()=>{
-  const now=new Date();
-  const t=[now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
-  const el=document.getElementById('footer-clock');if(el)el.textContent=t;
-},1000);
-setInterval(()=>{
-  const v=12+Math.floor(Math.random()*6);
-  const l=document.getElementById('latency');if(l)l.textContent=v+'ms';
-},2400);
+setInterval(()=>{const n=new Date();const t=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');const e=document.getElementById('clk');if(e)e.textContent=t;},1000);
+setInterval(()=>{const e=document.getElementById('lat');if(e)e.textContent=(12+Math.floor(Math.random()*6))+'ms';},2400);
 
 function loop(){updateLive();drawBg();drawChart();requestAnimationFrame(loop);}
 loop();
 </script>
 </body></html>
-""", height=840, scrolling=False)
+""", height=1, scrolling=False)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Responsive CSS: on desktop overlay the form; on mobile stack below ────
-    st.markdown("""
-    <style>
-    /* Hide the iframe entirely on mobile — form is shown stacked below */
-    @media (max-width: 768px) {
-        iframe[title="st.iframe"] { display: none !important; }
-        [data-testid="column"] { width: 100% !important; min-width: 100% !important; flex: 1 1 100% !important; }
-        .auth-form-wrap { margin-top: 0 !important; }
-    }
-    /* Desktop: overlay the form on top of the iframe right column */
-    @media (min-width: 769px) {
-        .auth-form-wrap { margin-top: -840px !important; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # ── Auth form — floats fixed over background via CSS ──────────────────────
+    st.markdown('<div class="auth-card-anchor">', unsafe_allow_html=True)
 
-    # ── Mobile banner (only shown on mobile, hidden on desktop via CSS) ────────
+    # Corner brackets
     st.markdown("""
-    <div class="mobile-banner" style="
-        background:linear-gradient(135deg,#010a06,#021a0c);
-        border-bottom:1px solid #0d3320;
-        padding:1.4rem 1.2rem 1rem;
-        display:none;">
-      <div style="display:inline-flex;align-items:center;gap:7px;font-family:'Orbitron',monospace;
-           font-size:0.48rem;color:#00ffaa;letter-spacing:0.18em;text-transform:uppercase;
-           margin-bottom:0.8rem;padding:4px 10px;border:1px solid rgba(0,255,170,0.2);border-radius:2px;">
-        <span style="width:6px;height:6px;border-radius:50%;background:#00ffaa;
-              animation:pulse 1.2s ease-in-out infinite;display:inline-block;"></span>
-        Neural Engine Active
-      </div>
-      <div style="font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:700;
-           color:#d0ffe8;line-height:1.25;margin-bottom:0.5rem;">
-        Predicting the pulse of <span style="color:#00ffaa;">global markets.</span>
-      </div>
-      <div style="font-size:0.65rem;color:#2a5a3a;font-family:'Space Mono',monospace;line-height:1.7;">
-        XGBoost · Shariah Screening · NLP Sentiment
-      </div>
+    <div style="position:relative;margin-bottom:1rem;">
+      <div style="position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-top:1px solid rgba(0,255,170,0.4);border-left:1px solid rgba(0,255,170,0.4);"></div>
+      <div style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-top:1px solid rgba(0,255,170,0.4);border-right:1px solid rgba(0,255,170,0.4);"></div>
     </div>
-    <style>
-    @media (max-width: 768px) { .mobile-banner { display:block !important; } }
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.2}}
-    </style>
     """, unsafe_allow_html=True)
 
-    # ── Form: single column on mobile, right-side overlay on desktop ──────────
-    _col1, _col2 = st.columns([1.1, 1])
-    with _col2:
+    # Tab switcher
+    _tc1, _tc2 = st.columns(2)
+    with _tc1:
+        if st.button("TERMINAL ACCESS", key="tab_login", use_container_width=True):
+            st.session_state.auth_view = "login"
+            st.rerun()
+    with _tc2:
+        if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
+            st.session_state.auth_view = "signup"
+            st.rerun()
+
+    if _is_login:
         st.markdown("""
-        <div class="auth-form-wrap" style="
-             background:rgba(2,12,7,0.97);
-             border:1px solid rgba(0,255,170,0.15);
-             border-radius:4px;padding:1.6rem 1.5rem 1.3rem;
-             position:relative;z-index:100;
-             box-shadow:0 25px 60px rgba(0,0,0,0.85);">
-          <div style="position:absolute;top:6px;left:6px;width:10px;height:10px;
-               border-top:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
-          <div style="position:absolute;top:6px;right:6px;width:10px;height:10px;
-               border-top:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
-          <div style="position:absolute;bottom:6px;left:6px;width:10px;height:10px;
-               border-bottom:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
-          <div style="position:absolute;bottom:6px;right:6px;width:10px;height:10px;
-               border-bottom:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
+        <div style="text-align:center;margin:1rem 0 0.9rem;">
+          <div style="font-family:'Orbitron',monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Secure Access</div>
+          <div style="font-size:0.46rem;color:rgba(0,255,170,0.3);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Powered by Supabase Auth</div>
+        </div>
+        <div style="font-family:'Orbitron',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;">Identity Token (Email)</div>
         """, unsafe_allow_html=True)
+        _login_email = st.text_input("Email", placeholder="name@firm.com", key="login_email_input", label_visibility="collapsed")
 
-        _c1, _c2 = st.columns(2)
-        with _c1:
-            if st.button("TERMINAL ACCESS", key="tab_login", use_container_width=True):
-                st.session_state.auth_view = "login"
-                st.rerun()
-        with _c2:
-            if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
-                st.session_state.auth_view = "signup"
-                st.rerun()
+        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;margin-top:0.65rem;">Access Key</div>', unsafe_allow_html=True)
+        _login_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="login_pass_input", label_visibility="collapsed")
 
-        if _is_login:
-            st.markdown("""
-            <div style="text-align:center;margin:0.8rem 0 1rem;">
-              <div style="font-family:'Orbitron',monospace;font-size:0.62rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Secure Access</div>
-              <div style="font-size:0.48rem;color:rgba(0,255,170,0.3);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Powered by Supabase Auth</div>
-            </div>
-            <div style="font-family:'Orbitron',monospace;font-size:0.48rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.6);margin-bottom:4px;">Identity Token (Email)</div>
-            """, unsafe_allow_html=True)
-            _login_email = st.text_input("Email", placeholder="name@firm.com", key="login_email_input", label_visibility="collapsed")
-            st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.48rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.6);margin-bottom:4px;margin-top:0.7rem;">Access Key</div>', unsafe_allow_html=True)
-            _login_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="login_pass_input", label_visibility="collapsed")
+        st.markdown("<div style='margin-top:0.7rem;'></div>", unsafe_allow_html=True)
+        if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn", use_container_width=True):
+            if _login_email and _login_pass:
+                with st.spinner("Authenticating…"):
+                    try:
+                        _res = supabase.auth.sign_in_with_password({"email": _login_email, "password": _login_pass})
+                        if _res.user:
+                            st.session_state.user = _res.user
+                            st.rerun()
+                        else:
+                            _auth_error = "Invalid credentials. Please try again."
+                    except Exception as _e:
+                        _auth_error = str(_e)
+            else:
+                _auth_error = "Please enter your email and access key."
 
-            if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn", use_container_width=True):
-                if _login_email and _login_pass:
-                    with st.spinner("Authenticating…"):
-                        try:
-                            _res = supabase.auth.sign_in_with_password({"email": _login_email, "password": _login_pass})
-                            if _res.user:
-                                st.session_state.user = _res.user
-                                st.rerun()
-                            else:
-                                _auth_error = "Invalid credentials. Please try again."
-                        except Exception as _e:
-                            _auth_error = str(_e)
-                else:
-                    _auth_error = "Please enter your email and access key."
+    else:
+        st.markdown("""
+        <div style="text-align:center;margin:1rem 0 0.9rem;">
+          <div style="font-family:'Orbitron',monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Register Node</div>
+          <div style="font-size:0.46rem;color:rgba(0,255,170,0.3);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Create Your Terminal Identity</div>
+        </div>
+        <div style="font-family:'Orbitron',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;">Identity Token (Email)</div>
+        """, unsafe_allow_html=True)
+        _signup_email = st.text_input("Email", placeholder="name@firm.com", key="signup_email_input", label_visibility="collapsed")
 
-            st.markdown("""
-            <div style="border:1px solid rgba(0,255,170,0.1);border-radius:2px;background:rgba(0,255,170,0.03);
-                 padding:0.65rem 1rem;text-align:center;margin-top:0.75rem;">
-              <div style="font-family:'Orbitron',monospace;font-size:0.52rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00ffaa;">Beta Alpha</div>
-              <div style="font-size:0.44rem;color:rgba(0,255,170,0.3);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;">Early access protocols active</div>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;margin-top:0.65rem;">Access Key</div>', unsafe_allow_html=True)
+        _signup_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="signup_pass_input", label_visibility="collapsed")
 
-        else:
-            st.markdown("""
-            <div style="text-align:center;margin:0.8rem 0 1rem;">
-              <div style="font-family:'Orbitron',monospace;font-size:0.62rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Register Node</div>
-              <div style="font-size:0.48rem;color:rgba(0,255,170,0.3);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Create Your Terminal Identity</div>
-            </div>
-            <div style="font-family:'Orbitron',monospace;font-size:0.48rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.6);margin-bottom:4px;">Identity Token (Email)</div>
-            """, unsafe_allow_html=True)
-            _signup_email = st.text_input("Email", placeholder="name@firm.com", key="signup_email_input", label_visibility="collapsed")
-            st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.48rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.6);margin-bottom:4px;margin-top:0.7rem;">Access Key</div>', unsafe_allow_html=True)
-            _signup_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="signup_pass_input", label_visibility="collapsed")
-            st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.48rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.6);margin-bottom:4px;margin-top:0.7rem;">Confirm Key</div>', unsafe_allow_html=True)
-            _signup_conf = st.text_input("Confirm", type="password", placeholder="••••••••••", key="signup_conf_input", label_visibility="collapsed")
+        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;margin-top:0.65rem;">Confirm Key</div>', unsafe_allow_html=True)
+        _signup_conf = st.text_input("Confirm", type="password", placeholder="••••••••••", key="signup_conf_input", label_visibility="collapsed")
 
-            if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn", use_container_width=True):
-                if not _signup_email or not _signup_pass or not _signup_conf:
-                    _auth_error = "Please fill in all fields."
-                elif _signup_pass != _signup_conf:
-                    _auth_error = "Passwords do not match."
-                elif len(_signup_pass) < 6:
-                    _auth_error = "Password must be at least 6 characters."
-                else:
-                    with st.spinner("Initializing terminal…"):
-                        try:
-                            _res = supabase.auth.sign_up({"email": _signup_email, "password": _signup_pass})
-                            if _res.user:
-                                _auth_success = f"Account created! A verification link has been sent to {_signup_email}. Please verify your email before logging in."
-                                st.session_state.auth_view = "login"
-                                st.rerun()
-                            else:
-                                _auth_error = "Sign up failed. Please try again."
-                        except Exception as _e:
-                            _auth_error = str(_e)
+        st.markdown("<div style='margin-top:0.7rem;'></div>", unsafe_allow_html=True)
+        if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn", use_container_width=True):
+            if not _signup_email or not _signup_pass or not _signup_conf:
+                _auth_error = "Please fill in all fields."
+            elif _signup_pass != _signup_conf:
+                _auth_error = "Passwords do not match."
+            elif len(_signup_pass) < 6:
+                _auth_error = "Password must be at least 6 characters."
+            else:
+                with st.spinner("Initializing terminal…"):
+                    try:
+                        _res = supabase.auth.sign_up({"email": _signup_email, "password": _signup_pass})
+                        if _res.user:
+                            _auth_success = f"Account created! Verification email sent to {_signup_email}. Please verify before logging in."
+                            st.session_state.auth_view = "login"
+                            st.rerun()
+                        else:
+                            _auth_error = "Sign up failed. Please try again."
+                    except Exception as _e:
+                        _auth_error = str(_e)
 
-            st.markdown("""
-            <div style="border:1px solid rgba(0,255,170,0.1);border-radius:2px;background:rgba(0,255,170,0.03);
-                 padding:0.65rem 1rem;text-align:center;margin-top:0.75rem;">
-              <div style="font-family:'Orbitron',monospace;font-size:0.52rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00ffaa;">Beta Alpha</div>
-              <div style="font-size:0.44rem;color:rgba(0,255,170,0.3);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;">Early access protocols active</div>
-            </div>
-            """, unsafe_allow_html=True)
+    # Beta badge
+    st.markdown("""
+    <div style="border:1px solid rgba(0,255,170,0.1);border-radius:2px;background:rgba(0,255,170,0.03);
+         padding:0.6rem 1rem;text-align:center;margin-top:0.8rem;">
+      <div style="font-family:'Orbitron',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00ffaa;">Beta Alpha</div>
+      <div style="font-size:0.42rem;color:rgba(0,255,170,0.3);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;">Early access protocols active</div>
+    </div>
+    <div style="position:relative;margin-top:0.6rem;">
+      <div style="position:absolute;bottom:0;left:-4px;width:10px;height:10px;border-bottom:1px solid rgba(0,255,170,0.4);border-left:1px solid rgba(0,255,170,0.4);"></div>
+      <div style="position:absolute;bottom:0;right:-4px;width:10px;height:10px;border-bottom:1px solid rgba(0,255,170,0.4);border-right:1px solid rgba(0,255,170,0.4);"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        if _auth_error:
-            st.error(f"⚠ {_auth_error}")
-        if _auth_success:
-            st.success(f"✓ {_auth_success}")
+    if _auth_error:
+        st.error(f"⚠ {_auth_error}")
+    if _auth_success:
+        st.success(f"✓ {_auth_success}")
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
