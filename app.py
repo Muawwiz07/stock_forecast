@@ -2174,21 +2174,69 @@ loop();
 </body></html>
 """, height=840, scrolling=False)
 
-    # ── Native Streamlit form overlaid on top (right side) ────────────────────
+    # ── Responsive CSS: on desktop overlay the form; on mobile stack below ────
+    st.markdown("""
+    <style>
+    /* Hide the iframe entirely on mobile — form is shown stacked below */
+    @media (max-width: 768px) {
+        iframe[title="st.iframe"] { display: none !important; }
+        [data-testid="column"] { width: 100% !important; min-width: 100% !important; flex: 1 1 100% !important; }
+        .auth-form-wrap { margin-top: 0 !important; }
+    }
+    /* Desktop: overlay the form on top of the iframe right column */
+    @media (min-width: 769px) {
+        .auth-form-wrap { margin-top: -840px !important; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Mobile banner (only shown on mobile, hidden on desktop via CSS) ────────
+    st.markdown("""
+    <div class="mobile-banner" style="
+        background:linear-gradient(135deg,#010a06,#021a0c);
+        border-bottom:1px solid #0d3320;
+        padding:1.4rem 1.2rem 1rem;
+        display:none;">
+      <div style="display:inline-flex;align-items:center;gap:7px;font-family:'Orbitron',monospace;
+           font-size:0.48rem;color:#00ffaa;letter-spacing:0.18em;text-transform:uppercase;
+           margin-bottom:0.8rem;padding:4px 10px;border:1px solid rgba(0,255,170,0.2);border-radius:2px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:#00ffaa;
+              animation:pulse 1.2s ease-in-out infinite;display:inline-block;"></span>
+        Neural Engine Active
+      </div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:700;
+           color:#d0ffe8;line-height:1.25;margin-bottom:0.5rem;">
+        Predicting the pulse of <span style="color:#00ffaa;">global markets.</span>
+      </div>
+      <div style="font-size:0.65rem;color:#2a5a3a;font-family:'Space Mono',monospace;line-height:1.7;">
+        XGBoost · Shariah Screening · NLP Sentiment
+      </div>
+    </div>
+    <style>
+    @media (max-width: 768px) { .mobile-banner { display:block !important; } }
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.2}}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Form: single column on mobile, right-side overlay on desktop ──────────
     _col1, _col2 = st.columns([1.1, 1])
     with _col2:
         st.markdown("""
-        <div style="background:rgba(2,12,7,0.95);border:1px solid rgba(0,255,170,0.15);
-             border-radius:4px;padding:1.6rem 1.5rem 1.3rem;margin-top:-840px;
-             position:relative;z-index:100;box-shadow:0 25px 60px rgba(0,0,0,0.8);">
-        <div style="position:absolute;top:6px;left:6px;width:10px;height:10px;border-top:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
-        <div style="position:absolute;top:6px;right:6px;width:10px;height:10px;border-top:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
-        <div style="position:absolute;bottom:6px;left:6px;width:10px;height:10px;border-bottom:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
-        <div style="position:absolute;bottom:6px;right:6px;width:10px;height:10px;border-bottom:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
+        <div class="auth-form-wrap" style="
+             background:rgba(2,12,7,0.97);
+             border:1px solid rgba(0,255,170,0.15);
+             border-radius:4px;padding:1.6rem 1.5rem 1.3rem;
+             position:relative;z-index:100;
+             box-shadow:0 25px 60px rgba(0,0,0,0.85);">
+          <div style="position:absolute;top:6px;left:6px;width:10px;height:10px;
+               border-top:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
+          <div style="position:absolute;top:6px;right:6px;width:10px;height:10px;
+               border-top:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
+          <div style="position:absolute;bottom:6px;left:6px;width:10px;height:10px;
+               border-bottom:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
+          <div style="position:absolute;bottom:6px;right:6px;width:10px;height:10px;
+               border-bottom:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
         """, unsafe_allow_html=True)
-
-        _tab_active   = "background:rgba(0,255,170,0.12);color:#00ffaa;border-bottom:2px solid #00ffaa;font-family:'Orbitron',monospace;"
-        _tab_inactive = "color:rgba(0,255,170,0.3);border-bottom:2px solid transparent;font-family:'Orbitron',monospace;"
 
         _c1, _c2 = st.columns(2)
         with _c1:
