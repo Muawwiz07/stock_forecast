@@ -1795,10 +1795,11 @@ if st.session_state.user is None:
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    # ── Handle credentials submitted via query params (from iframe postMessage) ─
+    # ── Handle credentials submitted via query params (from iframe) ─────────────
     _qp = st.query_params
-    _pm_email  = _qp.get("_ae", "")
-    _pm_pass   = _qp.get("_ap", "")
+    import urllib.parse as _urlparse
+    _pm_email  = _urlparse.unquote(_qp.get("_ae", ""))
+    _pm_pass   = _urlparse.unquote(_qp.get("_ap", ""))
     _pm_action = _qp.get("_aa", "")
 
     if _pm_action and _pm_email and _pm_pass:
@@ -1810,9 +1811,15 @@ if st.session_state.user is None:
                     st.session_state.user = _res.user
                     st.rerun()
                 else:
-                    _auth_error = "Invalid credentials."
+                    _auth_error = "Invalid credentials. Please try again."
             except Exception as _e:
-                _auth_error = str(_e)
+                _estr = str(_e)
+                if "invalid" in _estr.lower() or "wrong" in _estr.lower():
+                    _auth_error = "Invalid email or password."
+                elif "email" in _estr.lower() and "confirm" in _estr.lower():
+                    _auth_error = "Please verify your email before logging in."
+                else:
+                    _auth_error = _estr
         elif _pm_action == "signup":
             try:
                 _res = supabase.auth.sign_up({"email": _pm_email, "password": _pm_pass})
@@ -1820,7 +1827,7 @@ if st.session_state.user is None:
                     _auth_success = f"Verification sent to {_pm_email}. Check your inbox."
                     st.session_state.auth_view = "login"
                 else:
-                    _auth_error = "Sign up failed."
+                    _auth_error = "Sign up failed. Try again."
             except Exception as _e:
                 _auth_error = str(_e)
 
@@ -1928,6 +1935,8 @@ html,body{{width:100%;height:100%;background:#010a06;overflow:hidden;font-family
            padding:8px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#ff8899;border-radius:2px;}}
 .msg-ok{{background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.25);border-left:3px solid #00ffaa;
          padding:8px 10px;font-family:'Space Mono',monospace;font-size:9px;color:#00ffaa;border-radius:2px;}}
+.auth-btn:disabled{{opacity:0.7;cursor:not-allowed;animation:none;background:#0d3320!important;color:#00ffaa!important;}}
+#authMsg{{margin-bottom:4px;}}
 /* Mobile: stack vertically */
 @media(max-width:600px){{
   .root{{flex-direction:column;}}
@@ -2035,15 +2044,34 @@ function submitAuth(action){{
     email=document.getElementById('signupEmail').value.trim();
     pass=document.getElementById('signupPass').value;
     const conf=document.getElementById('signupConf').value;
-    if(pass!==conf){{alert('Passwords do not match.');return;}}
-    if(pass.length<6){{alert('Password must be at least 6 characters.');return;}}
+    if(pass!==conf){{showMsg('error','Passwords do not match.');return;}}
+    if(pass.length<6){{showMsg('error','Password must be at least 6 characters.');return;}}
   }}
-  if(!email||!pass){{alert('Please fill in all fields.');return;}}
-  const url=new URL(window.parent.location.href);
-  url.searchParams.set('_ae',email);
-  url.searchParams.set('_ap',pass);
-  url.searchParams.set('_aa',action);
-  window.parent.location.href=url.toString();
+  if(!email||!pass){{showMsg('error','Please fill in all fields.');return;}}
+  // Show loading state
+  const btn=document.querySelector('#'+(action==='login'?'loginPanel':'signupPanel')+' .auth-btn');
+  btn.textContent='⟳ Connecting...';btn.disabled=true;
+  // Send credentials to Streamlit via postMessage
+  window.parent.postMessage({{type:'streamlit:setComponentValue',value:{{action,email,pass}}}},'*');
+  // Fallback: navigate parent to URL with params after short delay
+  setTimeout(()=>{{
+    try{{
+      const url=new URL(window.parent.location.href);
+      url.searchParams.set('_ae',encodeURIComponent(email));
+      url.searchParams.set('_ap',encodeURIComponent(pass));
+      url.searchParams.set('_aa',action);
+      window.parent.location.href=url.toString();
+    }}catch(e){{
+      // If cross-origin blocked, use hash approach
+      window.parent.location.hash='auth_'+action+'_'+btoa(email)+'_'+btoa(pass);
+    }}
+  }},200);
+}}
+function showMsg(type,msg){{
+  let el=document.getElementById('authMsg');
+  if(!el){{el=document.createElement('div');el.id='authMsg';document.querySelector('.form-body').prepend(el);}}
+  el.className='msg-'+(type==='error'?'error':'ok');
+  el.textContent=(type==='error'?'⚠ ':'✓ ')+msg;
 }}
 
 // ── Canvas BG ──
