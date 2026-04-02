@@ -1824,19 +1824,26 @@ if st.session_state.user is None:
             except Exception as _e:
                 _auth_error = str(_e)
 
-    # ── Collapse Streamlit chrome completely ──────────────────────────────────
+    # ── Collapse Streamlit chrome — iframe takes full viewport ──────────────────
     st.markdown("""
     <style>
-    html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
+    html,body{margin:0!important;padding:0!important;background:#010a06!important;overflow:hidden!important;}
+    [data-testid="stApp"],[data-testid="stAppViewContainer"],
     [data-testid="stAppViewContainer"]>section,.main,.block-container{
         background:#010a06!important;margin:0!important;padding:0!important;
-        height:100vh!important;max-height:100vh!important;overflow:hidden!important;
-        max-width:100%!important;
+        min-height:0!important;height:100vh!important;max-height:100vh!important;
+        overflow:hidden!important;max-width:100vw!important;width:100vw!important;
     }
     header[data-testid="stHeader"],footer,#MainMenu,
     [data-testid="stSidebar"],[data-testid="stToolbar"],
     [data-testid="stDecoration"]{display:none!important;}
-    iframe{border:none!important;display:block!important;}
+    /* Pin iframe to fill the full viewport — kills the black gap completely */
+    iframe{
+        border:none!important;display:block!important;
+        position:fixed!important;top:0!important;left:0!important;
+        width:100vw!important;height:100vh!important;
+        z-index:9999!important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -2103,7 +2110,7 @@ function loop(){{updateLive();drawBg();drawChart();requestAnimationFrame(loop);}
 loop();
 </script>
 </body></html>
-""", height=700, scrolling=False)
+""", height=1, scrolling=False)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
