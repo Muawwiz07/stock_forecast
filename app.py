@@ -1794,41 +1794,33 @@ if st.session_state.user is None:
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    # ── Handle credentials submitted via query params (from iframe) ─────────────
+    # ── Handle access token returned from iframe JS auth ─────────────────────────
     _qp = st.query_params
-    import urllib.parse as _urlparse
-    _pm_email  = _urlparse.unquote(_qp.get("_ae", ""))
-    _pm_pass   = _urlparse.unquote(_qp.get("_ap", ""))
-    _pm_action = _qp.get("_aa", "")
+    _pm_token   = _qp.get("_at", "")
+    _pm_refresh = _qp.get("_re", "")
+    _pm_uemail  = _qp.get("_ue", "")
 
-    if _pm_action and _pm_email and _pm_pass:
+    if _pm_token:
         st.query_params.clear()
-        if _pm_action == "login":
+        try:
+            # Set the session using the token from Supabase JS auth
+            _res = supabase.auth.set_session(_pm_token, _pm_refresh)
+            if _res.user:
+                st.session_state.user = _res.user
+                st.rerun()
+            else:
+                _auth_error = "Session invalid. Please try again."
+        except Exception as _e:
+            # Fallback: get user from token directly
             try:
-                _res = supabase.auth.sign_in_with_password({"email": _pm_email, "password": _pm_pass})
-                if _res.user:
-                    st.session_state.user = _res.user
+                _res2 = supabase.auth.get_user(_pm_token)
+                if _res2.user:
+                    st.session_state.user = _res2.user
                     st.rerun()
                 else:
-                    _auth_error = "Invalid credentials. Please try again."
-            except Exception as _e:
-                _estr = str(_e)
-                if "invalid" in _estr.lower() or "wrong" in _estr.lower():
-                    _auth_error = "Invalid email or password."
-                elif "email" in _estr.lower() and "confirm" in _estr.lower():
-                    _auth_error = "Please verify your email before logging in."
-                else:
-                    _auth_error = _estr
-        elif _pm_action == "signup":
-            try:
-                _res = supabase.auth.sign_up({"email": _pm_email, "password": _pm_pass})
-                if _res.user:
-                    _auth_success = f"Verification sent to {_pm_email}. Check your inbox."
-                    st.session_state.auth_view = "login"
-                else:
-                    _auth_error = "Sign up failed. Try again."
-            except Exception as _e:
-                _auth_error = str(_e)
+                    _auth_error = str(_e)
+            except Exception as _e2:
+                _auth_error = str(_e2)
 
     # ── Collapse Streamlit chrome — iframe takes full viewport ──────────────────
     st.markdown("""
@@ -1851,6 +1843,8 @@ if st.session_state.user is None:
     _err_msg  = _auth_error or ""
     _ok_msg   = _auth_success or ""
     _view     = "login" if _is_login else "signup"
+    _sb_url   = SUPABASE_URL
+    _sb_key   = SUPABASE_KEY
 
     import streamlit.components.v1 as _components
     import warnings as _w
@@ -2034,7 +2028,20 @@ function switchTab(t){{
 function togglePw(id){{const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}}
 
 // ── Submit via parent URL query params ──
-function submitAuth(action){{
+const SBURL='{_sb_url}';
+const SBKEY='{_sb_key}';
+
+function showMsg(type,msg){{
+  const panel=document.getElementById('{{"loginPanel" if _is_login else "signupPanel"}}');
+  let el=document.getElementById('authMsg');
+  if(!el){{el=document.createElement('div');el.id='authMsg';
+    const fb=panel.querySelector('.form-body')||panel;
+    fb.insertBefore(el,fb.firstChild);}}
+  el.className='msg-'+(type==='error'?'error':'ok');
+  el.textContent=(type==='error'?'⚠ ':'✓ ')+msg;
+}}
+
+async function submitAuth(action){{
   let email,pass;
   if(action==='login'){{
     email=document.getElementById('loginEmail').value.trim();
@@ -2044,33 +2051,68 @@ function submitAuth(action){{
     pass=document.getElementById('signupPass').value;
     const conf=document.getElementById('signupConf').value;
     if(pass!==conf){{showMsg('error','Passwords do not match.');return;}}
-    if(pass.length<6){{showMsg('error','Password must be at least 6 characters.');return;}}
+    if(pass.length<6){{showMsg('error','Min 6 characters required.');return;}}
   }}
   if(!email||!pass){{showMsg('error','Please fill in all fields.');return;}}
-  // Show loading state
+
   const btn=document.querySelector('#'+(action==='login'?'loginPanel':'signupPanel')+' .auth-btn');
-  btn.textContent='⟳ Connecting...';btn.disabled=true;
-  // Send credentials to Streamlit via postMessage
-  window.parent.postMessage({{type:'streamlit:setComponentValue',value:{{action,email,pass}}}},'*');
-  // Fallback: navigate parent to URL with params after short delay
-  setTimeout(()=>{{
-    try{{
-      const url=new URL(window.parent.location.href);
-      url.searchParams.set('_ae',encodeURIComponent(email));
-      url.searchParams.set('_ap',encodeURIComponent(pass));
-      url.searchParams.set('_aa',action);
-      window.parent.location.href=url.toString();
-    }}catch(e){{
-      // If cross-origin blocked, use hash approach
-      window.parent.location.hash='auth_'+action+'_'+btoa(email)+'_'+btoa(pass);
+  btn.textContent='⟳ Authorizing...';btn.disabled=true;
+
+  try{{
+    const endpoint = action==='login'
+      ? SBURL+'/auth/v1/token?grant_type=password'
+      : SBURL+'/auth/v1/signup';
+
+    const resp = await fetch(endpoint,{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json','apikey':SBKEY,'Authorization':'Bearer '+SBKEY}},
+      body:JSON.stringify({{email,password:pass}})
+    }});
+    const data = await resp.json();
+
+    if(!resp.ok){{
+      const msg=data.error_description||data.msg||data.message||'Authentication failed.';
+      showMsg('error',msg);
+      btn.textContent=action==='login'?'⚡ Authorize Terminal':'⚡ Initialize Terminal';
+      btn.disabled=false;
+      return;
     }}
-  }},200);
-}}
-function showMsg(type,msg){{
-  let el=document.getElementById('authMsg');
-  if(!el){{el=document.createElement('div');el.id='authMsg';document.querySelector('.form-body').prepend(el);}}
-  el.className='msg-'+(type==='error'?'error':'ok');
-  el.textContent=(type==='error'?'⚠ ':'✓ ')+msg;
+
+    if(action==='signup'){{
+      showMsg('ok','Verification email sent! Check your inbox then log in.');
+      btn.textContent='⚡ Initialize Terminal';btn.disabled=false;
+      setTimeout(()=>switchTab('login'),2000);
+      return;
+    }}
+
+    // Login success — pass access token to Streamlit via URL param
+    const token=data.access_token;
+    const refresh=data.refresh_token||'';
+    const userEmail=data.user&&data.user.email?data.user.email:email;
+
+    // Store token in sessionStorage so Streamlit can read it via query param
+    btn.textContent='✓ Redirecting...';
+
+    // Navigate parent page with token
+    const baseUrl=window.location.href.split('?')[0].split('#')[0];
+    // Use top-level location via iframe src manipulation trick
+    const form=document.createElement('form');
+    form.method='GET';
+    form.action=window.location.origin+window.location.pathname;
+    form.target='_parent';
+    const fields={{_at:token,_re:refresh,_ue:userEmail}};
+    Object.entries(fields).forEach(([k,v])=>{{
+      const i=document.createElement('input');
+      i.type='hidden';i.name=k;i.value=v;form.appendChild(i);
+    }});
+    document.body.appendChild(form);
+    form.submit();
+
+  }}catch(err){{
+    showMsg('error','Network error: '+err.message);
+    btn.textContent=action==='login'?'⚡ Authorize Terminal':'⚡ Initialize Terminal';
+    btn.disabled=false;
+  }}
 }}
 
 // ── Canvas BG ──
