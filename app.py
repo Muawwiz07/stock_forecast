@@ -1793,157 +1793,53 @@ if st.session_state.user is None:
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
 
-    # Full-screen dark green page — hide all Streamlit chrome
+    # Full-screen dark green page — canvas bg + right-panel form
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&display=swap');
     html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],
     [data-testid="stAppViewContainer"]>section,.main{
-        background:#010a06!important;color:#d0ffe8!important;
-        margin:0!important;padding:0!important;overflow-x:hidden!important;
+        background:#010a06!important;margin:0!important;padding:0!important;
+        overflow:hidden!important;height:100vh!important;max-height:100vh!important;
     }
-    .block-container{padding:0 1rem 2rem!important;max-width:480px!important;margin:0 auto!important;}
+    .block-container{padding:0!important;max-width:100%!important;margin:0!important;height:100vh!important;}
     header[data-testid="stHeader"],footer,#MainMenu,
     [data-testid="stSidebar"],[data-testid="stToolbar"],[data-testid="stDecoration"]{display:none!important;}
+    /* Canvas iframe = full-screen fixed background */
+    iframe{position:fixed!important;inset:0!important;width:100vw!important;
+           height:100vh!important;border:none!important;z-index:1!important;}
+    /* Right panel form = fixed on right side, above canvas */
+    [data-testid="stVerticalBlock"]>div{position:fixed!important;top:0!important;right:0!important;
+        width:min(300px,100vw)!important;height:100vh!important;
+        background:rgba(2,10,6,0.97)!important;border-left:1px solid #0d3320!important;
+        z-index:10!important;overflow-y:auto!important;padding:1rem!important;
+        display:flex!important;flex-direction:column!important;gap:0.5rem!important;}
     /* Inputs */
     [data-testid="stTextInput"] input{
-        background:#020f07!important;border:1px solid rgba(0,255,136,0.3)!important;
+        background:#010a06!important;border:1px solid rgba(0,255,136,0.3)!important;
         border-radius:2px!important;color:#00ffaa!important;
         font-family:'Space Mono',monospace!important;font-size:13px!important;
-        padding:11px 14px!important;transition:all 0.2s!important;
+        padding:10px 12px!important;width:100%!important;
     }
-    [data-testid="stTextInput"] input:focus{
-        border-color:#00ffaa!important;box-shadow:0 0 0 1px rgba(0,255,136,0.2)!important;
-    }
-    [data-testid="stTextInput"] input::placeholder{color:rgba(0,255,136,0.25)!important;}
+    [data-testid="stTextInput"] input:focus{border-color:#00ffaa!important;}
+    [data-testid="stTextInput"] input::placeholder{color:rgba(0,255,136,0.2)!important;}
     [data-testid="stTextInput"] label{display:none!important;}
     /* Buttons */
     .stButton>button{
-        width:100%!important;padding:13px!important;
+        width:100%!important;padding:11px!important;
         background:linear-gradient(90deg,#0d3320,#00cc77,#00ffaa,#00cc77,#0d3320)!important;
         background-size:300% auto!important;animation:gflow 3s linear infinite!important;
         border:none!important;color:#010a06!important;
         font-family:'Orbitron',monospace!important;font-weight:800!important;
-        font-size:11px!important;letter-spacing:0.18em!important;text-transform:uppercase!important;
-        border-radius:2px!important;cursor:pointer!important;
+        font-size:10px!important;letter-spacing:0.18em!important;text-transform:uppercase!important;
+        border-radius:2px!important;margin-bottom:0!important;
     }
-    .stButton>button:hover{filter:brightness(1.1)!important;}
     @keyframes gflow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-    [data-testid="stAlert"]{border-radius:2px!important;font-size:12px!important;}
+    [data-testid="stAlert"]{border-radius:2px!important;font-size:11px!important;}
+    p{color:#00ffaa88!important;font-family:'Space Mono',monospace!important;font-size:9px!important;
+      letter-spacing:0.14em!important;text-transform:uppercase!important;margin:4px 0 2px!important;}
     </style>
     """, unsafe_allow_html=True)
-
-    # Animated background canvas
-    import streamlit.components.v1 as _components
-    import warnings as _w
-    with _w.catch_warnings():
-        _w.simplefilter("ignore")
-        _components.html("""
-<!DOCTYPE html><html><head>
-<meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet">
-<style>
-*{box-sizing:border-box;margin:0;padding:0;}
-html,body{width:100%;height:100%;background:#010a06;overflow:hidden;}
-canvas{position:absolute;inset:0;width:100%;height:100%;}
-.hero{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:1.5rem;z-index:3;}
-.badge{display:inline-flex;align-items:center;gap:6px;font-family:'Orbitron',monospace;font-size:7px;
-       color:#00ffaa;letter-spacing:0.2em;text-transform:uppercase;margin-bottom:0.8rem;
-       padding:4px 10px;border:1px solid #00ffaa33;border-radius:2px;width:fit-content;}
-.pdot{width:5px;height:5px;border-radius:50%;background:#00ffaa;animation:pd 1.2s ease-in-out infinite;}
-@keyframes pd{0%,100%{opacity:1}50%{opacity:0.2}}
-h1{font-family:'Orbitron',monospace;font-size:clamp(13px,3vw,20px);font-weight:700;
-   color:#d0ffe8;line-height:1.25;margin-bottom:0.5rem;text-shadow:0 0 30px rgba(0,255,136,0.15);}
-h1 span{color:#00ffaa;}
-.sub{font-size:8px;color:#2a5a3a;font-family:'Space Mono',monospace;margin-bottom:0.8rem;line-height:1.6;max-width:240px;}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:240px;}
-.sb{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:7px 10px;}
-.sl{font-size:6px;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;}
-.sv{font-size:12px;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}
-.sv.g{color:#00ffaa;}
-.scan{position:absolute;left:0;right:0;height:60px;pointer-events:none;z-index:4;
-      animation:sm 5s linear infinite;background:linear-gradient(to bottom,transparent,rgba(0,255,136,0.02),transparent);}
-@keyframes sm{0%{top:-60px}100%{top:100%}}
-.ticker{position:absolute;bottom:0;left:0;right:0;height:18px;background:#020f07;
-        border-top:1px solid #0d3320;overflow:hidden;display:flex;align-items:center;z-index:5;}
-.ti{display:flex;gap:28px;animation:ts 25s linear infinite;white-space:nowrap;
-    font-size:7px;font-family:'Space Mono',monospace;color:#2a5a3a;padding-left:100%;}
-@keyframes ts{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-.t-up{color:#00ffaa;}.t-dn{color:#ff4455;}
-</style>
-</head><body>
-<div class="scan"></div>
-<canvas id="bg"></canvas>
-<canvas id="ch"></canvas>
-<div class="hero">
-  <div class="badge"><div class="pdot"></div>Neural engine active</div>
-  <h1>Predicting the pulse of <span>global markets.</span></h1>
-  <p class="sub">XGBoost forecasting · 8-factor signals · Shariah screening · NLP sentiment</p>
-  <div class="stats">
-    <div class="sb"><div class="sl">Forecast RMSE</div><div class="sv" id="rv">$2.14</div></div>
-    <div class="sb"><div class="sl">Latency</div><div class="sv" id="lv">15ms</div></div>
-    <div class="sb"><div class="sl">Auth Provider</div><div class="sv" style="font-size:9px;">Supabase</div></div>
-    <div class="sb"><div class="sl">Signal</div><div class="sv g">STRONG</div></div>
-  </div>
-</div>
-<div class="ticker"><div class="ti" id="tk"></div></div>
-<script>
-const tks=[['AAPL','189.43','+1.2%',1],['TSLA','247.18','-0.8%',0],['NVDA','876.55','+3.4%',1],
-           ['MSFT','412.20','+0.6%',1],['AMZN','185.92','-0.3%',0],['META','519.77','+2.1%',1],
-           ['GOOG','172.44','+0.9%',1],['SPY','524.88','+0.4%',1]];
-const d2=[...tks,...tks];
-document.getElementById('tk').innerHTML=d2.map(t=>`<span style="display:flex;gap:5px"><span>${t[0]}</span><span>$${t[1]}</span><span class="${t[3]?'t-up':'t-dn'}">${t[2]}</span></span>`).join('');
-setInterval(()=>{const v=12+Math.floor(Math.random()*6);const l=document.getElementById('lv');if(l)l.textContent=v+'ms';},2400);
-
-const bgC=document.getElementById('bg'),bgX=bgC.getContext('2d');
-const cc=document.getElementById('ch'),ctx=cc.getContext('2d');
-function resize(){bgC.width=cc.width=innerWidth;bgC.height=cc.height=innerHeight;}
-resize();addEventListener('resize',resize);
-
-const streams=[];
-for(let i=0;i<18;i++)streams.push({x:Math.random(),y:Math.random(),s:0.0004+Math.random()*0.0008,l:0.06+Math.random()*0.12,a:0.08+Math.random()*0.16,w:Math.random()>0.7?1.5:0.5});
-const pts=[];
-for(let i=0;i<30;i++)pts.push({x:Math.random(),y:Math.random(),vx:(Math.random()-0.5)*0.00015,vy:(Math.random()-0.5)*0.00015,r:0.5+Math.random()*1.5,a:0.1+Math.random()*0.25});
-
-function hex(c,cx,cy,r){c.beginPath();for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);i===0?c.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):c.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a));}c.closePath();}
-
-function drawBg(){
-  const W=bgC.width,H=bgC.height;bgX.clearRect(0,0,W,H);
-  const sz=32;bgX.lineWidth=0.5;
-  for(let row=0;row<H/sz+2;row++)for(let c2=0;c2<W/sz+2;c2++){const ox=c2%2===0?0:sz*0.866;hex(bgX,c2*sz*0.866*1.5,row*sz+ox,sz*0.5);bgX.strokeStyle='rgba(0,255,136,0.04)';bgX.stroke();}
-  streams.forEach(s=>{s.y+=s.s;if(s.y>1+s.l)s.y=-s.l;const x=s.x*W,y0=(s.y-s.l)*H,y1=s.y*H;const g=bgX.createLinearGradient(0,y0,0,y1);g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(0.5,`rgba(0,255,136,${s.a})`);g.addColorStop(1,'rgba(0,255,136,0)');bgX.strokeStyle=g;bgX.lineWidth=s.w;bgX.beginPath();bgX.moveTo(x,y0);bgX.lineTo(x,y1);bgX.stroke();});
-  pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=1;if(p.x>1)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;bgX.fillStyle=`rgba(0,255,136,${p.a})`;bgX.beginPath();bgX.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgX.fill();});
-}
-
-const CW=11,CG=5,ST=CW+CG,GR='#00cc77',RD='#ff3344';
-let price=150,candles=[],lp=150,lc=Date.now();
-function nc(sp){const open=sp;let close=open,hi=open,lo=open;for(let i=0;i<10;i++){const d=(Math.random()-0.478)*2;close+=d;if(close>hi)hi=close;if(close<lo)lo=close;}hi+=Math.random();lo-=Math.random();price=close;return{open,high:hi,low:lo,close};}
-for(let i=0;i<80;i++){const c=nc(price);candles.push(c);}candles.push(nc(price));lp=candles[candles.length-1].open;
-let fc=[];function gf(n){let p=lp;const o=[];for(let i=0;i<n;i++){const op=p;let cl=op,hi=op,lo=op;for(let j=0;j<8;j++){const d=(Math.random()-0.46)*1.6;cl+=d;if(cl>hi)hi=cl;if(cl<lo)lo=cl;}hi+=0.5;lo-=0.5;p=cl;o.push({open:op,high:hi,low:lo,close:cl});}return o;}
-fc=gf(6);setInterval(()=>{fc=gf(6);},2000);
-
-function drawChart(){
-  const W=cc.width,H=cc.height;ctx.clearRect(0,0,W,H);
-  const topM=30,botM=20,chartH=H-topM-botM;
-  const maxV=Math.floor(W/ST)+2;
-  const vis=[...candles.slice(-maxV),...fc.slice(0,6)];
-  let mn=Infinity,mx=-Infinity;vis.forEach(c=>{if(c.low<mn)mn=c.low;if(c.high>mx)mx=c.high;});
-  const pad=(mx-mn)*0.15;mn-=pad;mx+=pad;const rng=mx-mn||1;
-  const toY=p=>topM+chartH*(1-(p-mn)/rng);
-  const sX=W-CW-4;
-  fc.forEach((c,i)=>{const x=sX+(i+1)*ST;if(x>W-2)return;const isG=c.close>=c.open;const bT=Math.min(toY(c.open),toY(c.close)),bH=Math.max(Math.abs(toY(c.close)-toY(c.open)),1);ctx.globalAlpha=0.2;ctx.fillStyle=isG?'rgba(0,204,119,0.15)':'rgba(255,51,68,0.15)';ctx.fillRect(x,bT,CW,bH);ctx.globalAlpha=1;});
-  for(let i=candles.length-1;i>=0;i--){const c=candles[i];const x=sX-(candles.length-1-i)*ST;if(x+CW<0)break;const isG=c.close>=c.open;const bT=Math.min(toY(c.open),toY(c.close)),bH=Math.max(Math.abs(toY(c.close)-toY(c.open)),1);const live=i===candles.length-1;if(live){ctx.shadowColor=isG?'rgba(0,255,136,0.5)':'rgba(255,51,68,0.5)';ctx.shadowBlur=6;}ctx.globalAlpha=live?1:0.65;ctx.strokeStyle=isG?GR:RD;ctx.lineWidth=live?1.5:1;ctx.beginPath();ctx.moveTo(x+CW/2,toY(c.high));ctx.lineTo(x+CW/2,toY(c.low));ctx.stroke();ctx.fillStyle=isG?'rgba(0,204,119,0.15)':'rgba(255,51,68,0.15)';ctx.fillRect(x,bT,CW,bH);ctx.strokeRect(x,bT,CW,bH);ctx.shadowBlur=0;ctx.globalAlpha=1;}
-  const ly=toY(lp);ctx.setLineDash([3,5]);ctx.strokeStyle='rgba(0,255,170,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,ly);ctx.lineTo(W-50,ly);ctx.stroke();ctx.setLineDash([]);
-  const tag=lp.toFixed(2);const tW=50,tH=14;ctx.fillStyle='#00ffaa';ctx.beginPath();ctx.roundRect(W-tW-2,ly-tH/2,tW,tH,2);ctx.fill();ctx.fillStyle='#010a06';ctx.font='700 8px "Orbitron",monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(tag,W-tW/2-2,ly);
-  const rv=document.getElementById('rv');if(rv)rv.textContent='$'+lp.toFixed(2);
-}
-
-function ul(){const now=Date.now();const live=candles[candles.length-1];const tick=(Math.random()-0.478)*0.22;lp+=tick;if(lp>live.high)live.high=lp;if(lp<live.low)live.low=lp;live.close=lp;if(now-lc>=2800){const n=nc(lp);n.open=lp;candles.push(n);if(candles.length>200)candles.shift();lc=now;}}
-function loop(){ul();drawBg();drawChart();requestAnimationFrame(loop);}
-loop();
-</script>
-</body></html>
-""", height=340, scrolling=False)
 
     _is_login = (st.session_state.auth_view == "login")
 
