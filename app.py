@@ -1789,425 +1789,392 @@ if st.session_state.user is None:
 
     import streamlit.components.v1 as _components
 
+    # ── Read auth credentials passed via URL query params ─────────────────────
+    _qp          = st.query_params
+    _pm_email    = _qp.get("pm_email", "")
+    _pm_pass     = _qp.get("pm_pass", "")
+    _pm_action   = _qp.get("pm_action", "")
+    _pm_confirm  = _qp.get("pm_confirm", "")
+
     _auth_error   = ""
     _auth_success = ""
 
-    if "auth_view" not in st.session_state:
-        st.session_state.auth_view = "login"
+    if _pm_action == "login" and _pm_email and _pm_pass:
+        try:
+            _res = supabase.auth.sign_in_with_password({"email": _pm_email, "password": _pm_pass})
+            if _res.user:
+                st.session_state.user = _res.user
+                st.query_params.clear()
+                st.rerun()
+            else:
+                _auth_error = "Invalid credentials. Please try again."
+        except Exception as _e:
+            _auth_error = str(_e)
+        if _auth_error:
+            st.query_params.clear()
 
-    _is_login = (st.session_state.auth_view == "login")
+    elif _pm_action == "signup" and _pm_email and _pm_pass:
+        if _pm_pass != _pm_confirm:
+            _auth_error = "Passwords do not match."
+        elif len(_pm_pass) < 6:
+            _auth_error = "Password must be at least 6 characters."
+        else:
+            try:
+                _res = supabase.auth.sign_up({"email": _pm_email, "password": _pm_pass})
+                if _res.user:
+                    _auth_success = f"Account created! Verification email sent to {_pm_email}. Please verify before logging in."
+                else:
+                    _auth_error = "Sign up failed. Please try again."
+            except Exception as _e:
+                _auth_error = str(_e)
+        st.query_params.clear()
 
-    # ── Full-page CSS: hides ALL Streamlit chrome ──────────────────────────────
+    # Encode messages to pass into the iframe
+    _err_js  = _auth_error.replace("'", "\\'").replace('"', '\\"') if _auth_error else ""
+    _ok_js   = _auth_success.replace("'", "\\'").replace('"', '\\"') if _auth_success else ""
+
+    # ── Strip all Streamlit chrome ─────────────────────────────────────────────
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
-    html, body,
-    [data-testid="stApp"],
-    [data-testid="stAppViewContainer"],
-    [data-testid="stMain"],
-    .main { background: #010a06 !important; overflow-x: hidden !important; }
-    .block-container { padding: 0 !important; max-width: 100% !important; }
-    header[data-testid="stHeader"], footer, #MainMenu { display: none !important; }
-    [data-testid="stSidebar"] { display: none !important; }
-    /* Streamlit adds default top padding — kill it */
-    [data-testid="stMain"] > div:first-child { padding-top: 0 !important; }
-
-    /* ── Input styling ── */
-    [data-testid="stTextInput"] input {
-        background: #020f07 !important;
-        border: 1px solid #0d3320 !important;
-        border-radius: 2px !important;
-        color: #00ffaa !important;
-        font-family: 'Space Mono', monospace !important;
-        font-size: 0.72rem !important;
-        padding: 10px 14px !important;
-        transition: border-color 0.2s, box-shadow 0.2s !important;
+    html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],[data-testid="stMain"],.main{
+        background:#010a06!important;overflow:hidden!important;padding:0!important;margin:0!important;
     }
-    [data-testid="stTextInput"] input:focus {
-        border-color: #00ffaa !important;
-        box-shadow: 0 0 0 1px rgba(0,255,170,0.2) !important;
-    }
-    [data-testid="stTextInput"] input::placeholder { color: #1a4030 !important; }
-    [data-testid="stTextInput"] label { display: none !important; }
-
-    /* ── Button styling ── */
-    .stButton > button {
-        width: 100% !important;
-        padding: 0.75rem !important;
-        background: #00ffaa !important;
-        color: #010a06 !important;
-        font-family: 'Orbitron', monospace !important;
-        font-weight: 700 !important;
-        font-size: 0.58rem !important;
-        border: none !important;
-        border-radius: 2px !important;
-        letter-spacing: 0.15em !important;
-        text-transform: uppercase !important;
-        transition: all 0.2s !important;
-        cursor: pointer !important;
-    }
-    .stButton > button:hover { background: #00dd99 !important; }
-
-    /* Tab buttons — muted style */
-    [data-testid="stHorizontalBlock"] .stButton > button {
-        background: transparent !important;
-        color: rgba(0,255,170,0.4) !important;
-        border: 1px solid #0d3320 !important;
-        font-size: 0.52rem !important;
-    }
-    [data-testid="stHorizontalBlock"] .stButton > button:hover {
-        color: #00ffaa !important;
-        border-color: rgba(0,255,170,0.3) !important;
-        background: rgba(0,255,170,0.05) !important;
-    }
-
-    [data-testid="stAlert"] { border-radius: 2px !important; font-size: 0.75rem !important; }
-
-    /* ── The animated background iframe fills the whole screen ── */
-    .bg-iframe-wrap iframe {
-        position: fixed !important;
-        top: 0 !important; left: 0 !important;
-        width: 100% !important; height: 100% !important;
-        border: none !important;
-        z-index: 0 !important;
-        pointer-events: none !important;
-    }
-    .bg-iframe-wrap { height: 0 !important; overflow: visible !important; }
-
-    /* ── Auth card: centered, fixed, floats over background ── */
-    .auth-card-anchor {
-        position: fixed !important;
-        top: 0 !important; right: 0 !important;
-        width: min(380px, 100vw) !important;
-        height: 100dvh !important;
-        z-index: 100 !important;
-        overflow-y: auto !important;
-        padding: 1.5rem 1.2rem !important;
-        background: rgba(2,12,7,0.96) !important;
-        border-left: 1px solid rgba(0,255,170,0.12) !important;
-        box-shadow: -20px 0 60px rgba(0,0,0,0.6) !important;
-        scrollbar-width: none !important;
-    }
-    .auth-card-anchor::-webkit-scrollbar { display: none !important; }
-
-    /* On very narrow screens (phone portrait) take full width */
-    @media (max-width: 480px) {
-        .auth-card-anchor {
-            width: 100vw !important;
-            border-left: none !important;
-            background: rgba(1,10,6,0.98) !important;
-            padding: 1.2rem 1rem !important;
-        }
-    }
-
-    /* Streamlit injects form elements outside our control — push them into the card space */
-    [data-testid="stVerticalBlock"] {
-        position: relative !important;
-        z-index: 101 !important;
+    .block-container{padding:0!important;max-width:100%!important;}
+    header[data-testid="stHeader"],footer,#MainMenu,[data-testid="stSidebar"]{display:none!important;}
+    [data-testid="stMain"]>div:first-child{padding-top:0!important;}
+    /* Make the component iframe fill the full viewport */
+    [data-testid="stCustomComponentV1"]{height:100dvh!important;display:block!important;}
+    [data-testid="stCustomComponentV1"] iframe{
+        width:100%!important;height:100dvh!important;
+        border:none!important;display:block!important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Animated background: full-screen fixed canvas (pointer-events:none) ────
-    st.markdown('<div class="bg-iframe-wrap">', unsafe_allow_html=True)
-    _components.html("""
-<!DOCTYPE html><html><head>
+    # ── Single self-contained page: background + login form ───────────────────
+    _components.html(f"""
+<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Space+Mono:wght@400&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;background:#010a06;overflow:hidden;}
-canvas{position:fixed;top:0;left:0;width:100%;height:100%;}
-.scan{position:fixed;left:0;right:0;height:90px;background:linear-gradient(to bottom,transparent,rgba(0,255,136,0.022),transparent);animation:sv 6s linear infinite;pointer-events:none;z-index:2;}
-@keyframes sv{0%{top:-90px}100%{top:100%}}
-.sweep{position:fixed;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,136,0.032),transparent);animation:sw 10s linear infinite;pointer-events:none;z-index:2;}
-@keyframes sw{0%{left:-60%}100%{left:120%}}
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{width:100%;height:100%;background:#010a06;overflow:hidden;font-family:'Rajdhani',sans-serif;color:#d0ffe8;}}
 
-/* Hero — hidden on very small screens to not block chart */
-.hero{position:fixed;top:50%;left:2rem;transform:translateY(-50%);z-index:3;pointer-events:none;max-width:46%;}
-.badge{display:inline-flex;align-items:center;gap:6px;font-family:'Orbitron',monospace;font-size:0.48rem;color:#00ffaa;letter-spacing:0.2em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(0,255,170,0.22);border-radius:2px;margin-bottom:1rem;}
-.dot{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:p 1.2s ease-in-out infinite;}
-@keyframes p{0%,100%{opacity:1}50%{opacity:0.15}}
-h1{font-family:'Orbitron',monospace;font-size:clamp(1rem,2.5vw,1.9rem);font-weight:700;color:#d0ffe8;line-height:1.22;margin-bottom:0.6rem;}
-h1 em{font-style:normal;color:#00ffaa;}
-.sub{font-family:'Space Mono',monospace;font-size:0.6rem;color:#2a5a3a;line-height:1.8;border-left:2px solid rgba(0,255,170,0.2);padding-left:0.8rem;margin-bottom:1.2rem;}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:240px;}
-.s{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:8px 10px;}
-.sl{font-size:0.42rem;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:3px;}
-.sv{font-size:0.82rem;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}
-.sv.g{color:#00ffaa;}
-@media(max-width:520px){.hero{display:none;}}
+#bgC,#chC{{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;}}
+#bgC{{z-index:0;}}#chC{{z-index:1;}}
 
-.bar{position:fixed;bottom:0;left:0;right:0;height:22px;background:rgba(1,10,6,0.8);border-top:1px solid #0d3320;display:flex;justify-content:space-between;align-items:center;padding:0 1rem;font-family:'Space Mono',monospace;font-size:0.42rem;color:#1a4030;letter-spacing:0.08em;z-index:3;pointer-events:none;}
-.live{display:flex;align-items:center;gap:5px;color:rgba(0,255,170,0.45);}
-.ld{width:5px;height:5px;border-radius:50%;background:#00ffaa;animation:p 1.5s infinite;}
+.scan{{position:fixed;left:0;right:0;height:90px;background:linear-gradient(to bottom,transparent,rgba(0,255,136,0.022),transparent);animation:sv 6s linear infinite;pointer-events:none;z-index:2;}}
+@keyframes sv{{0%{{top:-90px}}100%{{top:100%}}}}
+.sweep{{position:fixed;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,136,0.03),transparent);animation:sw 10s linear infinite;pointer-events:none;z-index:2;}}
+@keyframes sw{{0%{{left:-60%}}100%{{left:120%}}}}
+
+/* Hero */
+.hero{{position:fixed;top:50%;left:2.5rem;transform:translateY(-50%);z-index:3;pointer-events:none;max-width:44%;}}
+.badge{{display:inline-flex;align-items:center;gap:6px;font-family:'Orbitron',monospace;font-size:0.48rem;color:#00ffaa;letter-spacing:0.2em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(0,255,170,0.22);border-radius:2px;margin-bottom:1rem;position:relative;overflow:hidden;}}
+.badge::before{{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:#00ffaa;animation:bp 2s ease-in-out infinite;}}
+@keyframes bp{{0%,100%{{opacity:1}}50%{{opacity:0.15}}}}
+.dot{{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:pd 1.2s ease-in-out infinite;display:inline-block;}}
+@keyframes pd{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:0.15;transform:scale(0.6)}}}}
+.hero h1{{font-family:'Orbitron',monospace;font-size:clamp(1rem,2.4vw,1.9rem);font-weight:700;color:#d0ffe8;line-height:1.22;margin-bottom:0.7rem;}}
+.hero h1 em{{font-style:normal;color:#00ffaa;}}
+.hero-sub{{font-family:'Space Mono',monospace;font-size:0.58rem;color:#2a5a3a;line-height:1.8;border-left:2px solid rgba(0,255,170,0.2);padding-left:0.8rem;margin-bottom:1.2rem;}}
+.stats{{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:240px;}}
+.stat{{background:rgba(0,255,136,0.03);border:1px solid #0d3320;padding:8px 10px;}}
+.sl{{font-size:0.42rem;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;}}
+.sv{{font-size:0.82rem;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}}
+.sv.g{{color:#00ffaa;}}
+
+/* Auth panel — right side fixed */
+.panel{{
+    position:fixed;top:0;right:0;
+    width:min(380px,100%);
+    height:100%;
+    background:rgba(2,10,6,0.97);
+    border-left:1px solid rgba(0,255,170,0.12);
+    z-index:10;
+    display:flex;flex-direction:column;
+    overflow-y:auto;
+    padding:1.8rem 1.4rem 2rem;
+    scrollbar-width:none;
+}}
+.panel::-webkit-scrollbar{{display:none;}}
+
+@media(max-width:520px){{
+    .panel{{width:100%;border-left:none;padding:1.2rem 1rem 1.5rem;background:rgba(1,6,3,0.99);}}
+    .hero{{display:none;}}
+}}
+
+/* Corner brackets */
+.corner-tl{{position:absolute;top:8px;left:8px;width:12px;height:12px;border-top:1px solid rgba(0,255,170,0.3);border-left:1px solid rgba(0,255,170,0.3);}}
+.corner-br{{position:absolute;bottom:8px;right:8px;width:12px;height:12px;border-bottom:1px solid rgba(0,255,170,0.3);border-right:1px solid rgba(0,255,170,0.3);}}
+
+/* Tabs */
+.tabs{{display:flex;gap:6px;margin-bottom:1.2rem;}}
+.tab{{flex:1;padding:0.55rem;text-align:center;font-family:'Orbitron',monospace;font-size:0.5rem;letter-spacing:0.12em;text-transform:uppercase;cursor:pointer;border:1px solid #0d3320;border-radius:2px;color:rgba(0,255,170,0.35);background:transparent;transition:all 0.2s;}}
+.tab.active{{background:rgba(0,255,170,0.08);color:#00ffaa;border-color:rgba(0,255,170,0.3);}}
+.tab:hover:not(.active){{color:rgba(0,255,170,0.6);border-color:rgba(0,255,170,0.18);}}
+
+.form-hdr{{text-align:center;margin:0.2rem 0 1rem;}}
+.form-title{{font-family:'Orbitron',monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;}}
+.form-sub{{font-size:0.44rem;color:rgba(0,255,170,0.28);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;}}
+
+.field-label{{font-family:'Orbitron',monospace;font-size:0.44rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;margin-top:0.75rem;display:block;}}
+.field{{width:100%;background:#020f07;border:1px solid #0d3320;border-radius:2px;color:#00ffaa;font-family:'Space Mono',monospace;font-size:0.72rem;padding:10px 12px;outline:none;transition:border-color 0.2s,box-shadow 0.2s;-webkit-appearance:none;}}
+.field:focus{{border-color:#00ffaa;box-shadow:0 0 0 1px rgba(0,255,170,0.18);}}
+.field::placeholder{{color:#1a4030;}}
+.pw-wrap{{position:relative;}}
+.eye{{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#2a5a3a;font-size:13px;line-height:1;padding:2px;}}
+.eye:hover{{color:#00ffaa;}}
+
+.submit-btn{{width:100%;padding:0.78rem;background:#00ffaa;border:none;color:#010a06;font-family:'Orbitron',monospace;font-size:0.58rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;cursor:pointer;border-radius:2px;margin-top:1rem;transition:background 0.2s;position:relative;overflow:hidden;-webkit-appearance:none;}}
+.submit-btn::before{{content:'';position:absolute;top:-50%;left:-60%;width:40%;height:200%;background:rgba(255,255,255,0.12);transform:skewX(-20deg);animation:shine 3s ease-in-out infinite;}}
+@keyframes shine{{0%,70%,100%{{left:-60%}}35%{{left:130%}}}}
+.submit-btn:hover{{background:#00dd99;}}
+.submit-btn:active{{transform:scale(0.98);}}
+.submit-btn:disabled{{background:#0d3320;color:#2a5a3a;cursor:not-allowed;}}
+
+.spin{{display:none;justify-content:center;align-items:center;gap:8px;font-family:'Orbitron',monospace;font-size:0.5rem;color:#00ffaa;letter-spacing:0.1em;margin-top:0.8rem;}}
+.ring{{width:14px;height:14px;border:2px solid #0d3320;border-top-color:#00ffaa;border-radius:50%;animation:rot 0.7s linear infinite;}}
+@keyframes rot{{to{{transform:rotate(360deg)}}}}
+
+.toast{{padding:0.6rem 0.8rem;border-radius:2px;font-family:'Space Mono',monospace;font-size:0.58rem;margin-top:0.8rem;line-height:1.5;display:none;}}
+.toast.err{{background:rgba(255,51,68,0.08);border:1px solid rgba(255,51,68,0.3);color:#ff8888;}}
+.toast.ok{{background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.25);color:#00ffaa;}}
+
+.beta{{border:1px solid rgba(0,255,170,0.1);border-radius:2px;background:rgba(0,255,170,0.03);padding:0.6rem;text-align:center;margin-top:0.9rem;}}
+.beta-t{{font-family:'Orbitron',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00ffaa;}}
+.beta-s{{font-size:0.42rem;color:rgba(0,255,170,0.28);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;}}
+
+.bar{{position:fixed;bottom:0;left:0;right:0;height:20px;background:rgba(1,8,4,0.9);border-top:1px solid #0d3320;display:flex;justify-content:space-between;align-items:center;padding:0 1rem;font-family:'Space Mono',monospace;font-size:0.4rem;color:#1a4030;z-index:12;pointer-events:none;}}
+.live{{display:flex;align-items:center;gap:5px;color:rgba(0,255,170,0.4);}}
+.ld{{width:4px;height:4px;border-radius:50%;background:#00ffaa;animation:pd 1.5s infinite;}}
 </style>
 </head><body>
-<canvas id="bg"></canvas>
-<canvas id="ch" style="z-index:1;"></canvas>
-<div class="scan"></div>
-<div class="sweep"></div>
+
+<canvas id="bgC"></canvas><canvas id="chC"></canvas>
+<div class="scan"></div><div class="sweep"></div>
 
 <div class="hero">
   <div class="badge"><div class="dot"></div>Neural Engine Active</div>
   <h1>Predicting the<br>pulse of <em>global markets.</em></h1>
-  <p class="sub">Institutional-grade XGBoost forecasting, 8-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment.</p>
+  <p class="hero-sub">Institutional-grade XGBoost forecasting, 8-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment.</p>
   <div class="stats">
-    <div class="s"><div class="sl">XGBoost RMSE</div><div class="sv" id="fp">$2.14</div></div>
-    <div class="s"><div class="sl">Latency</div><div class="sv" id="lat">15ms</div></div>
-    <div class="s"><div class="sl">Auth Provider</div><div class="sv" style="font-size:0.68rem;">Supabase</div></div>
-    <div class="s"><div class="sl">Signal Strength</div><div class="sv g">STRONG</div></div>
+    <div class="stat"><div class="sl">XGBoost RMSE</div><div class="sv" id="fp">$2.14</div></div>
+    <div class="stat"><div class="sl">Latency</div><div class="sv" id="lat">15ms</div></div>
+    <div class="stat"><div class="sl">Auth Provider</div><div class="sv" style="font-size:0.68rem;">Supabase</div></div>
+    <div class="stat"><div class="sl">Signal Strength</div><div class="sv g">STRONG</div></div>
   </div>
 </div>
 
+<div class="panel" id="panel">
+  <div class="corner-tl"></div><div class="corner-br"></div>
+
+  <div class="tabs">
+    <button class="tab active" id="tabL" onclick="sw('login')">Terminal Access</button>
+    <button class="tab" id="tabS" onclick="sw('signup')">Create Account</button>
+  </div>
+
+  <div id="loginForm">
+    <div class="form-hdr"><div class="form-title">Secure Access</div><div class="form-sub">Powered by Supabase Auth</div></div>
+    <label class="field-label" for="lEmail" style="margin-top:0;">Identity Token (Email)</label>
+    <input class="field" type="email" id="lEmail" placeholder="name@firm.com" autocomplete="email" inputmode="email">
+    <label class="field-label" for="lPass">Access Key</label>
+    <div class="pw-wrap">
+      <input class="field" type="password" id="lPass" placeholder="••••••••••" autocomplete="current-password" style="padding-right:36px;">
+      <button class="eye" onclick="tpw('lPass')" tabindex="-1" type="button">👁</button>
+    </div>
+    <button class="submit-btn" id="lBtn" onclick="doLogin()" type="button">⚡ Authorize Terminal</button>
+    <div class="spin" id="lSpin"><div class="ring"></div><span>Authenticating...</span></div>
+  </div>
+
+  <div id="signupForm" style="display:none;">
+    <div class="form-hdr"><div class="form-title">Register Node</div><div class="form-sub">Create Your Terminal Identity</div></div>
+    <label class="field-label" for="sEmail" style="margin-top:0;">Identity Token (Email)</label>
+    <input class="field" type="email" id="sEmail" placeholder="name@firm.com" autocomplete="email" inputmode="email">
+    <label class="field-label" for="sPass">Access Key</label>
+    <div class="pw-wrap">
+      <input class="field" type="password" id="sPass" placeholder="••••••••••" style="padding-right:36px;">
+      <button class="eye" onclick="tpw('sPass')" tabindex="-1" type="button">👁</button>
+    </div>
+    <label class="field-label" for="sConf">Confirm Key</label>
+    <div class="pw-wrap">
+      <input class="field" type="password" id="sConf" placeholder="••••••••••" style="padding-right:36px;">
+      <button class="eye" onclick="tpw('sConf')" tabindex="-1" type="button">👁</button>
+    </div>
+    <button class="submit-btn" id="sBtn" onclick="doSignup()" type="button">⚡ Initialize Terminal</button>
+    <div class="spin" id="sSpin"><div class="ring"></div><span>Initializing...</span></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <div class="beta"><div class="beta-t">Beta Alpha</div><div class="beta-s">Early access protocols active</div></div>
+</div>
+
 <div class="bar">
-  <span>For educational purposes only</span>
+  <span>For educational purposes only · Not financial advice</span>
   <div class="live"><div class="ld"></div><span>Live <span id="clk">00:00:00</span></span></div>
   <span>Muawwiz Ghani</span>
 </div>
 
 <script>
-const bg=document.getElementById('bg'),bgx=bg.getContext('2d');
-const ch=document.getElementById('ch'),ctx=ch.getContext('2d');
-function resize(){bg.width=ch.width=innerWidth;bg.height=ch.height=innerHeight;}
+// ── Show any server-side errors/success passed in ──
+const _err="{_err_js}",_ok="{_ok_js}";
+if(_err){{showToast(_err,'err');}}
+if(_ok){{showToast(_ok,'ok');sw('login');}}
+
+function sw(t){{
+  document.getElementById('loginForm').style.display=t==='login'?'block':'none';
+  document.getElementById('signupForm').style.display=t==='signup'?'block':'none';
+  document.getElementById('tabL').className='tab'+(t==='login'?' active':'');
+  document.getElementById('tabS').className='tab'+(t==='signup'?' active':'');
+  clearToast();
+}}
+function tpw(id){{const f=document.getElementById(id);f.type=f.type==='password'?'text':'password';}}
+function showToast(msg,type){{const t=document.getElementById('toast');t.className='toast '+type;t.textContent=msg;t.style.display='block';}}
+function clearToast(){{const t=document.getElementById('toast');t.style.display='none';}}
+
+function setLoading(pfx,on){{
+  document.getElementById(pfx+'Btn').style.display=on?'none':'block';
+  document.getElementById(pfx+'Spin').style.display=on?'flex':'none';
+}}
+
+function doLogin(){{
+  const email=document.getElementById('lEmail').value.trim();
+  const pass=document.getElementById('lPass').value;
+  if(!email||!pass){{showToast('Please enter your email and access key.','err');return;}}
+  setLoading('l',true);
+  // Navigate parent to pass credentials via query params — Streamlit picks them up on reload
+  window.parent.location.href=window.parent.location.pathname+
+    '?pm_action=login&pm_email='+encodeURIComponent(email)+'&pm_pass='+encodeURIComponent(pass);
+}}
+
+function doSignup(){{
+  const email=document.getElementById('sEmail').value.trim();
+  const pass=document.getElementById('sPass').value;
+  const conf=document.getElementById('sConf').value;
+  if(!email||!pass||!conf){{showToast('Please fill in all fields.','err');return;}}
+  if(pass!==conf){{showToast('Passwords do not match.','err');return;}}
+  if(pass.length<6){{showToast('Password must be at least 6 characters.','err');return;}}
+  setLoading('s',true);
+  window.parent.location.href=window.parent.location.pathname+
+    '?pm_action=signup&pm_email='+encodeURIComponent(email)+
+    '&pm_pass='+encodeURIComponent(pass)+'&pm_confirm='+encodeURIComponent(conf);
+}}
+
+document.addEventListener('keydown',e=>{{
+  if(e.key!=='Enter')return;
+  if(document.getElementById('loginForm').style.display!=='none')doLogin();
+  else doSignup();
+}});
+
+// ── Clock & latency ──
+setInterval(()=>{{
+  const n=new Date(),e=document.getElementById('clk');
+  if(e)e.textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+}},1000);
+setInterval(()=>{{const e=document.getElementById('lat');if(e)e.textContent=(12+Math.floor(Math.random()*6))+'ms';}},2400);
+
+// ── Canvas setup ──
+const bg=document.getElementById('bgC'),bgx=bg.getContext('2d');
+const ch=document.getElementById('chC'),ctx=ch.getContext('2d');
+function resize(){{bg.width=ch.width=innerWidth;bg.height=ch.height=innerHeight;}}
 resize();window.addEventListener('resize',resize);
 
-// streams
 const streams=[];
-for(let i=0;i<24;i++) streams.push({x:Math.random()*0.6,y:Math.random(),sp:0.0004+Math.random()*0.0007,len:0.07+Math.random()*0.15,a:0.08+Math.random()*0.18,w:Math.random()>0.7?1.5:0.5});
+for(let i=0;i<22;i++)streams.push({{x:Math.random()*.62,y:Math.random(),sp:.00035+Math.random()*.0007,len:.07+Math.random()*.15,a:.07+Math.random()*.17,w:Math.random()>.7?1.5:.5}});
 const pts=[];
-for(let i=0;i<45;i++) pts.push({x:Math.random()*0.6,y:Math.random(),vx:(Math.random()-.5)*0.00012,vy:(Math.random()-.5)*0.00012,r:.5+Math.random()*1.5,a:.08+Math.random()*.22});
+for(let i=0;i<40;i++)pts.push({{x:Math.random()*.62,y:Math.random(),vx:(Math.random()-.5)*.00012,vy:(Math.random()-.5)*.00012,r:.5+Math.random()*1.5,a:.08+Math.random()*.22}});
 
-function hexPath(cx,cy,r){bgx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);i?bgx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):bgx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a));}bgx.closePath();}
+function hexPath(cx,cy,r){{bgx.beginPath();for(let i=0;i<6;i++){{const a=Math.PI/180*(60*i-30);i?bgx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):bgx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a));}}bgx.closePath();}}
 
-function drawBg(){
+function drawBg(){{
   const W=bg.width,H=bg.height;bgx.clearRect(0,0,W,H);
-  // hex grid — only left 62%
-  const sz=36;
-  for(let row=0;row<=H/sz+1;row++) for(let col=0;col<=W*.62/sz+1;col++){
-    const ox=col%2===0?0:sz*.866;
-    hexPath(col*sz*.866*1.5,row*sz+ox,sz*.46);
-    bgx.strokeStyle='rgba(0,255,136,0.042)';bgx.lineWidth=.5;bgx.stroke();
-  }
-  // streams
-  streams.forEach(s=>{
+  const pw=W*.62,sz=36;
+  for(let row=0;row<=H/sz+1;row++)for(let col=0;col<=pw/(sz*.866*1.5)+1;col++){{
+    const ox=col%2===0?0:sz*.866;hexPath(col*sz*.866*1.5,row*sz+ox,sz*.45);
+    bgx.strokeStyle='rgba(0,255,136,0.04)';bgx.lineWidth=.5;bgx.stroke();
+  }}
+  streams.forEach(s=>{{
     s.y+=s.sp;if(s.y>1+s.len)s.y=-s.len;
     const x=s.x*W,y0=(s.y-s.len)*H,y1=s.y*H;
     const g=bgx.createLinearGradient(0,y0,0,y1);
-    g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(.5,`rgba(0,255,136,${s.a})`);g.addColorStop(1,'rgba(0,255,136,0)');
+    g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(.5,`rgba(0,255,136,${{s.a}})`);g.addColorStop(1,'rgba(0,255,136,0)');
     bgx.strokeStyle=g;bgx.lineWidth=s.w;bgx.beginPath();bgx.moveTo(x,y0);bgx.lineTo(x,y1);bgx.stroke();
-  });
-  // particles
-  pts.forEach(p=>{
+  }});
+  pts.forEach(p=>{{
     p.x+=p.vx;p.y+=p.vy;
-    if(p.x<0)p.x=.6;if(p.x>.6)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
-    bgx.fillStyle=`rgba(0,255,136,${p.a})`;bgx.beginPath();bgx.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgx.fill();
-  });
-  // radial glow
+    if(p.x<0)p.x=.62;if(p.x>.62)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
+    bgx.fillStyle=`rgba(0,255,136,${{p.a}})`;bgx.beginPath();bgx.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgx.fill();
+  }});
   const rg=bgx.createRadialGradient(W*.22,H*.5,0,W*.22,H*.5,W*.3);
   rg.addColorStop(0,'rgba(0,255,136,0.04)');rg.addColorStop(1,'rgba(0,255,136,0)');
   bgx.fillStyle=rg;bgx.fillRect(0,0,W,H);
-}
+}}
 
-// candlestick engine
-const CW=14,CG=7,STEP=CW+CG,GREEN='#00cc77',RED='#ff3344',GF='rgba(0,204,119,0.15)',RF='rgba(255,51,68,0.15)';
+// ── Candlestick engine ──
+const CW=14,CG=7,ST=CW+CG,GRN='#00cc77',RED2='#ff3344',GF='rgba(0,204,119,0.15)',RF='rgba(255,51,68,0.15)';
 let price=150,candles=[],lp=150,lastC=Date.now();
-const CDUR=2800;
-function nextC(sp){const o=sp;let c=o,hi=o,lo=o;for(let i=0;i<10;i++){const d=(Math.random()-.478)*2.2;c+=d;if(c>hi)hi=c;if(c<lo)lo=c;}hi+=Math.random()*1.2;lo-=Math.random()*1.2;price=c;return{open:o,high:hi,low:lo,close:c,live:true};}
-for(let i=0;i<80;i++){const c=nextC(price);c.live=false;candles.push(c);}
+function nextC(sp){{const o=sp;let c=o,hi=o,lo=o;for(let i=0;i<10;i++){{const d=(Math.random()-.478)*2.2;c+=d;c>hi&&(hi=c);c<lo&&(lo=c);}}hi+=Math.random()*1.2;lo-=Math.random()*1.2;price=c;return{{open:o,high:hi,low:lo,close:c,live:true}};}}
+for(let i=0;i<80;i++){{const c=nextC(price);c.live=false;candles.push(c);}}
 candles.push(nextC(price));lp=candles[candles.length-1].open;
+function genFut(n){{let p=lp;const out=[];for(let i=0;i<n;i++){{const o=p;let c=o,hi=o,lo=o;for(let j=0;j<8;j++){{const d=(Math.random()-.46)*1.8;c+=d;c>hi&&(hi=c);c<lo&&(lo=c);}}hi+=Math.random()*.8;lo-=Math.random()*.8;p=c;out.push({{open:o,high:hi,low:lo,close:c}});}}return out;}}
+let fut=genFut(8);setInterval(()=>{{fut=genFut(8);}},2000);
 
-function genFut(n){let p=lp;const out=[];for(let i=0;i<n;i++){const o=p;let c=o,hi=o,lo=o;for(let j=0;j<8;j++){const d=(Math.random()-.46)*1.8;c+=d;if(c>hi)hi=c;if(c<lo)lo=c;}hi+=Math.random()*.8;lo-=Math.random()*.8;p=c;out.push({open:o,high:hi,low:lo,close:c});}return out;}
-let fut=genFut(8);setInterval(()=>{fut=genFut(8);},2000);
-
-function drawChart(){
+function drawChart(){{
   const W=ch.width,H=ch.height;ctx.clearRect(0,0,W,H);
-  // On narrow screens use full width, on wide screens only left 60%
-  const panelW=W<520?W:W*.6;
-  const tM=44,bM=26,cH=H-tM-bM;
-  const vis=[...candles.slice(-Math.floor(panelW/STEP)-2),...fut.slice(0,8)];
-  let mn=Infinity,mx=-Infinity;vis.forEach(c=>{if(c.low<mn)mn=c.low;if(c.high>mx)mx=c.high;});
+  const pw=W*.6,tM=44,bM=26,cH=H-tM-bM;
+  const vis=[...candles.slice(-Math.floor(pw/ST)-2),...fut.slice(0,8)];
+  let mn=Infinity,mx=-Infinity;vis.forEach(c=>{{c.low<mn&&(mn=c.low);c.high>mx&&(mx=c.high);}});
   const pad=(mx-mn)*.18;mn-=pad;mx+=pad;const rng=mx-mn||1;
   const toY=p=>tM+cH*(1-(p-mn)/rng);
-
   ctx.font='8px "Space Mono",monospace';
-  for(let i=0;i<=4;i++){
+  for(let i=0;i<=4;i++){{
     const y=tM+(cH/4)*i,pv=(mx-(rng/4)*i).toFixed(1);
     ctx.strokeStyle='rgba(0,255,136,0.048)';ctx.lineWidth=.5;ctx.setLineDash([3,6]);
-    ctx.beginPath();ctx.moveTo(18,y);ctx.lineTo(panelW-8,y);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(18,y);ctx.lineTo(pw-8,y);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle='rgba(0,255,136,0.28)';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(pv,2,y);
-  }
-
-  const sx=panelW-CW-6;
-  // future ghost
-  fut.forEach((c,idx)=>{
-    const x=sx+(idx+1)*STEP;if(x>panelW-2||x<0)return;
-    const isG=c.close>=c.open;
-    const oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);
-    const bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1);
-    ctx.globalAlpha=.2;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=1;ctx.setLineDash([2,3]);
+  }}
+  const sx=pw-CW-6;
+  fut.forEach((c,idx)=>{{
+    const x=sx+(idx+1)*ST;if(x>pw-2||x<0)return;
+    const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low),bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1);
+    ctx.globalAlpha=.2;ctx.strokeStyle=isG?GRN:RED2;ctx.lineWidth=1;ctx.setLineDash([2,3]);
     ctx.beginPath();ctx.moveTo(x+CW/2,hY);ctx.lineTo(x+CW/2,lY);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=isG?GF:RF;ctx.fillRect(x,bt,CW,bh);ctx.strokeRect(x,bt,CW,bh);
-    ctx.globalAlpha=1;
-  });
-  // forecast label
-  ctx.font='7px "Orbitron",monospace';ctx.fillStyle='rgba(0,255,170,0.3)';ctx.textAlign='left';ctx.fillText('AI FORECAST',sx+STEP+2,tM-10);
-  ctx.strokeStyle='rgba(0,255,170,0.15)';ctx.lineWidth=.5;ctx.setLineDash([2,5]);
-  ctx.beginPath();ctx.moveTo(sx+STEP-2,tM-20);ctx.lineTo(sx+STEP-2,H-bM);ctx.stroke();ctx.setLineDash([]);
-
-  // historical candles
-  for(let i=candles.length-1;i>=0;i--){
-    const c=candles[i],idx=candles.length-1-i,x=sx-idx*STEP;
-    if(x+CW<0)break;
-    const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low);
-    const bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1),live=i===candles.length-1;
-    if(live){ctx.shadowColor=isG?'rgba(0,255,136,0.7)':'rgba(255,51,68,0.7)';ctx.shadowBlur=10;}
-    ctx.globalAlpha=live?1:.72;ctx.strokeStyle=isG?GREEN:RED;ctx.lineWidth=live?1.5:1;
+    ctx.fillStyle=isG?GF:RF;ctx.fillRect(x,bt,CW,bh);ctx.strokeRect(x,bt,CW,bh);ctx.globalAlpha=1;
+  }});
+  ctx.font='7px "Orbitron",monospace';ctx.fillStyle='rgba(0,255,170,0.28)';ctx.textAlign='left';ctx.fillText('AI FORECAST',sx+ST+2,tM-10);
+  ctx.strokeStyle='rgba(0,255,170,0.13)';ctx.lineWidth=.5;ctx.setLineDash([2,5]);
+  ctx.beginPath();ctx.moveTo(sx+ST-2,tM-20);ctx.lineTo(sx+ST-2,H-bM);ctx.stroke();ctx.setLineDash([]);
+  for(let i=candles.length-1;i>=0;i--){{
+    const c=candles[i],idx=candles.length-1-i,x=sx-idx*ST;if(x+CW<0)break;
+    const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low),bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1),live=i===candles.length-1;
+    if(live){{ctx.shadowColor=isG?'rgba(0,255,136,0.7)':'rgba(255,51,68,0.7)';ctx.shadowBlur=10;}}
+    ctx.globalAlpha=live?1:.72;ctx.strokeStyle=isG?GRN:RED2;ctx.lineWidth=live?1.5:1;
     ctx.beginPath();ctx.moveTo(x+CW/2,hY);ctx.lineTo(x+CW/2,lY);ctx.stroke();
     ctx.fillStyle=isG?GF:RF;ctx.fillRect(x,bt,CW,bh);ctx.strokeRect(x,bt,CW,bh);
     ctx.shadowBlur=0;ctx.globalAlpha=1;
-    // volume
-    const vh=14*(0.3+Math.random()*.7);
-    ctx.fillStyle=isG?'rgba(0,204,119,0.2)':'rgba(255,51,68,0.17)';ctx.fillRect(x,H-bM-vh,CW,vh);
-  }
-
-  // live price line + tag
-  const ly=toY(lp);
+    ctx.fillStyle=isG?'rgba(0,204,119,0.2)':'rgba(255,51,68,0.17)';
+    const vh=14*(.3+Math.random()*.7);ctx.fillRect(x,H-bM-vh,CW,vh);
+  }}
+  const ly=toY(lp),tw=60,th=16,tx=pw-tw-4;
   ctx.setLineDash([3,5]);ctx.strokeStyle='rgba(0,255,170,0.38)';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(18,ly);ctx.lineTo(panelW-68,ly);ctx.stroke();ctx.setLineDash([]);
-  const tw=60,th=16,tx=panelW-tw-4;
+  ctx.beginPath();ctx.moveTo(18,ly);ctx.lineTo(pw-tw-8,ly);ctx.stroke();ctx.setLineDash([]);
   ctx.fillStyle='#00ffaa';ctx.beginPath();ctx.roundRect(tx,ly-th/2,tw,th,2);ctx.fill();
   ctx.fillStyle='#010a06';ctx.font='600 8px "Orbitron",monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(lp.toFixed(2),tx+tw/2,ly);
-}
+}}
 
-function updateLive(){
+function updateLive(){{
   const now=Date.now(),live=candles[candles.length-1];
-  lp+=(Math.random()-.478)*.25;
-  if(lp>live.high)live.high=lp;if(lp<live.low)live.low=lp;live.close=lp;
-  if(now-lastC>=CDUR){
-    live.live=false;const nc=nextC(lp);nc.open=lp;nc.close=lp;nc.high=lp;nc.low=lp;
-    candles.push(nc);if(candles.length>200)candles.shift();lastC=now;
-  }
-  const fe=document.getElementById('fp');if(fe)fe.textContent='$'+lp.toFixed(2);
-}
-
-setInterval(()=>{const n=new Date();const t=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');const e=document.getElementById('clk');if(e)e.textContent=t;},1000);
-setInterval(()=>{const e=document.getElementById('lat');if(e)e.textContent=(12+Math.floor(Math.random()*6))+'ms';},2400);
-
-function loop(){updateLive();drawBg();drawChart();requestAnimationFrame(loop);}
+  lp+=(Math.random()-.478)*.25;lp>live.high&&(live.high=lp);lp<live.low&&(live.low=lp);live.close=lp;
+  if(now-lastC>=2800){{live.live=false;const nc=nextC(lp);nc.open=lp;nc.close=lp;nc.high=lp;nc.low=lp;candles.push(nc);candles.length>200&&candles.shift();lastC=now;}}
+  const e=document.getElementById('fp');if(e)e.textContent='$'+lp.toFixed(2);
+}}
+function loop(){{updateLive();drawBg();drawChart();requestAnimationFrame(loop);}}
 loop();
 </script>
 </body></html>
-""", height=1, scrolling=False)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── Auth form — floats fixed over background via CSS ──────────────────────
-    st.markdown('<div class="auth-card-anchor">', unsafe_allow_html=True)
-
-    # Corner brackets
-    st.markdown("""
-    <div style="position:relative;margin-bottom:1rem;">
-      <div style="position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-top:1px solid rgba(0,255,170,0.4);border-left:1px solid rgba(0,255,170,0.4);"></div>
-      <div style="position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-top:1px solid rgba(0,255,170,0.4);border-right:1px solid rgba(0,255,170,0.4);"></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Tab switcher
-    _tc1, _tc2 = st.columns(2)
-    with _tc1:
-        if st.button("TERMINAL ACCESS", key="tab_login", use_container_width=True):
-            st.session_state.auth_view = "login"
-            st.rerun()
-    with _tc2:
-        if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
-            st.session_state.auth_view = "signup"
-            st.rerun()
-
-    if _is_login:
-        st.markdown("""
-        <div style="text-align:center;margin:1rem 0 0.9rem;">
-          <div style="font-family:'Orbitron',monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Secure Access</div>
-          <div style="font-size:0.46rem;color:rgba(0,255,170,0.3);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Powered by Supabase Auth</div>
-        </div>
-        <div style="font-family:'Orbitron',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;">Identity Token (Email)</div>
-        """, unsafe_allow_html=True)
-        _login_email = st.text_input("Email", placeholder="name@firm.com", key="login_email_input", label_visibility="collapsed")
-
-        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;margin-top:0.65rem;">Access Key</div>', unsafe_allow_html=True)
-        _login_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="login_pass_input", label_visibility="collapsed")
-
-        st.markdown("<div style='margin-top:0.7rem;'></div>", unsafe_allow_html=True)
-        if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn", use_container_width=True):
-            if _login_email and _login_pass:
-                with st.spinner("Authenticating…"):
-                    try:
-                        _res = supabase.auth.sign_in_with_password({"email": _login_email, "password": _login_pass})
-                        if _res.user:
-                            st.session_state.user = _res.user
-                            st.rerun()
-                        else:
-                            _auth_error = "Invalid credentials. Please try again."
-                    except Exception as _e:
-                        _auth_error = str(_e)
-            else:
-                _auth_error = "Please enter your email and access key."
-
-    else:
-        st.markdown("""
-        <div style="text-align:center;margin:1rem 0 0.9rem;">
-          <div style="font-family:'Orbitron',monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Register Node</div>
-          <div style="font-size:0.46rem;color:rgba(0,255,170,0.3);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Create Your Terminal Identity</div>
-        </div>
-        <div style="font-family:'Orbitron',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;">Identity Token (Email)</div>
-        """, unsafe_allow_html=True)
-        _signup_email = st.text_input("Email", placeholder="name@firm.com", key="signup_email_input", label_visibility="collapsed")
-
-        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;margin-top:0.65rem;">Access Key</div>', unsafe_allow_html=True)
-        _signup_pass = st.text_input("Password", type="password", placeholder="••••••••••", key="signup_pass_input", label_visibility="collapsed")
-
-        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.46rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(0,255,170,0.55);margin-bottom:4px;margin-top:0.65rem;">Confirm Key</div>', unsafe_allow_html=True)
-        _signup_conf = st.text_input("Confirm", type="password", placeholder="••••••••••", key="signup_conf_input", label_visibility="collapsed")
-
-        st.markdown("<div style='margin-top:0.7rem;'></div>", unsafe_allow_html=True)
-        if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn", use_container_width=True):
-            if not _signup_email or not _signup_pass or not _signup_conf:
-                _auth_error = "Please fill in all fields."
-            elif _signup_pass != _signup_conf:
-                _auth_error = "Passwords do not match."
-            elif len(_signup_pass) < 6:
-                _auth_error = "Password must be at least 6 characters."
-            else:
-                with st.spinner("Initializing terminal…"):
-                    try:
-                        _res = supabase.auth.sign_up({"email": _signup_email, "password": _signup_pass})
-                        if _res.user:
-                            _auth_success = f"Account created! Verification email sent to {_signup_email}. Please verify before logging in."
-                            st.session_state.auth_view = "login"
-                            st.rerun()
-                        else:
-                            _auth_error = "Sign up failed. Please try again."
-                    except Exception as _e:
-                        _auth_error = str(_e)
-
-    # Beta badge
-    st.markdown("""
-    <div style="border:1px solid rgba(0,255,170,0.1);border-radius:2px;background:rgba(0,255,170,0.03);
-         padding:0.6rem 1rem;text-align:center;margin-top:0.8rem;">
-      <div style="font-family:'Orbitron',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00ffaa;">Beta Alpha</div>
-      <div style="font-size:0.42rem;color:rgba(0,255,170,0.3);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;">Early access protocols active</div>
-    </div>
-    <div style="position:relative;margin-top:0.6rem;">
-      <div style="position:absolute;bottom:0;left:-4px;width:10px;height:10px;border-bottom:1px solid rgba(0,255,170,0.4);border-left:1px solid rgba(0,255,170,0.4);"></div>
-      <div style="position:absolute;bottom:0;right:-4px;width:10px;height:10px;border-bottom:1px solid rgba(0,255,170,0.4);border-right:1px solid rgba(0,255,170,0.4);"></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if _auth_error:
-        st.error(f"⚠ {_auth_error}")
-    if _auth_success:
-        st.success(f"✓ {_auth_success}")
-
-    st.markdown('</div>', unsafe_allow_html=True)
+""", height=800, scrolling=False)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
