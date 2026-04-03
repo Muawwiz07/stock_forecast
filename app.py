@@ -808,16 +808,31 @@ LANGUAGES = {
         "known_noncompliant": "已知不合规代码",
     },
 }
-if "lang" not in st.session_state:
-    st.session_state.lang = "English"
+# ── Page config — MUST be first Streamlit call ────────────────────────────────
+st.set_page_config(
+    page_title="Stockcast —  Stock Analytics",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # ── Session state ──────────────────────────────────────────────────────────────
+if "lang" not in st.session_state:
+    st.session_state.lang = "English"
 if "user" not in st.session_state:
     st.session_state.user = None
+if "watchlist" not in st.session_state:
+    st.session_state.watchlist = []
+if "alert_signals" not in st.session_state:
+    st.session_state.alert_signals = {}
+if "portfolio" not in st.session_state:
+    st.session_state.portfolio = []
+if "portfolio_history" not in st.session_state:
+    st.session_state.portfolio_history = []
 
-# ── Restore Supabase session after browser full-reload (caused by query-param auth) ──
-# When window.parent.location.href fires, Streamlit reconnects fresh and loses
-# session_state. We recover by reading access/refresh tokens from the URL.
+# ── Restore Supabase session after browser reload (query-param auth flow) ─────
+# window.parent.location.href causes full reload → session_state wiped.
+# Tokens are passed back in _at/_rt query params and used to restore the session.
 if st.session_state.user is None:
     _qp_init = st.query_params
     _at = _qp_init.get("_at", "")
@@ -831,22 +846,6 @@ if st.session_state.user is None:
                 st.rerun()
         except Exception:
             st.query_params.clear()
-if "watchlist" not in st.session_state:
-    st.session_state.watchlist = []
-if "alert_signals" not in st.session_state:
-    st.session_state.alert_signals = {}
-if "portfolio" not in st.session_state:
-    st.session_state.portfolio = []   # Real editable portfolio — starts empty
-if "portfolio_history" not in st.session_state:
-    st.session_state.portfolio_history = []
-
-# ── Page config ────────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Stockcast —  Stock Analytics",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
 PLOTLY_LAYOUT = dict(
@@ -1821,18 +1820,24 @@ if st.session_state.user is None:
             _res = supabase.auth.sign_in_with_password({"email": _pm_email, "password": _pm_pass})
             if _res.user:
                 st.session_state.user = _res.user
-                # Pass tokens back in URL so session survives the Streamlit reload
+                # Set tokens in query params BEFORE clearing — they survive the rerun
+                # because st.query_params mutations take effect immediately
                 if hasattr(_res, "session") and _res.session:
                     st.query_params["_at"] = _res.session.access_token
                     st.query_params["_rt"] = _res.session.refresh_token
+                    # Remove the login credentials from URL for security
+                    for _k in ["pm_action", "pm_email", "pm_pass", "pm_confirm"]:
+                        try: del st.query_params[_k]
+                        except: pass
                 else:
+                    # No session object — session_state.user is set, just clear and rerun
                     st.query_params.clear()
                 st.rerun()
             else:
                 _auth_error = "Invalid credentials. Please try again."
+                st.query_params.clear()
         except Exception as _e:
             _auth_error = str(_e)
-        if _auth_error:
             st.query_params.clear()
 
     elif _pm_action == "signup" and _pm_email and _pm_pass:
