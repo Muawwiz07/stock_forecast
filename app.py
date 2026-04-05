@@ -1795,100 +1795,87 @@ if st.session_state.user is None:
         st.session_state.auth_view = "login"
     _is_login = (st.session_state.auth_view == "login")
 
+    # ── CSS: dark page + animated background iframe + right-side form panel ───
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Rajdhani:wght@400;600;700&display=swap');
-    html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],[data-testid="stMain"],.main,.stMainBlockContainer{
-        background:#010a06 !important; padding:0 !important; margin:0 !important; overflow-x:hidden !important;
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Space+Mono:wght@400;700&display=swap');
+    html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],[data-testid="stMain"],.main,.stMainBlockContainer {
+        background:#010a06 !important; padding:0 !important; margin:0 !important;
     }
-    .block-container{ padding:0 !important; max-width:100% !important; }
-    header[data-testid="stHeader"],footer,#MainMenu,[data-testid="stSidebar"]{ display:none !important; }
-    [data-testid="stMain"] > div:first-child { padding-top:0 !important; }
-    [data-testid="stCustomComponentV1"] {
-        position:fixed !important; top:0 !important; left:0 !important;
-        width:100% !important; height:100% !important; z-index:0 !important;
-        pointer-events:none !important; overflow:hidden !important;
-    }
+    .block-container { padding:0 !important; max-width:100% !important; }
+    header,footer,#MainMenu,[data-testid="stSidebar"] { display:none !important; }
+    [data-testid="stMain"]>div:first-child { padding-top:0 !important; }
+
+    /* Background canvas iframe — full screen, behind everything */
     [data-testid="stCustomComponentV1"] iframe {
-        width:100% !important; height:100% !important; border:none !important; pointer-events:none !important;
+        position:fixed !important; top:0 !important; left:0 !important;
+        width:100vw !important; height:100vh !important;
+        border:none !important; z-index:0 !important; pointer-events:none !important;
     }
-    .auth-wrap {
-        position:fixed !important; top:0 !important; right:0 !important;
-        width:min(400px, 100vw) !important; height:100dvh !important; z-index:99 !important;
-        background:rgba(2,10,6,0.97) !important; border-left:1px solid rgba(0,255,170,0.12) !important;
-        overflow-y:auto !important; padding:1.8rem 1.4rem 2rem !important; scrollbar-width:none !important;
+
+    /* Form inputs */
+    [data-testid="stTextInput"] input {
+        background:#020f07 !important; border:1px solid #0d3320 !important;
+        color:#00ffaa !important; font-family:"Space Mono",monospace !important;
+        font-size:0.8rem !important; padding:11px 14px !important;
+        border-radius:2px !important;
     }
-    .auth-wrap::-webkit-scrollbar { display:none !important; }
-    @media(max-width:520px){
-        .auth-wrap { width:100vw !important; border-left:none !important; background:rgba(1,6,3,0.99) !important; padding:1.2rem 0.9rem 1.5rem !important; }
+    [data-testid="stTextInput"] input:focus {
+        border-color:#00ffaa !important; box-shadow:0 0 0 1px rgba(0,255,170,0.2) !important;
     }
-    [data-testid="stTextInput"] > div > div > input {
-        background:#020f07 !important; border:1px solid #0d3320 !important; border-radius:2px !important;
-        color:#00ffaa !important; font-family:'Space Mono',monospace !important; font-size:0.75rem !important;
-        padding:11px 14px !important; transition:border-color 0.2s !important; width:100% !important;
-    }
-    [data-testid="stTextInput"] > div > div > input:focus { border-color:#00ffaa !important; box-shadow:0 0 0 1px rgba(0,255,170,0.2) !important; }
-    [data-testid="stTextInput"] > div > div > input::placeholder { color:#1a4030 !important; }
+    [data-testid="stTextInput"] input::placeholder { color:#1a4030 !important; }
     [data-testid="stTextInput"] label { display:none !important; }
-    .stButton > button {
-        background:#00ffaa !important; color:#010a06 !important; font-family:'Orbitron',monospace !important;
-        font-weight:700 !important; font-size:0.58rem !important; letter-spacing:0.18em !important;
-        text-transform:uppercase !important; border:none !important; border-radius:2px !important;
-        padding:0.78rem 1rem !important; width:100% !important; transition:background 0.2s !important;
+
+    /* All buttons green */
+    .stButton>button {
+        background:#00ffaa !important; color:#010a06 !important;
+        font-family:"Orbitron",monospace !important; font-weight:700 !important;
+        font-size:0.6rem !important; letter-spacing:0.15em !important;
+        text-transform:uppercase !important; border:none !important;
+        border-radius:2px !important; padding:0.75rem !important; width:100% !important;
     }
-    .stButton > button:hover { background:#00dd99 !important; }
-    div[data-testid="stHorizontalBlock"] .stButton > button {
-        background:transparent !important; color:rgba(0,255,170,0.4) !important;
-        border:1px solid #0d3320 !important; font-size:0.5rem !important; padding:0.55rem !important;
+    .stButton>button:hover { background:#00cc88 !important; }
+
+    /* Tab buttons — muted outline */
+    div[data-testid="stHorizontalBlock"] .stButton>button {
+        background:transparent !important; color:rgba(0,255,170,0.35) !important;
+        border:1px solid #0d3320 !important; font-size:0.48rem !important; padding:0.5rem !important;
     }
-    div[data-testid="stHorizontalBlock"] .stButton > button:hover {
-        color:#00ffaa !important; border-color:rgba(0,255,170,0.3) !important; background:rgba(0,255,170,0.05) !important;
+    div[data-testid="stHorizontalBlock"] .stButton>button:hover {
+        color:#00ffaa !important; border-color:rgba(0,255,170,0.3) !important;
+        background:rgba(0,255,170,0.05) !important;
     }
-    [data-testid="stAlert"] { border-radius:2px !important; font-size:0.75rem !important; }
     </style>
     """, unsafe_allow_html=True)
 
+    # ── Animated background (purely visual, pointer-events:none) ─────────────
     _components.html("""
 <!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Space+Mono&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}html,body{width:100%;height:100%;background:#010a06;overflow:hidden;}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;background:#010a06;overflow:hidden;}
 canvas{position:fixed;top:0;left:0;width:100%;height:100%;}
-.scan{position:fixed;left:0;right:0;height:90px;background:linear-gradient(to bottom,transparent,rgba(0,255,136,.022),transparent);animation:sv 6s linear infinite;pointer-events:none;z-index:2;}
+.scan{position:fixed;left:0;right:0;height:90px;background:linear-gradient(to bottom,transparent,rgba(0,255,136,.022),transparent);animation:sv 6s linear infinite;z-index:2;}
 @keyframes sv{0%{top:-90px}100%{top:100%}}
-.sweep{position:fixed;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,136,.03),transparent);animation:sw 10s linear infinite;pointer-events:none;z-index:2;}
-@keyframes sw{0%{left:-60%}100%{left:120%}}
-.hero{position:fixed;top:50%;left:2rem;transform:translateY(-50%);z-index:3;pointer-events:none;max-width:46%;}
-.badge{display:inline-flex;align-items:center;gap:6px;font-family:'Orbitron',monospace;font-size:.48rem;color:#00ffaa;letter-spacing:.2em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(0,255,170,.22);border-radius:2px;margin-bottom:1rem;position:relative;overflow:hidden;}
-.badge::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:#00ffaa;animation:bp 2s ease-in-out infinite;}
-@keyframes bp{0%,100%{opacity:1}50%{opacity:.15}}
-.dot{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:pd 1.2s ease-in-out infinite;display:inline-block;}
-@keyframes pd{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.15;transform:scale(.6)}}
-h1{font-family:'Orbitron',monospace;font-size:clamp(1rem,2.4vw,1.9rem);font-weight:700;color:#d0ffe8;line-height:1.22;margin-bottom:.7rem;}
+.hero{position:fixed;bottom:15%;left:2.5rem;z-index:3;pointer-events:none;max-width:45%;}
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:"Orbitron",monospace;font-size:.46rem;color:#00ffaa;letter-spacing:.18em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(0,255,170,.2);border-radius:2px;margin-bottom:.9rem;}
+.dot{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:p 1.2s ease-in-out infinite;display:inline-block;}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.15}}
+h1{font-family:"Orbitron",monospace;font-size:clamp(.9rem,2.3vw,1.8rem);font-weight:700;color:#d0ffe8;line-height:1.2;margin-bottom:.6rem;}
 h1 em{font-style:normal;color:#00ffaa;}
-.sub{font-family:'Space Mono',monospace;font-size:.58rem;color:#2a5a3a;line-height:1.8;border-left:2px solid rgba(0,255,170,.2);padding-left:.8rem;margin-bottom:1.2rem;}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-width:240px;}
-.s{background:rgba(0,255,136,.03);border:1px solid #0d3320;padding:8px 10px;}
-.sl{font-size:.42rem;color:#2a5a3a;font-family:'Space Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;}
-.sv{font-size:.82rem;font-weight:700;color:#d0ffe8;font-family:'Orbitron',monospace;}
-.sv.g{color:#00ffaa;}
-@media(max-width:520px){.hero{display:none;}}
-.bar{position:fixed;bottom:0;left:0;right:0;height:20px;background:rgba(1,8,4,.85);border-top:1px solid #0d3320;display:flex;justify-content:space-between;align-items:center;padding:0 1rem;font-family:'Space Mono',monospace;font-size:.4rem;color:#1a4030;z-index:4;pointer-events:none;}
+.sub{font-family:"Space Mono",monospace;font-size:.55rem;color:#2a5a3a;line-height:1.8;border-left:2px solid rgba(0,255,170,.18);padding-left:.8rem;}
+@media(max-width:480px){.hero{display:none;}}
+.bar{position:fixed;bottom:0;left:0;right:0;height:20px;background:rgba(1,8,4,.9);border-top:1px solid #0d3320;display:flex;justify-content:space-between;align-items:center;padding:0 1rem;font-family:"Space Mono",monospace;font-size:.38rem;color:#1a4030;z-index:4;}
 .live{display:flex;align-items:center;gap:5px;color:rgba(0,255,170,.4);}
-.ld{width:4px;height:4px;border-radius:50%;background:#00ffaa;animation:pd 1.5s infinite;}
+.ld{width:4px;height:4px;border-radius:50%;background:#00ffaa;animation:p 1.5s infinite;}
 </style></head><body>
 <canvas id="bg"></canvas><canvas id="ch" style="z-index:1;"></canvas>
-<div class="scan"></div><div class="sweep"></div>
+<div class="scan"></div>
 <div class="hero">
   <div class="badge"><div class="dot"></div>Neural Engine Active</div>
   <h1>Predicting the<br>pulse of <em>global markets.</em></h1>
-  <p class="sub">Institutional-grade XGBoost forecasting, 8-factor signal intelligence, Shariah compliance screening, and real-time NLP sentiment.</p>
-  <div class="stats">
-    <div class="s"><div class="sl">XGBoost RMSE</div><div class="sv" id="fp">$2.14</div></div>
-    <div class="s"><div class="sl">Latency</div><div class="sv" id="lat">15ms</div></div>
-    <div class="s"><div class="sl">Auth Provider</div><div class="sv" style="font-size:.68rem;">Supabase</div></div>
-    <div class="s"><div class="sl">Signal Strength</div><div class="sv g">STRONG</div></div>
-  </div>
+  <p class="sub">XGBoost forecasting · Shariah screening · NLP sentiment</p>
 </div>
 <div class="bar">
   <span>For educational purposes only</span>
@@ -1896,138 +1883,124 @@ h1 em{font-style:normal;color:#00ffaa;}
   <span>Muawwiz Ghani</span>
 </div>
 <script>
-const bg=document.getElementById('bg'),bgx=bg.getContext('2d');
-const ch=document.getElementById('ch'),ctx=ch.getContext('2d');
-function resize(){bg.width=ch.width=innerWidth;bg.height=ch.height=innerHeight;}
-resize();window.addEventListener('resize',resize);
-const streams=[];for(let i=0;i<22;i++)streams.push({x:Math.random()*.62,y:Math.random(),sp:.00035+Math.random()*.0007,len:.07+Math.random()*.15,a:.07+Math.random()*.17,w:Math.random()>.7?1.5:.5});
-const pts=[];for(let i=0;i<40;i++)pts.push({x:Math.random()*.62,y:Math.random(),vx:(Math.random()-.5)*.00012,vy:(Math.random()-.5)*.00012,r:.5+Math.random()*1.5,a:.08+Math.random()*.22});
-function hexPath(cx,cy,r){bgx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);i?bgx.lineTo(cx+r*Math.cos(a),cy+r*Math.sin(a)):bgx.moveTo(cx+r*Math.cos(a),cy+r*Math.sin(a));}bgx.closePath();}
-function drawBg(){const W=bg.width,H=bg.height;bgx.clearRect(0,0,W,H);const sz=36;for(let row=0;row<=H/sz+1;row++)for(let col=0;col<=W*.62/(sz*.866*1.5)+1;col++){const ox=col%2===0?0:sz*.866;hexPath(col*sz*.866*1.5,row*sz+ox,sz*.45);bgx.strokeStyle='rgba(0,255,136,.04)';bgx.lineWidth=.5;bgx.stroke();}
-streams.forEach(s=>{s.y+=s.sp;if(s.y>1+s.len)s.y=-s.len;const x=s.x*W,y0=(s.y-s.len)*H,y1=s.y*H;const g=bgx.createLinearGradient(0,y0,0,y1);g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(.5,`rgba(0,255,136,${s.a})`);g.addColorStop(1,'rgba(0,255,136,0)');bgx.strokeStyle=g;bgx.lineWidth=s.w;bgx.beginPath();bgx.moveTo(x,y0);bgx.lineTo(x,y1);bgx.stroke();});
-pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=.62;if(p.x>.62)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;bgx.fillStyle=`rgba(0,255,136,${p.a})`;bgx.beginPath();bgx.arc(p.x*W,p.y*H,p.r,0,Math.PI*2);bgx.fill();});
-const rg=bgx.createRadialGradient(W*.22,H*.5,0,W*.22,H*.5,W*.3);rg.addColorStop(0,'rgba(0,255,136,.04)');rg.addColorStop(1,'rgba(0,255,136,0)');bgx.fillStyle=rg;bgx.fillRect(0,0,W,H);}
-const CW=14,CG=7,ST=CW+CG,G='#00cc77',R='#ff3344',GF='rgba(0,204,119,.15)',RF='rgba(255,51,68,.15)';
-let price=150,candles=[],lp=150,lastC=Date.now();
-function nextC(sp){const o=sp;let c=o,hi=o,lo=o;for(let i=0;i<10;i++){const d=(Math.random()-.478)*2.2;c+=d;c>hi&&(hi=c);c<lo&&(lo=c);}hi+=Math.random()*1.2;lo-=Math.random()*1.2;price=c;return{open:o,high:hi,low:lo,close:c};}
-for(let i=0;i<80;i++){const c=nextC(price);candles.push(c);}candles.push(nextC(price));lp=candles[candles.length-1].open;
-function genFut(n){let p=lp;const out=[];for(let i=0;i<n;i++){const o=p;let c=o,hi=o,lo=o;for(let j=0;j<8;j++){const d=(Math.random()-.46)*1.8;c+=d;c>hi&&(hi=c);c<lo&&(lo=c);}hi+=Math.random()*.8;lo-=Math.random()*.8;p=c;out.push({open:o,high:hi,low:lo,close:c});}return out;}
-let fut=genFut(8);setInterval(()=>{fut=genFut(8);},2000);
-function drawChart(){const W=ch.width,H=ch.height;ctx.clearRect(0,0,W,H);const pw=W*.6,tM=44,bM=26,cH=H-tM-bM;const vis=[...candles.slice(-Math.floor(pw/ST)-2),...fut.slice(0,8)];let mn=Infinity,mx=-Infinity;vis.forEach(c=>{c.low<mn&&(mn=c.low);c.high>mx&&(mx=c.high);});const pad=(mx-mn)*.18;mn-=pad;mx+=pad;const rng=mx-mn||1;const toY=p=>tM+cH*(1-(p-mn)/rng);
-ctx.font='8px "Space Mono",monospace';for(let i=0;i<=4;i++){const y=tM+(cH/4)*i,pv=(mx-(rng/4)*i).toFixed(1);ctx.strokeStyle='rgba(0,255,136,.048)';ctx.lineWidth=.5;ctx.setLineDash([3,6]);ctx.beginPath();ctx.moveTo(18,y);ctx.lineTo(pw-8,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(0,255,136,.28)';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(pv,2,y);}
-const sx=pw-CW-6;fut.forEach((c,idx)=>{const x=sx+(idx+1)*ST;if(x>pw-2||x<0)return;const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low),bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1);ctx.globalAlpha=.2;ctx.strokeStyle=isG?G:R;ctx.lineWidth=1;ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(x+CW/2,hY);ctx.lineTo(x+CW/2,lY);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=isG?GF:RF;ctx.fillRect(x,bt,CW,bh);ctx.strokeRect(x,bt,CW,bh);ctx.globalAlpha=1;});
-ctx.font='7px "Orbitron",monospace';ctx.fillStyle='rgba(0,255,170,.28)';ctx.textAlign='left';ctx.fillText('AI FORECAST',sx+ST+2,tM-10);ctx.strokeStyle='rgba(0,255,170,.13)';ctx.lineWidth=.5;ctx.setLineDash([2,5]);ctx.beginPath();ctx.moveTo(sx+ST-2,tM-20);ctx.lineTo(sx+ST-2,H-bM);ctx.stroke();ctx.setLineDash([]);
-for(let i=candles.length-1;i>=0;i--){const c=candles[i],idx=candles.length-1-i,x=sx-idx*ST;if(x+CW<0)break;const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low),bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1),live=i===candles.length-1;if(live){ctx.shadowColor=isG?'rgba(0,255,136,.7)':'rgba(255,51,68,.7)';ctx.shadowBlur=10;}ctx.globalAlpha=live?1:.72;ctx.strokeStyle=isG?G:R;ctx.lineWidth=live?1.5:1;ctx.beginPath();ctx.moveTo(x+CW/2,hY);ctx.lineTo(x+CW/2,lY);ctx.stroke();ctx.fillStyle=isG?GF:RF;ctx.fillRect(x,bt,CW,bh);ctx.strokeRect(x,bt,CW,bh);ctx.shadowBlur=0;ctx.globalAlpha=1;ctx.fillStyle=isG?'rgba(0,204,119,.2)':'rgba(255,51,68,.17)';const vh=14*(.3+Math.random()*.7);ctx.fillRect(x,H-bM-vh,CW,vh);}
-const ly=toY(lp),tw=60,th=16,tx=pw-tw-4;ctx.setLineDash([3,5]);ctx.strokeStyle='rgba(0,255,170,.38)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(18,ly);ctx.lineTo(pw-tw-8,ly);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#00ffaa';ctx.beginPath();ctx.roundRect(tx,ly-th/2,tw,th,2);ctx.fill();ctx.fillStyle='#010a06';ctx.font='600 8px "Orbitron",monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(lp.toFixed(2),tx+tw/2,ly);}
-function updateLive(){const now=Date.now(),live=candles[candles.length-1];lp+=(Math.random()-.478)*.25;lp>live.high&&(live.high=lp);lp<live.low&&(live.low=lp);live.close=lp;if(now-lastC>=2800){candles.push(nextC(lp));candles.length>200&&candles.shift();lastC=now;}const e=document.getElementById('fp');if(e)e.textContent='$'+lp.toFixed(2);}
-setInterval(()=>{const n=new Date(),e=document.getElementById('clk');if(e)e.textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');},1000);
-setInterval(()=>{const e=document.getElementById('lat');if(e)e.textContent=(12+Math.floor(Math.random()*6))+'ms';},2400);
-function loop(){updateLive();drawBg();drawChart();requestAnimationFrame(loop);}loop();
+const bg=document.getElementById("bg"),bx=bg.getContext("2d");
+const ch=document.getElementById("ch"),cx=ch.getContext("2d");
+function rsz(){bg.width=ch.width=innerWidth;bg.height=ch.height=innerHeight;}
+rsz();window.addEventListener("resize",rsz);
+const st=[];for(let i=0;i<20;i++)st.push({x:Math.random()*.62,y:Math.random(),sp:.0004+Math.random()*.0007,len:.07+Math.random()*.15,a:.07+Math.random()*.17,w:Math.random()>.7?1.5:.5});
+function hex(cx2,cy,r){bx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);i?bx.lineTo(cx2+r*Math.cos(a),cy+r*Math.sin(a)):bx.moveTo(cx2+r*Math.cos(a),cy+r*Math.sin(a));}bx.closePath();}
+function drawBg(){const W=bg.width,H=bg.height;bx.clearRect(0,0,W,H);const sz=36;for(let r=0;r<=H/sz+1;r++)for(let c=0;c<=W*.6/(sz*.866*1.5)+1;c++){const ox=c%2?sz*.866:0;hex(c*sz*.866*1.5,r*sz+ox,sz*.44);bx.strokeStyle="rgba(0,255,136,.038)";bx.lineWidth=.5;bx.stroke();}
+st.forEach(s=>{s.y+=s.sp;if(s.y>1+s.len)s.y=-s.len;const x=s.x*W,y0=(s.y-s.len)*H,y1=s.y*H;const g=bx.createLinearGradient(0,y0,0,y1);g.addColorStop(0,"rgba(0,255,136,0)");g.addColorStop(.5,`rgba(0,255,136,${s.a})`);g.addColorStop(1,"rgba(0,255,136,0)");bx.strokeStyle=g;bx.lineWidth=s.w;bx.beginPath();bx.moveTo(x,y0);bx.lineTo(x,y1);bx.stroke();});}
+const CW=14,ST=21,GC="#00cc77",RC="#ff3344",GF="rgba(0,204,119,.15)",RF="rgba(255,51,68,.15)";
+let pr=150,ca=[],lp=150,lC=Date.now();
+function nC(sp){const o=sp;let c=o,hi=o,lo=o;for(let i=0;i<10;i++){const d=(Math.random()-.478)*2.2;c+=d;c>hi&&(hi=c);c<lo&&(lo=c);}hi+=Math.random()*1.2;lo-=Math.random()*1.2;pr=c;return{open:o,high:hi,low:lo,close:c};}
+for(let i=0;i<80;i++)ca.push(nC(pr));ca.push(nC(pr));lp=ca[ca.length-1].open;
+function drawChart(){const W=ch.width,H=ch.height;cx.clearRect(0,0,W,H);const pw=W*.58,tM=40,bM=24,cH=H-tM-bM;const vis=ca.slice(-Math.floor(pw/ST)-2);let mn=Infinity,mx=-Infinity;vis.forEach(c=>{c.low<mn&&(mn=c.low);c.high>mx&&(mx=c.high);});const pad=(mx-mn)*.18;mn-=pad;mx+=pad;const rng=mx-mn||1;const toY=p=>tM+cH*(1-(p-mn)/rng);
+const sx=pw-CW-6;for(let i=ca.length-1;i>=0;i--){const c=ca[i],idx=ca.length-1-i,x=sx-idx*ST;if(x+CW<0)break;const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low),bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1),live=i===ca.length-1;if(live){cx.shadowColor=isG?"rgba(0,255,136,.7)":"rgba(255,51,68,.7)";cx.shadowBlur=10;}cx.globalAlpha=live?1:.7;cx.strokeStyle=isG?GC:RC;cx.lineWidth=live?1.5:1;cx.beginPath();cx.moveTo(x+CW/2,hY);cx.lineTo(x+CW/2,lY);cx.stroke();cx.fillStyle=isG?GF:RF;cx.fillRect(x,bt,CW,bh);cx.strokeRect(x,bt,CW,bh);cx.shadowBlur=0;cx.globalAlpha=1;}
+const ly=toY(lp),tw=58,th=15,tx=pw-tw-4;cx.setLineDash([3,5]);cx.strokeStyle="rgba(0,255,170,.35)";cx.lineWidth=1;cx.beginPath();cx.moveTo(0,ly);cx.lineTo(pw-tw-8,ly);cx.stroke();cx.setLineDash([]);cx.fillStyle="#00ffaa";cx.beginPath();cx.roundRect(tx,ly-th/2,tw,th,2);cx.fill();cx.fillStyle="#010a06";cx.font="600 8px Orbitron,monospace";cx.textAlign="center";cx.textBaseline="middle";cx.fillText(lp.toFixed(2),tx+tw/2,ly);}
+function tick(){const live=ca[ca.length-1];lp+=(Math.random()-.478)*.25;lp>live.high&&(live.high=lp);lp<live.low&&(live.low=lp);live.close=lp;if(Date.now()-lC>=2800){ca.push(nC(lp));ca.length>200&&ca.shift();lC=Date.now();}}
+setInterval(()=>{const n=new Date(),e=document.getElementById("clk");if(e)e.textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,"0")).join(":");},1000);
+function loop(){tick();drawBg();drawChart();requestAnimationFrame(loop);}loop();
 </script></body></html>
 """, height=1, scrolling=False)
 
-    st.markdown('<div class="auth-wrap">', unsafe_allow_html=True)
-
-    st.markdown("""
-    <div style="position:relative;height:12px;margin-bottom:0.5rem;">
-      <div style="position:absolute;top:0;left:0;width:12px;height:12px;border-top:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
-      <div style="position:absolute;top:0;right:0;width:12px;height:12px;border-top:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    _tc1, _tc2 = st.columns(2)
-    with _tc1:
-        if st.button("TERMINAL ACCESS", key="tab_login", use_container_width=True):
-            st.session_state.auth_view = "login"
-            st.rerun()
-    with _tc2:
-        if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
-            st.session_state.auth_view = "signup"
-            st.rerun()
-
-    if _is_login:
+    # ── Form: single Streamlit column, absolutely positioned right ────────────
+    _, _col = st.columns([1, 1])
+    with _col:
         st.markdown("""
-        <div style="text-align:center;margin:0.9rem 0 1rem;">
-          <div style="font-family:'Orbitron',monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Secure Access</div>
-          <div style="font-size:0.44rem;color:rgba(0,255,170,0.28);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Powered by Supabase Auth</div>
-        </div>
-        <div style="font-family:'Orbitron',monospace;font-size:0.44rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;">Identity Token (Email)</div>
+        <div style="background:rgba(2,10,6,0.96);border:1px solid rgba(0,255,170,0.13);
+             border-radius:3px;padding:1.6rem 1.4rem 1.2rem;
+             margin-top:-100vh;position:relative;z-index:10;
+             min-height:100vh;display:flex;flex-direction:column;justify-content:center;">
         """, unsafe_allow_html=True)
-        _login_email = st.text_input("e", placeholder="name@firm.com", key="login_email", label_visibility="collapsed")
-        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.44rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;margin-top:0.7rem;">Access Key</div>', unsafe_allow_html=True)
-        _login_pass = st.text_input("p", type="password", placeholder="••••••••••", key="login_pass", label_visibility="collapsed")
-        st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
-        if st.button("⚡  AUTHORIZE TERMINAL", key="login_btn", use_container_width=True):
-            if not _login_email or not _login_pass:
-                _auth_error = "Please enter your email and access key."
-            else:
-                with st.spinner("Authenticating…"):
-                    try:
-                        _res = supabase.auth.sign_in_with_password({
-                            "email": _login_email.strip(),
-                            "password": _login_pass
-                        })
-                        if _res.user:
-                            st.session_state.user = _res.user
-                            st.rerun()
-                        else:
-                            _auth_error = "Invalid credentials. Please try again."
-                    except Exception as _e:
-                        _auth_error = str(_e)
-    else:
+
+        # Tabs
+        _c1, _c2 = st.columns(2)
+        with _c1:
+            if st.button("TERMINAL ACCESS", key="tab_login", use_container_width=True):
+                st.session_state.auth_view = "login"
+                st.rerun()
+        with _c2:
+            if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
+                st.session_state.auth_view = "signup"
+                st.rerun()
+
+        if _is_login:
+            st.markdown("""
+            <div style="text-align:center;margin:1rem 0;">
+              <div style="font-family:Orbitron,monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Secure Access</div>
+              <div style="font-size:0.44rem;color:rgba(0,255,170,0.3);letter-spacing:0.15em;text-transform:uppercase;margin-top:4px;font-family:'Space Mono',monospace;">Powered by Supabase Auth</div>
+            </div>
+            <p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;">Identity Token (Email)</p>
+            """, unsafe_allow_html=True)
+            _email = st.text_input("email", placeholder="name@firm.com", key="li_email", label_visibility="collapsed")
+            st.markdown('<p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin:0.7rem 0 5px;">Access Key</p>', unsafe_allow_html=True)
+            _pass = st.text_input("pass", type="password", placeholder="••••••••••", key="li_pass", label_visibility="collapsed")
+            st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+
+            if st.button("⚡  AUTHORIZE TERMINAL", key="li_btn", use_container_width=True):
+                if _email and _pass:
+                    with st.spinner(""):
+                        try:
+                            _r = supabase.auth.sign_in_with_password({"email": _email.strip(), "password": _pass})
+                            if _r.user:
+                                st.session_state.user = _r.user
+                                st.rerun()
+                            else:
+                                _auth_error = "Invalid credentials."
+                        except Exception as _e:
+                            _auth_error = str(_e)
+                else:
+                    _auth_error = "Please fill in all fields."
+
+        else:
+            st.markdown("""
+            <div style="text-align:center;margin:1rem 0;">
+              <div style="font-family:Orbitron,monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Register Node</div>
+              <div style="font-size:0.44rem;color:rgba(0,255,170,0.3);letter-spacing:0.15em;text-transform:uppercase;margin-top:4px;font-family:'Space Mono',monospace;">Create Your Terminal Identity</div>
+            </div>
+            <p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;">Email</p>
+            """, unsafe_allow_html=True)
+            _su_email = st.text_input("suemail", placeholder="name@firm.com", key="su_email", label_visibility="collapsed")
+            st.markdown('<p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin:0.7rem 0 5px;">Password</p>', unsafe_allow_html=True)
+            _su_pass = st.text_input("supass", type="password", placeholder="••••••••••", key="su_pass", label_visibility="collapsed")
+            st.markdown('<p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin:0.7rem 0 5px;">Confirm</p>', unsafe_allow_html=True)
+            _su_conf = st.text_input("suconf", type="password", placeholder="••••••••••", key="su_conf", label_visibility="collapsed")
+            st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+
+            if st.button("⚡  INITIALIZE TERMINAL", key="su_btn", use_container_width=True):
+                if not _su_email or not _su_pass or not _su_conf:
+                    _auth_error = "Please fill in all fields."
+                elif _su_pass != _su_conf:
+                    _auth_error = "Passwords do not match."
+                elif len(_su_pass) < 6:
+                    _auth_error = "Password must be at least 6 characters."
+                else:
+                    with st.spinner(""):
+                        try:
+                            _r = supabase.auth.sign_up({"email": _su_email.strip(), "password": _su_pass})
+                            if _r.user:
+                                _auth_success = f"Verification email sent to {_su_email.strip()}. Please verify then log in."
+                                st.session_state.auth_view = "login"
+                                st.rerun()
+                            else:
+                                _auth_error = "Sign up failed."
+                        except Exception as _e:
+                            _auth_error = str(_e)
+
+        if _auth_error:
+            st.error(f"⚠ {_auth_error}")
+        if _auth_success:
+            st.success(f"✓ {_auth_success}")
+
         st.markdown("""
-        <div style="text-align:center;margin:0.9rem 0 1rem;">
-          <div style="font-family:'Orbitron',monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Register Node</div>
-          <div style="font-size:0.44rem;color:rgba(0,255,170,0.28);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px;font-family:'Space Mono',monospace;">Create Your Terminal Identity</div>
+        <div style="border:1px solid rgba(0,255,170,0.08);border-radius:2px;background:rgba(0,255,170,0.02);
+             padding:0.55rem;text-align:center;margin-top:1rem;">
+          <div style="font-family:Orbitron,monospace;font-size:0.48rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#00ffaa;">Beta Alpha</div>
+          <div style="font-size:0.4rem;color:rgba(0,255,170,0.25);text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;letter-spacing:0.1em;">Early access protocols active</div>
         </div>
-        <div style="font-family:'Orbitron',monospace;font-size:0.44rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;">Identity Token (Email)</div>
+        </div>
         """, unsafe_allow_html=True)
-        _signup_email = st.text_input("e2", placeholder="name@firm.com", key="signup_email", label_visibility="collapsed")
-        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.44rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;margin-top:0.7rem;">Access Key</div>', unsafe_allow_html=True)
-        _signup_pass = st.text_input("p2", type="password", placeholder="••••••••••", key="signup_pass", label_visibility="collapsed")
-        st.markdown('<div style="font-family:\'Orbitron\',monospace;font-size:0.44rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;margin-top:0.7rem;">Confirm Key</div>', unsafe_allow_html=True)
-        _signup_conf = st.text_input("c2", type="password", placeholder="••••••••••", key="signup_conf", label_visibility="collapsed")
-        st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
-        if st.button("⚡  INITIALIZE TERMINAL", key="signup_btn", use_container_width=True):
-            if not _signup_email or not _signup_pass or not _signup_conf:
-                _auth_error = "Please fill in all fields."
-            elif _signup_pass != _signup_conf:
-                _auth_error = "Passwords do not match."
-            elif len(_signup_pass) < 6:
-                _auth_error = "Password must be at least 6 characters."
-            else:
-                with st.spinner("Initializing terminal…"):
-                    try:
-                        _res = supabase.auth.sign_up({
-                            "email": _signup_email.strip(),
-                            "password": _signup_pass
-                        })
-                        if _res.user:
-                            _auth_success = f"Account created! Verification email sent to {_signup_email.strip()}. Please verify before logging in."
-                            st.session_state.auth_view = "login"
-                            st.rerun()
-                        else:
-                            _auth_error = "Sign up failed. Please try again."
-                    except Exception as _e:
-                        _auth_error = str(_e)
-
-    if _auth_error:
-        st.error(f"⚠ {_auth_error}")
-    if _auth_success:
-        st.success(f"✓ {_auth_success}")
-
-    st.markdown("""
-    <div style="border:1px solid rgba(0,255,170,0.1);border-radius:2px;background:rgba(0,255,170,0.03);padding:0.6rem;text-align:center;margin-top:0.9rem;">
-      <div style="font-family:'Orbitron',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#00ffaa;">Beta Alpha</div>
-      <div style="font-size:0.42rem;color:rgba(0,255,170,0.28);letter-spacing:0.1em;text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;">Early access protocols active</div>
-    </div>
-    <div style="position:relative;height:16px;margin-top:0.5rem;">
-      <div style="position:absolute;bottom:0;left:0;width:12px;height:12px;border-bottom:1px solid rgba(0,255,170,0.35);border-left:1px solid rgba(0,255,170,0.35);"></div>
-      <div style="position:absolute;bottom:0;right:0;width:12px;height:12px;border-bottom:1px solid rgba(0,255,170,0.35);border-right:1px solid rgba(0,255,170,0.35);"></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
