@@ -1787,220 +1787,431 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 # ── Auth Gate: Login / Signup ──────────────────────────────────────────────────
 if st.session_state.user is None:
 
-    import streamlit.components.v1 as _components
-
     _auth_error   = ""
     _auth_success = ""
     if "auth_view" not in st.session_state:
         st.session_state.auth_view = "login"
     _is_login = (st.session_state.auth_view == "login")
 
-    # ── CSS: dark page + animated background iframe + right-side form panel ───
+    # ── Command Center CSS (Space Grotesk / Manrope dark-navy theme) ──
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Space+Mono:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Space+Grotesk:wght@300;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
     html,body,[data-testid="stApp"],[data-testid="stAppViewContainer"],[data-testid="stMain"],.main,.stMainBlockContainer {
-        background:#010a06 !important; padding:0 !important; margin:0 !important;
+        background: #111318 !important; padding: 0 !important; margin: 0 !important;
+        overflow-x: hidden !important; font-family: 'Manrope', sans-serif !important;
     }
-    .block-container { padding:0 !important; max-width:100% !important; }
-    header,footer,#MainMenu,[data-testid="stSidebar"] { display:none !important; }
-    [data-testid="stMain"]>div:first-child { padding-top:0 !important; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
+    header[data-testid="stHeader"], footer, #MainMenu, [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stMain"] > div:first-child { padding-top: 0 !important; }
 
-    /* Background canvas iframe — full screen, behind everything */
-    [data-testid="stCustomComponentV1"] iframe {
-        position:fixed !important; top:0 !important; left:0 !important;
-        width:100vw !important; height:100vh !important;
-        border:none !important; z-index:0 !important; pointer-events:none !important;
+    /* ── Background layers ── */
+    .auth-bg {
+        position: fixed; inset: 0; z-index: 0; background: #111318; overflow: hidden;
+    }
+    .auth-bg-grid {
+        position: absolute; inset: 0; opacity: 0.2;
+        background-image: linear-gradient(to right, rgba(0,229,255,0.05) 1px, transparent 1px),
+                          linear-gradient(to bottom, rgba(0,229,255,0.05) 1px, transparent 1px);
+        background-size: 40px 40px;
+    }
+    .auth-bg-glow-tr {
+        position: absolute; top: -10%; right: -10%; width: 50%; height: 50%;
+        background: rgba(195,245,255,0.05); border-radius: 50%; filter: blur(120px);
+    }
+    .auth-bg-glow-bl {
+        position: absolute; bottom: -5%; left: -5%; width: 40%; height: 40%;
+        background: rgba(255,187,243,0.05); border-radius: 50%; filter: blur(100px);
     }
 
-    /* Form inputs */
-    [data-testid="stTextInput"] input {
-        background:#020f07 !important; border:1px solid #0d3320 !important;
-        color:#00ffaa !important; font-family:"Space Mono",monospace !important;
-        font-size:0.8rem !important; padding:11px 14px !important;
-        border-radius:2px !important;
+    /* ── Central card / form container ── */
+    .auth-canvas {
+        position: fixed; inset: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: center; padding: 1.5rem;
     }
-    [data-testid="stTextInput"] input:focus {
-        border-color:#00ffaa !important; box-shadow:0 0 0 1px rgba(0,255,170,0.2) !important;
+    .auth-terminal {
+        position: relative; width: 100%; max-width: 480px;
     }
-    [data-testid="stTextInput"] input::placeholder { color:#1a4030 !important; }
-    [data-testid="stTextInput"] label { display:none !important; }
+    .auth-bracket-tl {
+        position: absolute; top: -1rem; left: -1rem; width: 3rem; height: 3rem;
+        border-top: 2px solid rgba(195,245,255,0.4); border-left: 2px solid rgba(195,245,255,0.4);
+    }
+    .auth-bracket-br {
+        position: absolute; bottom: -1rem; right: -1rem; width: 3rem; height: 3rem;
+        border-bottom: 2px solid rgba(195,245,255,0.4); border-right: 2px solid rgba(195,245,255,0.4);
+    }
+    .glass-panel {
+        background: rgba(17,19,24,0.75);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(195,245,255,0.1);
+        border-radius: 0.5rem;
+        padding: 2.5rem 2.8rem;
+        box-shadow: 0 0 50px rgba(0,229,255,0.05);
+        position: relative; overflow: hidden;
+    }
+    /* scanning line */
+    .scanning-line {
+        position: absolute; left: 0; right: 0; top: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #00e5ff, transparent);
+        box-shadow: 0 0 15px #00e5ff;
+        animation: scanner 4s linear infinite;
+        pointer-events: none; z-index: 20;
+    }
+    @keyframes scanner {
+        0%   { transform: translateY(-100%); opacity: 0; }
+        50%  { opacity: 0.5; }
+        100% { transform: translateY(22rem); opacity: 0; }
+    }
 
-    /* All buttons green */
-    .stButton>button {
-        background:#00ffaa !important; color:#010a06 !important;
-        font-family:"Orbitron",monospace !important; font-weight:700 !important;
-        font-size:0.6rem !important; letter-spacing:0.15em !important;
-        text-transform:uppercase !important; border:none !important;
-        border-radius:2px !important; padding:0.75rem !important; width:100% !important;
+    /* ── Header ── */
+    .auth-header { text-align: center; margin-bottom: 2.2rem; }
+    .auth-icon {
+        font-family: 'Material Symbols Outlined'; font-size: 3.2rem; font-weight: 200;
+        color: #c3f5ff; margin-bottom: 0.8rem; display: block;
+        font-variation-settings: 'wght' 200;
     }
-    .stButton>button:hover { background:#00cc88 !important; }
+    .auth-title {
+        font-family: 'Manrope', sans-serif; font-size: 2.4rem; font-weight: 900;
+        color: #c3f5ff; letter-spacing: -0.03em; text-transform: uppercase; margin-bottom: 0.3rem;
+    }
+    .auth-subtitle {
+        font-family: 'Space Grotesk', sans-serif; font-size: 0.62rem;
+        letter-spacing: 0.3em; color: #bac9cc; text-transform: uppercase;
+    }
 
-    /* Tab buttons — muted outline */
-    div[data-testid="stHorizontalBlock"] .stButton>button {
-        background:transparent !important; color:rgba(0,255,170,0.35) !important;
-        border:1px solid #0d3320 !important; font-size:0.48rem !important; padding:0.5rem !important;
+    /* ── Tab buttons ── */
+    .stButton > button {
+        background: linear-gradient(135deg, rgba(195,245,255,0.8), rgba(0,229,255,1)) !important;
+        color: #00363d !important;
+        font-family: 'Space Grotesk', sans-serif !important; font-weight: 700 !important;
+        font-size: 0.68rem !important; letter-spacing: 0.2em !important;
+        text-transform: uppercase !important; border: none !important;
+        border-radius: 0.25rem !important; padding: 0.9rem 1rem !important;
+        width: 100% !important;
+        box-shadow: 0 0 20px rgba(0,229,255,0.3) !important;
+        transition: all 0.3s !important;
     }
-    div[data-testid="stHorizontalBlock"] .stButton>button:hover {
-        color:#00ffaa !important; border-color:rgba(0,255,170,0.3) !important;
-        background:rgba(0,255,170,0.05) !important;
+    .stButton > button:hover {
+        box-shadow: 0 0 35px rgba(0,229,255,0.5) !important;
+        transform: scale(0.99) !important;
+    }
+    div[data-testid="stHorizontalBlock"] .stButton > button {
+        background: rgba(195,245,255,0.04) !important;
+        color: #849396 !important;
+        border: 1px solid rgba(59,73,76,0.6) !important;
+        box-shadow: none !important;
+        font-size: 0.6rem !important; padding: 0.6rem !important;
+    }
+    div[data-testid="stHorizontalBlock"] .stButton > button:hover {
+        color: #c3f5ff !important;
+        border-color: rgba(195,245,255,0.35) !important;
+        background: rgba(195,245,255,0.08) !important;
+    }
+
+    /* ── Inputs ── */
+    [data-testid="stTextInput"] label { display: none !important; }
+    [data-testid="stTextInput"] > div > div > input {
+        background: transparent !important;
+        border: none !important; border-bottom: 1px solid #3b494c !important;
+        border-radius: 0 !important;
+        color: #e2e2e8 !important;
+        font-family: 'Space Grotesk', sans-serif !important;
+        font-size: 0.82rem !important; letter-spacing: 0.08em !important;
+        padding: 0.75rem 0.5rem 0.75rem 1.8rem !important;
+        transition: border-color 0.3s !important;
+    }
+    [data-testid="stTextInput"] > div > div > input:focus {
+        border-bottom-color: #c3f5ff !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    [data-testid="stTextInput"] > div > div > input::placeholder {
+        color: rgba(59,73,76,0.5) !important; text-transform: uppercase; letter-spacing: 0.1em;
+    }
+
+    /* ── Field labels ── */
+    .auth-field-label {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.6rem; letter-spacing: 0.25em;
+        color: rgba(195,245,255,0.6); text-transform: uppercase;
+        margin-bottom: 0.3rem; display: block; margin-top: 1.4rem;
+    }
+
+    /* ── Footer badge ── */
+    .auth-footer-badge {
+        margin-top: 1.8rem; display: flex; justify-content: center;
+    }
+    .auth-footer-inner {
+        display: flex; align-items: center; gap: 1rem;
+        background: rgba(51,53,57,0.3); backdrop-filter: blur(12px);
+        padding: 0.4rem 1.2rem; border-radius: 9999px;
+        border: 1px solid rgba(59,73,76,0.1);
+    }
+    .auth-footer-warn {
+        font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem;
+        color: #ffabf3; letter-spacing: 0.15em; text-transform: uppercase;
+        display: flex; align-items: center; gap: 0.4rem;
+    }
+    .auth-footer-secure {
+        font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem;
+        color: #c3f5ff; letter-spacing: 0.15em; text-transform: uppercase;
+        display: flex; align-items: center; gap: 0.4rem;
+    }
+    .auth-divider { width: 1px; height: 0.75rem; background: rgba(59,73,76,0.3); }
+
+    /* ── Left sidebar telemetry (decorative) ── */
+    .auth-left-panel {
+        position: fixed; left: 3rem; top: 50%; transform: translateY(-50%);
+        z-index: 5; pointer-events: none;
+        display: flex; flex-direction: column; gap: 2rem;
+        width: 16rem;
+    }
+    .auth-telemetry-label {
+        font-family: 'Space Grotesk', sans-serif; font-size: 0.62rem;
+        letter-spacing: 0.2em; color: rgba(195,245,255,0.6); text-transform: uppercase;
+        margin-bottom: 0.25rem;
+    }
+    .auth-market-item {
+        display: flex; justify-content: space-between; align-items: flex-end;
+        border-bottom: 1px solid rgba(59,73,76,0.2); padding-bottom: 0.5rem; margin-bottom: 0.25rem;
+    }
+    .auth-market-sym { font-family: 'Space Grotesk', sans-serif; font-size: 0.72rem; color: #bac9cc; }
+    .auth-market-val {
+        font-family: 'Space Grotesk', sans-serif; font-size: 0.72rem; color: #c3f5ff;
+        text-shadow: 0 0 10px rgba(0,229,255,0.5);
+    }
+    .auth-node-box {
+        background: rgba(12,14,18,0.5); border: 1px solid rgba(195,245,255,0.1); padding: 0.75rem 1rem;
+    }
+    .auth-node-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+    .auth-node-dot {
+        width: 0.4rem; height: 0.4rem; border-radius: 50%; background: #c3f5ff;
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    .auth-node-title { font-family: 'Space Grotesk', sans-serif; font-size: 0.6rem; color: #c3f5ff; font-weight: 700; letter-spacing: 0.1em; }
+    .auth-node-detail { font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem; color: #bac9cc; line-height: 1.6; }
+
+    /* ── Right sparkline (decorative) ── */
+    .auth-right-panel {
+        position: fixed; right: 3rem; bottom: 3.5rem;
+        z-index: 5; pointer-events: none; text-align: right;
+    }
+    .auth-sparkline {
+        width: 12rem; height: 3rem; display: flex; align-items: flex-end; gap: 2px;
+        padding: 0.25rem 0.5rem; background: rgba(12,14,18,0.5);
+        border-right: 2px solid #00e5ff; margin-bottom: 0.5rem; margin-left: auto;
+    }
+    .auth-spark-bar { flex: 1; background: rgba(195,245,255,0.3); border-radius: 1px; }
+    .auth-right-meta { font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem; color: #bac9cc; line-height: 1.8; }
+
+    /* ── OS footer bar ── */
+    .auth-os-bar {
+        position: fixed; bottom: 0; left: 0; right: 0; height: 2.5rem;
+        background: rgba(12,14,18,0.8); backdrop-filter: blur(16px);
+        border-top: 1px solid rgba(59,73,76,0.1);
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 2.5rem; z-index: 50; pointer-events: none;
+    }
+    .auth-os-left { display: flex; align-items: center; gap: 1.5rem; }
+    .auth-os-ver { font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem; letter-spacing: 0.3em; color: #c3f5ff; font-weight: 700; }
+    .auth-os-status { font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem; letter-spacing: 0.2em; color: #bac9cc; }
+    .auth-os-right { display: flex; align-items: center; gap: 2rem; }
+    .auth-os-region { font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem; letter-spacing: 0.2em; }
+    .auth-os-region span:first-child { color: #bac9cc; }
+    .auth-os-region span:last-child { color: #c3f5ff; }
+    .auth-os-ts { font-family: 'Space Grotesk', sans-serif; font-size: 0.55rem; letter-spacing: 0.2em; color: #bac9cc; }
+
+    @media(max-width:1100px){.auth-left-panel,.auth-right-panel{display:none!important;}}
+    @media(max-width:600px){.auth-canvas{padding:0.75rem;} .glass-panel{padding:1.8rem 1.4rem;}}
+
+    [data-testid="stAlert"] { border-radius: 0.25rem !important; font-size: 0.78rem !important; font-family: 'Space Grotesk', sans-serif !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── Decorative background + side panels ─────────────────────────
+    st.markdown("""
+    <div class="auth-bg">
+      <div class="auth-bg-grid"></div>
+      <div class="auth-bg-glow-tr"></div>
+      <div class="auth-bg-glow-bl"></div>
+    </div>
+
+    <!-- Left telemetry panel -->
+    <div class="auth-left-panel">
+      <div>
+        <div class="auth-telemetry-label">System_State</div>
+        <div style="display:flex;align-items:center;gap:0.75rem;background:rgba(26,28,32,0.5);padding:0.75rem;border-left:2px solid #00e5ff;">
+          <span class="material-symbols-outlined" style="color:#c3f5ff;font-size:1rem;font-variation-settings:'wght' 400;">terminal</span>
+          <span style="font-family:'Space Grotesk',sans-serif;font-size:0.7rem;font-weight:700;letter-spacing:0.05em;color:#e2e2e8;">QUANTUM_ENCRYPTION_ACTIVE</span>
+        </div>
+      </div>
+      <div>
+        <div class="auth-telemetry-label">Market_Pulse</div>
+        <div class="auth-market-item"><span class="auth-market-sym">BTC/USD</span><span class="auth-market-val">64,210.42</span></div>
+        <div class="auth-market-item"><span class="auth-market-sym">NASDAQ_100</span><span class="auth-market-val">18,124.50</span></div>
+        <div class="auth-market-item"><span class="auth-market-sym">GOLD_SPOT</span><span class="auth-market-val" style="color:#ffabf3;text-shadow:0 0 8px rgba(255,187,243,0.6);">2,382.10</span></div>
+      </div>
+      <div class="auth-node-box">
+        <div class="auth-node-header"><div class="auth-node-dot"></div><span class="auth-node-title">NODE_042 CONNECTED</span></div>
+        <div class="auth-node-detail">Latency: 2ms | Region: Orbital_01 | Status: Stable</div>
+      </div>
+    </div>
+
+    <!-- Right sparkline panel -->
+    <div class="auth-right-panel">
+      <div class="auth-telemetry-label" style="margin-bottom:0.3rem;">Data_Stream_042</div>
+      <div class="auth-sparkline">
+        <div class="auth-spark-bar" style="height:30%;"></div>
+        <div class="auth-spark-bar" style="height:60%;background:rgba(195,245,255,0.45);"></div>
+        <div class="auth-spark-bar" style="height:45%;"></div>
+        <div class="auth-spark-bar" style="height:80%;background:rgba(195,245,255,0.6);"></div>
+        <div class="auth-spark-bar" style="height:20%;"></div>
+        <div class="auth-spark-bar" style="height:50%;background:rgba(195,245,255,0.5);"></div>
+        <div class="auth-spark-bar" style="height:95%;background:rgba(195,245,255,0.8);"></div>
+      </div>
+      <div class="auth-right-meta">PACKET_RECEIVE: 2.4 TB/S<br>COMPRESSION: 14.2:1<br>NEURAL_LOAD: 0.12%</div>
+    </div>
+
+    <!-- OS footer bar -->
+    <div class="auth-os-bar">
+      <div class="auth-os-left">
+        <span class="auth-os-ver">STOCKCAST_OS_v4.2.0</span>
+        <span class="auth-os-status">STATUS: NOMINAL</span>
+      </div>
+      <div class="auth-os-right">
+        <div class="auth-os-region">
+          <span>Region: </span><span>ORBITAL_STATION_SIGMA</span>
+        </div>
+        <div class="auth-os-ts">FOR EDUCATIONAL PURPOSES ONLY · MUAWWIZ GHANI</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Central auth card ────────────────────────────────────────────
+    st.markdown("""
+    <div class="auth-canvas">
+      <div class="auth-terminal">
+        <div class="auth-bracket-tl"></div>
+        <div class="auth-bracket-br"></div>
+        <div class="glass-panel">
+          <div class="scanning-line"></div>
+          <div class="auth-header">
+            <span class="material-symbols-outlined auth-icon">rocket_launch</span>
+            <div class="auth-title">STOCKCAST</div>
+            <div class="auth-subtitle">Command Center Protocol</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Streamlit form rendered on top of glass card ─────────────────
+    # Use CSS to position the form inputs over the glass panel
+    st.markdown("""
+    <style>
+    /* Position the Streamlit form block on top of the glass card */
+    [data-testid="stMainBlockContainer"] > div > div > div:nth-child(2) {
+        position: fixed !important; top: 50% !important; left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        width: min(420px, 90vw) !important; z-index: 30 !important;
+        padding: 0 2.8rem 2rem !important;
+        margin-top: 10rem !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # ── Animated background (purely visual, pointer-events:none) ─────────────
-    _components.html("""
-<!DOCTYPE html><html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Space+Mono&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;background:#010a06;overflow:hidden;}
-canvas{position:fixed;top:0;left:0;width:100%;height:100%;}
-.scan{position:fixed;left:0;right:0;height:90px;background:linear-gradient(to bottom,transparent,rgba(0,255,136,.022),transparent);animation:sv 6s linear infinite;z-index:2;}
-@keyframes sv{0%{top:-90px}100%{top:100%}}
-.hero{position:fixed;bottom:15%;left:2.5rem;z-index:3;pointer-events:none;max-width:45%;}
-.badge{display:inline-flex;align-items:center;gap:6px;font-family:"Orbitron",monospace;font-size:.46rem;color:#00ffaa;letter-spacing:.18em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(0,255,170,.2);border-radius:2px;margin-bottom:.9rem;}
-.dot{width:6px;height:6px;border-radius:50%;background:#00ffaa;animation:p 1.2s ease-in-out infinite;display:inline-block;}
-@keyframes p{0%,100%{opacity:1}50%{opacity:.15}}
-h1{font-family:"Orbitron",monospace;font-size:clamp(.9rem,2.3vw,1.8rem);font-weight:700;color:#d0ffe8;line-height:1.2;margin-bottom:.6rem;}
-h1 em{font-style:normal;color:#00ffaa;}
-.sub{font-family:"Space Mono",monospace;font-size:.55rem;color:#2a5a3a;line-height:1.8;border-left:2px solid rgba(0,255,170,.18);padding-left:.8rem;}
-@media(max-width:480px){.hero{display:none;}}
-.bar{position:fixed;bottom:0;left:0;right:0;height:20px;background:rgba(1,8,4,.9);border-top:1px solid #0d3320;display:flex;justify-content:space-between;align-items:center;padding:0 1rem;font-family:"Space Mono",monospace;font-size:.38rem;color:#1a4030;z-index:4;}
-.live{display:flex;align-items:center;gap:5px;color:rgba(0,255,170,.4);}
-.ld{width:4px;height:4px;border-radius:50%;background:#00ffaa;animation:p 1.5s infinite;}
-</style></head><body>
-<canvas id="bg"></canvas><canvas id="ch" style="z-index:1;"></canvas>
-<div class="scan"></div>
-<div class="hero">
-  <div class="badge"><div class="dot"></div>Neural Engine Active</div>
-  <h1>Predicting the<br>pulse of <em>global markets.</em></h1>
-  <p class="sub">XGBoost forecasting · Shariah screening · NLP sentiment</p>
-</div>
-<div class="bar">
-  <span>For educational purposes only</span>
-  <div class="live"><div class="ld"></div><span>Live <span id="clk">00:00:00</span></span></div>
-  <span>Muawwiz Ghani</span>
-</div>
-<script>
-const bg=document.getElementById("bg"),bx=bg.getContext("2d");
-const ch=document.getElementById("ch"),cx=ch.getContext("2d");
-function rsz(){bg.width=ch.width=innerWidth;bg.height=ch.height=innerHeight;}
-rsz();window.addEventListener("resize",rsz);
-const st=[];for(let i=0;i<20;i++)st.push({x:Math.random()*.62,y:Math.random(),sp:.0004+Math.random()*.0007,len:.07+Math.random()*.15,a:.07+Math.random()*.17,w:Math.random()>.7?1.5:.5});
-function hex(cx2,cy,r){bx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);i?bx.lineTo(cx2+r*Math.cos(a),cy+r*Math.sin(a)):bx.moveTo(cx2+r*Math.cos(a),cy+r*Math.sin(a));}bx.closePath();}
-function drawBg(){const W=bg.width,H=bg.height;bx.clearRect(0,0,W,H);const sz=36;for(let r=0;r<=H/sz+1;r++)for(let c=0;c<=W*.6/(sz*.866*1.5)+1;c++){const ox=c%2?sz*.866:0;hex(c*sz*.866*1.5,r*sz+ox,sz*.44);bx.strokeStyle="rgba(0,255,136,.038)";bx.lineWidth=.5;bx.stroke();}
-st.forEach(s=>{s.y+=s.sp;if(s.y>1+s.len)s.y=-s.len;const x=s.x*W,y0=(s.y-s.len)*H,y1=s.y*H;const g=bx.createLinearGradient(0,y0,0,y1);g.addColorStop(0,"rgba(0,255,136,0)");g.addColorStop(.5,`rgba(0,255,136,${s.a})`);g.addColorStop(1,"rgba(0,255,136,0)");bx.strokeStyle=g;bx.lineWidth=s.w;bx.beginPath();bx.moveTo(x,y0);bx.lineTo(x,y1);bx.stroke();});}
-const CW=14,ST=21,GC="#00cc77",RC="#ff3344",GF="rgba(0,204,119,.15)",RF="rgba(255,51,68,.15)";
-let pr=150,ca=[],lp=150,lC=Date.now();
-function nC(sp){const o=sp;let c=o,hi=o,lo=o;for(let i=0;i<10;i++){const d=(Math.random()-.478)*2.2;c+=d;c>hi&&(hi=c);c<lo&&(lo=c);}hi+=Math.random()*1.2;lo-=Math.random()*1.2;pr=c;return{open:o,high:hi,low:lo,close:c};}
-for(let i=0;i<80;i++)ca.push(nC(pr));ca.push(nC(pr));lp=ca[ca.length-1].open;
-function drawChart(){const W=ch.width,H=ch.height;cx.clearRect(0,0,W,H);const pw=W*.58,tM=40,bM=24,cH=H-tM-bM;const vis=ca.slice(-Math.floor(pw/ST)-2);let mn=Infinity,mx=-Infinity;vis.forEach(c=>{c.low<mn&&(mn=c.low);c.high>mx&&(mx=c.high);});const pad=(mx-mn)*.18;mn-=pad;mx+=pad;const rng=mx-mn||1;const toY=p=>tM+cH*(1-(p-mn)/rng);
-const sx=pw-CW-6;for(let i=ca.length-1;i>=0;i--){const c=ca[i],idx=ca.length-1-i,x=sx-idx*ST;if(x+CW<0)break;const isG=c.close>=c.open,oY=toY(c.open),cY=toY(c.close),hY=toY(c.high),lY=toY(c.low),bt=Math.min(oY,cY),bh=Math.max(Math.abs(cY-oY),1),live=i===ca.length-1;if(live){cx.shadowColor=isG?"rgba(0,255,136,.7)":"rgba(255,51,68,.7)";cx.shadowBlur=10;}cx.globalAlpha=live?1:.7;cx.strokeStyle=isG?GC:RC;cx.lineWidth=live?1.5:1;cx.beginPath();cx.moveTo(x+CW/2,hY);cx.lineTo(x+CW/2,lY);cx.stroke();cx.fillStyle=isG?GF:RF;cx.fillRect(x,bt,CW,bh);cx.strokeRect(x,bt,CW,bh);cx.shadowBlur=0;cx.globalAlpha=1;}
-const ly=toY(lp),tw=58,th=15,tx=pw-tw-4;cx.setLineDash([3,5]);cx.strokeStyle="rgba(0,255,170,.35)";cx.lineWidth=1;cx.beginPath();cx.moveTo(0,ly);cx.lineTo(pw-tw-8,ly);cx.stroke();cx.setLineDash([]);cx.fillStyle="#00ffaa";cx.beginPath();cx.roundRect(tx,ly-th/2,tw,th,2);cx.fill();cx.fillStyle="#010a06";cx.font="600 8px Orbitron,monospace";cx.textAlign="center";cx.textBaseline="middle";cx.fillText(lp.toFixed(2),tx+tw/2,ly);}
-function tick(){const live=ca[ca.length-1];lp+=(Math.random()-.478)*.25;lp>live.high&&(live.high=lp);lp<live.low&&(live.low=lp);live.close=lp;if(Date.now()-lC>=2800){ca.push(nC(lp));ca.length>200&&ca.shift();lC=Date.now();}}
-setInterval(()=>{const n=new Date(),e=document.getElementById("clk");if(e)e.textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,"0")).join(":");},1000);
-function loop(){tick();drawBg();drawChart();requestAnimationFrame(loop);}loop();
-</script></body></html>
-""", height=1, scrolling=False)
+    # ── Tab switcher ─────────────────────────────────────────────────
+    _tc1, _tc2 = st.columns(2)
+    with _tc1:
+        if st.button("INITIALIZE SESSION", key="tab_login", use_container_width=True):
+            st.session_state.auth_view = "login"
+            st.rerun()
+    with _tc2:
+        if st.button("REQUEST ACCESS", key="tab_signup", use_container_width=True):
+            st.session_state.auth_view = "signup"
+            st.rerun()
 
-    # ── Form: single Streamlit column, absolutely positioned right ────────────
-    _, _col = st.columns([1, 1])
-    with _col:
-        st.markdown("""
-        <div style="background:rgba(2,10,6,0.96);border:1px solid rgba(0,255,170,0.13);
-             border-radius:3px;padding:1.6rem 1.4rem 1.2rem;
-             margin-top:-100vh;position:relative;z-index:10;
-             min-height:100vh;display:flex;flex-direction:column;justify-content:center;">
-        """, unsafe_allow_html=True)
+    if _is_login:
+        # ── Login form ───────────────────────────────────────────────
+        st.markdown('<span class="auth-field-label">Operator_ID (Email)</span>', unsafe_allow_html=True)
+        _login_email = st.text_input("e", placeholder="EMAIL@STOCKCAST.QUANTUM", key="login_email", label_visibility="collapsed")
+        st.markdown('<span class="auth-field-label">Security_Cipher</span>', unsafe_allow_html=True)
+        _login_pass = st.text_input("p", type="password", placeholder="••••••••••••", key="login_pass", label_visibility="collapsed")
+        st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
+        if st.button("⚡  INITIALIZE SESSION", key="login_btn", use_container_width=True):
+            if not _login_email or not _login_pass:
+                _auth_error = "Please enter your Operator ID and Security Cipher."
+            else:
+                with st.spinner("Authenticating…"):
+                    try:
+                        _res = supabase.auth.sign_in_with_password({
+                            "email": _login_email.strip(),
+                            "password": _login_pass
+                        })
+                        if _res.user:
+                            st.session_state.user = _res.user
+                            st.rerun()
+                        else:
+                            _auth_error = "Invalid credentials. Please try again."
+                    except Exception as _e:
+                        _auth_error = str(_e)
+    else:
+        # ── Signup form ──────────────────────────────────────────────
+        st.markdown('<span class="auth-field-label">Operator_ID (Email)</span>', unsafe_allow_html=True)
+        _signup_email = st.text_input("e2", placeholder="EMAIL@STOCKCAST.QUANTUM", key="signup_email", label_visibility="collapsed")
+        st.markdown('<span class="auth-field-label">Security_Cipher</span>', unsafe_allow_html=True)
+        _signup_pass = st.text_input("p2", type="password", placeholder="••••••••••••", key="signup_pass", label_visibility="collapsed")
+        st.markdown('<span class="auth-field-label">Confirm_Cipher</span>', unsafe_allow_html=True)
+        _signup_conf = st.text_input("c2", type="password", placeholder="••••••••••••", key="signup_conf", label_visibility="collapsed")
+        st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
+        if st.button("⚡  REGISTER OPERATOR NODE", key="signup_btn", use_container_width=True):
+            if not _signup_email or not _signup_pass or not _signup_conf:
+                _auth_error = "Please fill in all fields."
+            elif _signup_pass != _signup_conf:
+                _auth_error = "Ciphers do not match."
+            elif len(_signup_pass) < 6:
+                _auth_error = "Cipher must be at least 6 characters."
+            else:
+                with st.spinner("Registering operator node…"):
+                    try:
+                        _res = supabase.auth.sign_up({
+                            "email": _signup_email.strip(),
+                            "password": _signup_pass
+                        })
+                        if _res.user:
+                            _auth_success = f"Access granted! Verification dispatched to {_signup_email.strip()}. Verify before initializing session."
+                            st.session_state.auth_view = "login"
+                            st.rerun()
+                        else:
+                            _auth_error = "Registration failed. Please try again."
+                    except Exception as _e:
+                        _auth_error = str(_e)
 
-        # Tabs
-        _c1, _c2 = st.columns(2)
-        with _c1:
-            if st.button("TERMINAL ACCESS", key="tab_login", use_container_width=True):
-                st.session_state.auth_view = "login"
-                st.rerun()
-        with _c2:
-            if st.button("CREATE ACCOUNT", key="tab_signup", use_container_width=True):
-                st.session_state.auth_view = "signup"
-                st.rerun()
+    if _auth_error:
+        st.error(f"⚠ {_auth_error}")
+    if _auth_success:
+        st.success(f"✓ {_auth_success}")
 
-        if _is_login:
-            st.markdown("""
-            <div style="text-align:center;margin:1rem 0;">
-              <div style="font-family:Orbitron,monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Secure Access</div>
-              <div style="font-size:0.44rem;color:rgba(0,255,170,0.3);letter-spacing:0.15em;text-transform:uppercase;margin-top:4px;font-family:'Space Mono',monospace;">Powered by Supabase Auth</div>
-            </div>
-            <p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;">Identity Token (Email)</p>
-            """, unsafe_allow_html=True)
-            _email = st.text_input("email", placeholder="name@firm.com", key="li_email", label_visibility="collapsed")
-            st.markdown('<p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin:0.7rem 0 5px;">Access Key</p>', unsafe_allow_html=True)
-            _pass = st.text_input("pass", type="password", placeholder="••••••••••", key="li_pass", label_visibility="collapsed")
-            st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-
-            if st.button("⚡  AUTHORIZE TERMINAL", key="li_btn", use_container_width=True):
-                if _email and _pass:
-                    with st.spinner(""):
-                        try:
-                            _r = supabase.auth.sign_in_with_password({"email": _email.strip(), "password": _pass})
-                            if _r.user:
-                                st.session_state.user = _r.user
-                                st.rerun()
-                            else:
-                                _auth_error = "Invalid credentials."
-                        except Exception as _e:
-                            _auth_error = str(_e)
-                else:
-                    _auth_error = "Please fill in all fields."
-
-        else:
-            st.markdown("""
-            <div style="text-align:center;margin:1rem 0;">
-              <div style="font-family:Orbitron,monospace;font-size:0.6rem;font-weight:700;letter-spacing:0.2em;color:#d0ffe8;text-transform:uppercase;">Register Node</div>
-              <div style="font-size:0.44rem;color:rgba(0,255,170,0.3);letter-spacing:0.15em;text-transform:uppercase;margin-top:4px;font-family:'Space Mono',monospace;">Create Your Terminal Identity</div>
-            </div>
-            <p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin-bottom:5px;">Email</p>
-            """, unsafe_allow_html=True)
-            _su_email = st.text_input("suemail", placeholder="name@firm.com", key="su_email", label_visibility="collapsed")
-            st.markdown('<p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin:0.7rem 0 5px;">Password</p>', unsafe_allow_html=True)
-            _su_pass = st.text_input("supass", type="password", placeholder="••••••••••", key="su_pass", label_visibility="collapsed")
-            st.markdown('<p style="font-family:Orbitron,monospace;font-size:0.42rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,255,170,0.5);margin:0.7rem 0 5px;">Confirm</p>', unsafe_allow_html=True)
-            _su_conf = st.text_input("suconf", type="password", placeholder="••••••••••", key="su_conf", label_visibility="collapsed")
-            st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-
-            if st.button("⚡  INITIALIZE TERMINAL", key="su_btn", use_container_width=True):
-                if not _su_email or not _su_pass or not _su_conf:
-                    _auth_error = "Please fill in all fields."
-                elif _su_pass != _su_conf:
-                    _auth_error = "Passwords do not match."
-                elif len(_su_pass) < 6:
-                    _auth_error = "Password must be at least 6 characters."
-                else:
-                    with st.spinner(""):
-                        try:
-                            _r = supabase.auth.sign_up({"email": _su_email.strip(), "password": _su_pass})
-                            if _r.user:
-                                _auth_success = f"Verification email sent to {_su_email.strip()}. Please verify then log in."
-                                st.session_state.auth_view = "login"
-                                st.rerun()
-                            else:
-                                _auth_error = "Sign up failed."
-                        except Exception as _e:
-                            _auth_error = str(_e)
-
-        if _auth_error:
-            st.error(f"⚠ {_auth_error}")
-        if _auth_success:
-            st.success(f"✓ {_auth_success}")
-
-        st.markdown("""
-        <div style="border:1px solid rgba(0,255,170,0.08);border-radius:2px;background:rgba(0,255,170,0.02);
-             padding:0.55rem;text-align:center;margin-top:1rem;">
-          <div style="font-family:Orbitron,monospace;font-size:0.48rem;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#00ffaa;">Beta Alpha</div>
-          <div style="font-size:0.4rem;color:rgba(0,255,170,0.25);text-transform:uppercase;margin-top:2px;font-family:'Space Mono',monospace;letter-spacing:0.1em;">Early access protocols active</div>
+    # ── Security badge ───────────────────────────────────────────────
+    st.markdown("""
+    <div class="auth-footer-badge">
+      <div class="auth-footer-inner">
+        <div class="auth-footer-warn">
+          <span class="material-symbols-outlined" style="font-size:0.8rem;font-variation-settings:'FILL' 1;">warning</span>
+          HFT_VOLATILITY: HIGH
         </div>
+        <div class="auth-divider"></div>
+        <div class="auth-footer-secure">
+          <span class="material-symbols-outlined" style="font-size:0.8rem;font-variation-settings:'FILL' 1;">verified_user</span>
+          AES-512 SECURE
         </div>
-        """, unsafe_allow_html=True)
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.stop()  # 🚨 Halt — do not render the app until authenticated
 
