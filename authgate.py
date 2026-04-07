@@ -1,760 +1,485 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stockcast – Terminal Access</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;600;700&display=swap" rel="stylesheet">
+"""
+authgate.py  –  Stockcast authentication gate
+Single-page login/signup: injects CSS into Streamlit's own DOM so there is
+only ONE set of inputs and ONE submit button.  No iframe, no postMessage.
+app.py calls:  render_auth_gate(supabase)
+"""
+
+import streamlit as st
+
+# ── Page-wide CSS + animated canvas background ────────────────────────────────
+_CSS = """
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600&display=swap" rel="stylesheet">
+
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
+*, *::before, *::after { box-sizing: border-box; }
 :root {
-  --green: #00ff88;
-  --green-dim: #00cc6a;
-  --green-glow: rgba(0,255,136,0.4);
-  --green-subtle: rgba(0,255,136,0.08);
-  --bg: #050d12;
-  --bg2: #070f18;
-  --panel-bg: rgba(6,20,30,0.82);
-  --border: rgba(0,255,136,0.2);
-  --text: #c8e8d8;
-  --text-dim: #5a8a70;
-  --mono: 'Share Tech Mono', monospace;
-  --ui: 'Rajdhani', sans-serif;
-  --display: 'Orbitron', sans-serif;
+  --green:#00ff88; --green-dim:#00cc66;
+  --green-glow:rgba(0,255,136,0.35); --green-faint:rgba(0,255,136,0.08);
+  --navy:#020d1a; --panel:rgba(4,20,40,0.94);
+  --border:rgba(0,255,136,0.18); --text:#c8e8d8;
+  --muted:rgba(180,220,200,0.45);
 }
 
-body {
-  font-family: var(--ui);
-  background: var(--bg);
-  color: var(--text);
+/* Full-page dark background */
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+  background: var(--navy) !important;
+}
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stSidebar"] { display: none !important; }
+footer { display: none !important; }
+[data-testid="stMainBlockContainer"] {
+  padding-top: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Animated canvas background */
+#sc-bg-canvas {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+}
+.sc-grid-overlay {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 100%, black 30%, transparent 80%);
+}
+.sc-scanline {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.4; z-index: 2; animation: sc-scan 6s linear infinite;
+}
+@keyframes sc-scan { from { top: -2px; } to { top: 100%; } }
+
+/* Particles */
+.sc-particles { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+.sc-particle {
+  position: absolute; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 4px var(--green);
+  animation: sc-floatUp linear infinite; opacity: 0;
+}
+@keyframes sc-floatUp {
+  0%   { opacity:0; transform: translateY(0) scale(0.5); }
+  10%  { opacity:0.8; }
+  90%  { opacity:0.4; }
+  100% { opacity:0; transform: translateY(-120px) scale(0.2); }
+}
+
+/* Page layout */
+.sc-page {
+  position: relative; z-index: 10;
   min-height: 100vh;
-  overflow: hidden;
-  position: relative;
-}
-
-/* ── BACKGROUND LAYERS ── */
-.bg-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Grid floor */
-.grid-floor {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 55%;
-  background:
-    linear-gradient(to bottom, transparent 0%, rgba(0,255,136,0.03) 100%),
-    repeating-linear-gradient(90deg, rgba(0,255,136,0.07) 0px, transparent 1px, transparent 60px, rgba(0,255,136,0.07) 61px),
-    repeating-linear-gradient(0deg, rgba(0,255,136,0.07) 0px, transparent 1px, transparent 40px, rgba(0,255,136,0.07) 41px);
-  transform: perspective(600px) rotateX(55deg);
-  transform-origin: top center;
-}
-
-/* Radial glow from center */
-.center-glow {
-  position: absolute;
-  left: 50%; top: 38%;
-  transform: translate(-50%, -50%);
-  width: 700px; height: 400px;
-  background: radial-gradient(ellipse, rgba(0,200,100,0.18) 0%, rgba(0,100,50,0.08) 40%, transparent 70%);
-  filter: blur(20px);
-}
-
-/* Deep space gradient */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 30%, rgba(0,30,20,0.9) 0%, #050d12 70%),
-    linear-gradient(180deg, #020810 0%, #050d12 50%, #030a0f 100%);
-  z-index: 0;
-}
-
-/* ── CANDLESTICK CHART (SVG Canvas) ── */
-#chart-canvas {
-  position: fixed;
-  left: 50%; top: 50%;
-  transform: translate(-50%, -50%);
-  width: 100%; height: 100%;
-  z-index: 1;
-  opacity: 0.9;
-}
-
-/* ── LAYOUT ── */
-.page {
-  position: relative;
-  z-index: 10;
   display: grid;
+  grid-template-columns: 1fr 440px;
   grid-template-rows: auto 1fr auto;
-  min-height: 100vh;
-  padding: 0 3rem;
+  padding: 0 48px;
+  font-family: 'Rajdhani', sans-serif;
+  color: var(--text);
+}
+@media (max-width: 800px) {
+  .sc-page { grid-template-columns: 1fr; padding: 0 18px; }
+  .sc-hero { display: none !important; }
 }
 
-/* ── HEADER ── */
-header {
-  display: flex;
-  align-items: flex-start;
-  padding: 1.4rem 0 0;
+/* Header */
+.sc-header {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+.sc-brand-name {
+  font-family: 'Orbitron', monospace; font-size: 18px; font-weight: 700;
+  color: var(--green); letter-spacing: 3px;
+  text-shadow: 0 0 18px var(--green-glow);
+}
+.sc-brand-sub {
+  font-family: 'Share Tech Mono', monospace; font-size: 9px;
+  color: var(--muted); letter-spacing: 4px;
+}
+.sc-clock-wrap {
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+  color: var(--muted); letter-spacing: 2px;
+}
+#sc-clock { color: var(--green); }
+
+/* Hero */
+.sc-hero {
+  display: flex; flex-direction: column; justify-content: center;
+  padding-right: 60px; padding-bottom: 40px;
+  animation: sc-fadeUp 1s ease both;
+}
+@keyframes sc-fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
+.sc-hero-tag {
+  font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 5px;
+  color: var(--green); margin-bottom: 20px;
+  display: flex; align-items: center; gap: 10px;
+}
+.sc-hero-tag::before {
+  content: ''; display: block; width: 24px; height: 1px;
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+}
+.sc-live-badge {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 28px;
+  font-family: 'Share Tech Mono', monospace; font-size: 10px;
+  letter-spacing: 3px; color: var(--green);
+}
+.sc-live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 8px var(--green);
+  animation: sc-pulse 1.4s ease-in-out infinite;
+}
+@keyframes sc-pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.4; transform:scale(0.6); }
+}
+.sc-hero h1 {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(28px, 3.5vw, 52px); font-weight: 900; line-height: 1.12;
+  color: #fff; text-shadow: 0 0 40px rgba(0,255,136,0.12); margin-bottom: 10px;
+}
+.sc-hero h1 span { color: var(--green); }
+.sc-hero-desc {
+  font-size: 13px; color: var(--muted); line-height: 1.7;
+  max-width: 360px; margin-top: 16px; margin-bottom: 40px;
+  font-weight: 300; letter-spacing: 0.5px;
+}
+.sc-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+.sc-stat-pill {
+  background: var(--green-faint); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 18px;
+  display: flex; flex-direction: column; gap: 2px; backdrop-filter: blur(8px);
+}
+.sc-stat-val {
+  font-family: 'Orbitron', monospace; font-size: 20px; font-weight: 700;
+  color: var(--green); text-shadow: 0 0 10px var(--green-glow);
+}
+.sc-stat-lbl {
+  font-family: 'Share Tech Mono', monospace; font-size: 9px;
+  letter-spacing: 3px; color: var(--muted);
 }
 
-.brand-name {
-  font-family: var(--display);
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--green);
-  letter-spacing: 0.05em;
-  text-shadow: 0 0 20px var(--green-glow);
+/* Right panel column */
+.sc-panel-col {
+  display: flex; flex-direction: column; justify-content: center;
+  padding-bottom: 40px; padding-top: 20px;
+  animation: sc-fadeUp 1s 0.2s ease both;
 }
 
-.brand-sub {
-  font-family: var(--mono);
-  font-size: 0.58rem;
-  color: var(--text-dim);
-  letter-spacing: 0.15em;
-  margin-top: 0.15rem;
+/* Footer */
+.sc-footer {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0; border-top: 1px solid var(--border);
+  font-family: 'Share Tech Mono', monospace; font-size: 10px;
+  letter-spacing: 2px; color: var(--muted);
+}
+.sc-footer a { color: var(--muted); text-decoration: none; margin-right: 20px; }
+.sc-footer a:hover { color: var(--green); }
+
+/* ── Streamlit widget overrides ── */
+
+/* Text inputs */
+.stTextInput input {
+  background: rgba(0,255,136,0.04) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  color: var(--text) !important;
+  font-family: 'Rajdhani', sans-serif !important;
+  font-size: 14px !important;
+  letter-spacing: 1px !important;
+}
+.stTextInput input:focus {
+  border-color: var(--green-dim) !important;
+  box-shadow: 0 0 0 3px rgba(0,255,136,0.1) !important;
+}
+.stTextInput input::placeholder { color: rgba(180,220,200,0.25) !important; }
+.stTextInput label {
+  font-family: 'Share Tech Mono', monospace !important;
+  font-size: 9px !important; letter-spacing: 4px !important;
+  color: var(--muted) !important;
 }
 
-/* ── MAIN ── */
-main {
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  align-items: center;
-  gap: 3rem;
-  padding: 1rem 0;
+/* Submit / action buttons */
+.stFormSubmitButton > button, .stButton > button {
+  background: linear-gradient(135deg, #00cc66, #00ff88, #00cc66) !important;
+  background-size: 200% 200% !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-family: 'Orbitron', monospace !important;
+  font-size: 11px !important; font-weight: 700 !important;
+  letter-spacing: 4px !important;
+  color: #020d1a !important;
+  width: 100% !important;
+  padding: 14px !important;
+  box-shadow: 0 0 24px rgba(0,255,136,0.35), 0 4px 16px rgba(0,0,0,0.4) !important;
+  animation: sc-shimmer 3s linear infinite !important;
+}
+@keyframes sc-shimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.stFormSubmitButton > button:hover, .stButton > button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 0 40px rgba(0,255,136,0.55), 0 8px 24px rgba(0,0,0,0.5) !important;
 }
 
-/* ── LEFT: HERO ── */
-.hero h1 {
-  font-family: var(--ui);
-  font-size: 3.6rem;
-  font-weight: 700;
-  line-height: 1.1;
-  color: #fff;
-  margin-bottom: 1.2rem;
-  text-shadow: 0 2px 30px rgba(0,0,0,0.8);
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  gap: 0 !important;
+  margin-bottom: 20px !important;
 }
+.stTabs [data-baseweb="tab"] {
+  background: transparent !important;
+  font-family: 'Share Tech Mono', monospace !important;
+  font-size: 9px !important; letter-spacing: 3px !important;
+  color: var(--muted) !important;
+  border: none !important;
+  flex: 1 !important; justify-content: center !important;
+}
+.stTabs [aria-selected="true"] {
+  background: var(--green-faint) !important;
+  color: var(--green) !important;
+}
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] { display: none !important; }
 
-.hero h1 .accent {
-  color: var(--green);
-  text-shadow: 0 0 30px var(--green-glow), 0 0 60px rgba(0,255,136,0.2);
-}
-
-.hero-desc {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  line-height: 1.8;
-  max-width: 380px;
-  margin-bottom: 2.5rem;
-}
-
-/* Live Alpha Stream */
-.stream-label {
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  color: var(--green-dim);
-  letter-spacing: 0.2em;
-  margin-bottom: 1.2rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.stream-label::before {
-  content: '';
-  display: inline-block;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 8px var(--green);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
-}
-
-.widgets {
-  display: flex;
-  gap: 2rem;
-  align-items: center;
-}
-
-/* Ring widget */
-.ring-widget {
-  width: 90px; height: 90px;
-  position: relative;
-}
-
-.ring-widget svg {
-  width: 100%; height: 100%;
-  transform: rotate(-90deg);
-}
-
-.ring-track { fill: none; stroke: rgba(0,255,136,0.1); stroke-width: 4; }
-.ring-fill {
-  fill: none;
-  stroke: var(--green);
-  stroke-width: 3;
-  stroke-linecap: round;
-  filter: drop-shadow(0 0 6px var(--green));
-  stroke-dasharray: 220;
-  stroke-dashoffset: 220;
-  animation: ringFill 2s 0.5s ease-out forwards;
-}
-@keyframes ringFill {
-  to { stroke-dashoffset: 30; }
-}
-
-.ring-inner {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.ring-val {
-  font-family: var(--display);
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--green);
-  text-shadow: 0 0 10px var(--green-glow);
-  line-height: 1;
-}
-
-.ring-lbl {
-  font-family: var(--mono);
-  font-size: 0.5rem;
-  color: var(--text-dim);
-  margin-top: 0.2rem;
-}
-
-/* Plasma orb */
-.plasma-orb {
-  width: 90px; height: 90px;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgba(0,255,136,0.6) 60deg,
-    rgba(0,180,80,0.8) 120deg,
-    transparent 180deg,
-    rgba(0,255,136,0.3) 240deg,
-    transparent 360deg
-  );
-  box-shadow:
-    inset 0 0 20px rgba(0,255,136,0.2),
-    0 0 25px rgba(0,255,136,0.3),
-    0 0 50px rgba(0,255,136,0.1);
-  animation: spinOrb 4s linear infinite;
-  position: relative;
-}
-
-.plasma-orb::before {
-  content: '';
-  position: absolute;
-  inset: 8px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0,80,40,0.9) 0%, rgba(0,20,10,0.95) 70%);
-}
-
-@keyframes spinOrb {
-  to { transform: rotate(360deg); }
-}
-
-/* ── RIGHT: LOGIN PANEL ── */
-.login-panel {
-  background: var(--panel-bg);
+/* Glass card around the form area */
+.sc-glass {
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1.8rem;
-  backdrop-filter: blur(24px) saturate(1.4);
+  border-radius: 16px;
+  padding: 32px 28px;
+  backdrop-filter: blur(24px);
   box-shadow:
-    0 0 0 1px rgba(0,255,136,0.05),
-    0 8px 60px rgba(0,0,0,0.6),
-    inset 0 1px 0 rgba(0,255,136,0.1),
-    0 0 80px rgba(0,255,136,0.04);
-  animation: slideIn 0.7s 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.field-label {
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  color: var(--text-dim);
-  letter-spacing: 0.18em;
-  margin-bottom: 0.5rem;
-}
-
-.field-group {
-  margin-bottom: 1.1rem;
-}
-
-input[type="email"],
-input[type="password"] {
-  width: 100%;
-  background: rgba(0,20,12,0.6);
-  border: 1px solid rgba(0,255,136,0.18);
-  border-radius: 4px;
-  padding: 0.7rem 1rem;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  color: var(--text);
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-input[type="email"]::placeholder,
-input[type="password"]::placeholder {
-  color: rgba(90,138,112,0.5);
-}
-
-input[type="email"]:focus,
-input[type="password"]:focus {
-  border-color: rgba(0,255,136,0.5);
-  box-shadow: 0 0 0 3px rgba(0,255,136,0.06), inset 0 0 10px rgba(0,255,136,0.04);
-}
-
-/* Neon button */
-.btn-primary {
-  width: 100%;
-  padding: 0.75rem;
-  background: linear-gradient(135deg, rgba(0,200,100,0.15), rgba(0,150,70,0.1));
-  border: 1px solid var(--green-dim);
-  border-radius: 4px;
-  color: var(--green);
-  font-family: var(--display);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  cursor: pointer;
-  transition: all 0.25s;
+    0 0 0 1px rgba(0,255,136,0.06),
+    0 32px 80px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(0,255,136,0.1);
   position: relative;
-  overflow: hidden;
-  box-shadow: 0 0 20px rgba(0,255,136,0.15), inset 0 0 20px rgba(0,255,136,0.05);
-  margin-bottom: 1.1rem;
 }
-
-.btn-primary::before {
+.sc-glass::before {
   content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(0,255,136,0.15), transparent);
-  transform: translateX(-100%);
-  transition: transform 0.5s;
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.5;
 }
-
-.btn-primary:hover::before { transform: translateX(100%); }
-.btn-primary:hover {
-  background: linear-gradient(135deg, rgba(0,220,110,0.2), rgba(0,180,80,0.15));
-  box-shadow: 0 0 30px rgba(0,255,136,0.3), inset 0 0 20px rgba(0,255,136,0.08);
-  transform: translateY(-1px);
-}
-
-.btn-primary:active { transform: translateY(0); }
-
-/* Divider */
-.alt-label {
-  font-family: var(--mono);
-  font-size: 0.58rem;
-  color: var(--text-dim);
-  letter-spacing: 0.18em;
-  text-align: center;
-  margin-bottom: 0.8rem;
-}
-
-.alt-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.6rem;
-  margin-bottom: 1.2rem;
-}
-
-.btn-alt {
-  padding: 0.6rem;
-  background: rgba(0,20,12,0.5);
-  border: 1px solid rgba(0,255,136,0.12);
-  border-radius: 4px;
-  color: var(--text);
-  font-family: var(--ui);
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  letter-spacing: 0.05em;
-}
-
-.btn-alt:hover {
-  border-color: rgba(0,255,136,0.3);
-  background: rgba(0,255,136,0.05);
-  color: var(--green);
-}
-
-.btn-alt svg { flex-shrink: 0; }
-
-/* CTA panel */
-.cta-panel {
-  background: rgba(0,255,136,0.04);
-  border: 1px solid rgba(0,255,136,0.15);
-  border-radius: 4px;
-  padding: 1rem;
-}
-
-.cta-title {
-  font-family: var(--display);
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--green);
-  letter-spacing: 0.15em;
-  text-align: center;
-  margin-bottom: 0.3rem;
-  text-shadow: 0 0 15px var(--green-glow);
-}
-
-.cta-desc {
-  font-family: var(--mono);
-  font-size: 0.58rem;
-  color: var(--text-dim);
-  text-align: center;
-  margin-bottom: 0.8rem;
-}
-
-.btn-cta {
-  width: 100%;
-  padding: 0.65rem;
-  background: linear-gradient(90deg, rgba(0,200,100,0.12), rgba(0,180,80,0.08));
-  border: 1px solid rgba(0,255,136,0.25);
-  border-radius: 4px;
-  color: var(--green-dim);
-  font-family: var(--display);
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-cta:hover {
-  border-color: rgba(0,255,136,0.5);
-  color: var(--green);
-  box-shadow: 0 0 20px rgba(0,255,136,0.15);
-}
-
-/* ── FOOTER ── */
-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 0 1.2rem;
-  border-top: 1px solid rgba(0,255,136,0.06);
-}
-
-.footer-links {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.footer-links a {
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  color: var(--text-dim);
-  text-decoration: none;
-  letter-spacing: 0.05em;
-  transition: color 0.2s;
-}
-
-.footer-links a:hover { color: var(--green); }
-
-.clock {
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  color: var(--text-dim);
-  letter-spacing: 0.1em;
-}
-
-/* ── SCANLINES ── */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.03) 2px,
-    rgba(0,0,0,0.03) 4px
-  );
-  pointer-events: none;
-  z-index: 999;
-}
-
-/* ── RESPONSIVE ── */
-@media (max-width: 900px) {
-  body { overflow-y: auto; }
-  main { grid-template-columns: 1fr; gap: 2rem; }
-  .hero h1 { font-size: 2.5rem; }
-  .page { padding: 0 1.5rem; }
+.sc-panel-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 5px;
+  color: var(--muted); text-align: center;
+  margin-bottom: 20px;
 }
 </style>
-</head>
-<body>
 
-<!-- Background -->
-<div class="bg-layer">
-  <div class="grid-floor"></div>
-  <div class="center-glow"></div>
-</div>
-
-<!-- Candlestick Chart SVG -->
-<svg id="chart-canvas" viewBox="0 0 1400 800" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow-strong">
-      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
-      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <linearGradient id="candleUp" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#00ff88"/>
-      <stop offset="100%" stop-color="#00aa55"/>
-    </linearGradient>
-    <linearGradient id="candleDown" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ff4466"/>
-      <stop offset="100%" stop-color="#cc2244"/>
-    </linearGradient>
-    <radialGradient id="baseGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#00ff88" stop-opacity="0.5"/>
-      <stop offset="100%" stop-color="#00ff88" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-
-  <!-- Glow base under candles -->
-  <ellipse cx="700" cy="700" rx="400" ry="120" fill="url(#baseGlow)" opacity="0.4"/>
-  <ellipse cx="700" cy="700" rx="250" ry="80" fill="url(#baseGlow)" opacity="0.3"/>
-
-  <!-- Candles: (x, wickTop, bodyTop, bodyH, isUp) -->
-  <g filter="url(#glow)" opacity="0.85">
-    <!-- Generated candle data -->
-    <g id="candles"></g>
-  </g>
-
-  <!-- Horizontal light beams from tallest candles -->
-  <line x1="0" y1="200" x2="1400" y2="200" stroke="#00ff88" stroke-width="0.5" opacity="0.06"/>
-  <line x1="0" y1="300" x2="1400" y2="300" stroke="#00ff88" stroke-width="0.5" opacity="0.04"/>
-  <line x1="0" y1="400" x2="1400" y2="400" stroke="#00ff88" stroke-width="0.5" opacity="0.03"/>
-
-  <!-- Light cone from center bottom -->
-  <path d="M700,800 L400,100 L1000,100 Z" fill="url(#baseGlow)" opacity="0.06"/>
-  <path d="M700,800 L500,200 L900,200 Z" fill="url(#baseGlow)" opacity="0.08"/>
-</svg>
-
-<div class="page">
-  <!-- Header -->
-  <header>
-    <div>
-      <div class="brand-name">Stockcast</div>
-      <div class="brand-sub">DEVELOPED BY NUAWIZ GHANI</div>
-    </div>
-  </header>
-
-  <!-- Main -->
-  <main>
-    <!-- Left: Hero -->
-    <div class="hero">
-      <h1>Predicting the<br>pulse of <span class="accent">global<br>markets.</span></h1>
-      <p class="hero-desc">
-        Stockcast futuristic terminal global markets,<br>
-        analyzes, and minates give now, predicting the<br>
-        pulse of us in the alophe.
-      </p>
-
-      <div class="stream-label">LIVE ALPHA STREAM</div>
-      <div class="widgets">
-        <div class="plasma-orb"></div>
-        <div class="ring-widget">
-          <svg viewBox="0 0 80 80">
-            <circle class="ring-track" cx="40" cy="40" r="34"/>
-            <circle class="ring-fill" cx="40" cy="40" r="34"/>
-          </svg>
-          <div class="ring-inner">
-            <div class="ring-val">98.4%</div>
-            <div class="ring-lbl">confidence</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right: Login Panel -->
-    <div class="login-panel">
-      <div class="field-group">
-        <div class="field-label">IDENTITY TOKEN (EMAIL)</div>
-        <input type="email" placeholder="name@firm.com" autocomplete="email"/>
-      </div>
-
-      <div class="field-group">
-        <div class="field-label">ACCESS KEY</div>
-        <input type="password" placeholder="••••••••••" autocomplete="current-password"/>
-      </div>
-
-      <button class="btn-primary">AUTHORIZE ACCESS</button>
-
-      <div class="alt-label">ALTERNATIVE PROTOCOLS</div>
-      <div class="alt-buttons">
-        <button class="btn-alt">
-          <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-          Google
-        </button>
-        <button class="btn-alt">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          SSO
-        </button>
-      </div>
-
-      <div class="cta-panel">
-        <div class="cta-title">LIMITED OFFER</div>
-        <div class="cta-desc">Glassmorphic withns offer</div>
-        <button class="btn-cta">REQUEST ALPHA ACCESS</button>
-      </div>
-    </div>
-  </main>
-
-  <!-- Footer -->
-  <footer>
-    <nav class="footer-links">
-      <a href="#">Footer</a>
-      <a href="#">Link</a>
-      <a href="#">Privacy</a>
-      <a href="#">Terms</a>
-      <a href="#">Contact</a>
-    </nav>
-    <div class="clock" id="clock">Time at 00:00:00</div>
-  </footer>
-</div>
+<!-- Background layers -->
+<canvas id="sc-bg-canvas"></canvas>
+<div class="sc-grid-overlay"></div>
+<div class="sc-scanline"></div>
+<div class="sc-particles" id="sc-particles"></div>
 
 <script>
-// ── Clock ──
-function updateClock() {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2,'0');
-  const mm = String(now.getMinutes()).padStart(2,'0');
-  const ss = String(now.getSeconds()).padStart(2,'0');
-  document.getElementById('clock').textContent = `Time at ${hh}:${mm}:${ss}`;
-}
-setInterval(updateClock, 1000);
-updateClock();
+(function(){
+  // Clock
+  function tick() {
+    const el = document.getElementById('sc-clock');
+    if (el) el.textContent = [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
+      .map(n=>String(n).padStart(2,'0')).join(':');
+  }
+  tick(); setInterval(tick, 1000);
 
-// ── Generate Candlestick Chart ──
-(function() {
-  const svg = document.getElementById('candles');
-  const W = 1400, H = 800;
-  const numCandles = 28;
-  const candleW = 22;
-  const spacing = W / numCandles;
-  const yBase = 720;
-  const maxH = 520;
-
-  // Price simulation
-  let price = 400;
-  const candles = [];
-  for (let i = 0; i < numCandles; i++) {
-    const open = price;
-    const change = (Math.random() - 0.42) * 60;
-    price += change;
-    const close = price;
-    const high = Math.max(open, close) + Math.random() * 30;
-    const low = Math.min(open, close) - Math.random() * 20;
-    candles.push({ open, close, high, low });
+  // Particles
+  const pc = document.getElementById('sc-particles');
+  if (pc) for (let i=0;i<30;i++){
+    const p=document.createElement('div'); p.className='sc-particle';
+    p.style.left=Math.random()*50+'%'; p.style.bottom=Math.random()*40+'vh';
+    p.style.animationDuration=(6+Math.random()*10)+'s';
+    p.style.animationDelay=(Math.random()*12)+'s';
+    const s=(1+Math.random()*2)+'px'; p.style.width=p.style.height=s;
+    pc.appendChild(p);
   }
 
-  // Normalize to view
-  const allVals = candles.flatMap(c => [c.high, c.low]);
-  const minVal = Math.min(...allVals);
-  const maxVal = Math.max(...allVals);
-  const range = maxVal - minVal;
-
-  function toY(v) {
-    return yBase - ((v - minVal) / range) * maxH;
-  }
-
-  candles.forEach((c, i) => {
-    const x = spacing * i + spacing / 2;
-    const isUp = c.close >= c.open;
-    const color = isUp ? '#00ff88' : '#ff4466';
-    const bodyTop = toY(Math.max(c.open, c.close));
-    const bodyBot = toY(Math.min(c.open, c.close));
-    const bodyH = Math.max(bodyBot - bodyTop, 2);
-    const wickTop = toY(c.high);
-    const wickBot = toY(c.low);
-    const opacity = 0.5 + (i / numCandles) * 0.5;
-    const glowSize = isUp ? (bodyH > 60 ? 8 : 4) : 2;
-
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-
-    // Wick
-    const wick = document.createElementNS('http://www.w3.org/2000/svg','line');
-    wick.setAttribute('x1', x); wick.setAttribute('x2', x);
-    wick.setAttribute('y1', wickTop); wick.setAttribute('y2', wickBot);
-    wick.setAttribute('stroke', color);
-    wick.setAttribute('stroke-width', '1.5');
-    wick.setAttribute('opacity', opacity);
-
-    // Body
-    const body = document.createElementNS('http://www.w3.org/2000/svg','rect');
-    body.setAttribute('x', x - candleW/2);
-    body.setAttribute('y', bodyTop);
-    body.setAttribute('width', candleW);
-    body.setAttribute('height', bodyH);
-    body.setAttribute('fill', color);
-    body.setAttribute('opacity', opacity * 0.85);
-    body.setAttribute('rx', '1');
-
-    // Glow for tall bullish candles
-    if (isUp && bodyH > 40) {
-      const glow = document.createElementNS('http://www.w3.org/2000/svg','rect');
-      glow.setAttribute('x', x - candleW/2 - glowSize);
-      glow.setAttribute('y', bodyTop - glowSize);
-      glow.setAttribute('width', candleW + glowSize*2);
-      glow.setAttribute('height', bodyH + glowSize*2);
-      glow.setAttribute('fill', 'none');
-      glow.setAttribute('stroke', '#00ff88');
-      glow.setAttribute('stroke-width', '1');
-      glow.setAttribute('opacity', '0.3');
-      glow.setAttribute('rx', '2');
-      glow.setAttribute('filter', 'url(#glow)');
-      g.appendChild(glow);
-
-      // vertical light beam
-      const beam = document.createElementNS('http://www.w3.org/2000/svg','line');
-      beam.setAttribute('x1', x); beam.setAttribute('x2', x);
-      beam.setAttribute('y1', '0'); beam.setAttribute('y2', wickTop);
-      beam.setAttribute('stroke', '#00ff88');
-      beam.setAttribute('stroke-width', '1');
-      beam.setAttribute('opacity', '0.12');
-      g.appendChild(beam);
+  // Canvas
+  const cv=document.getElementById('sc-bg-canvas');
+  if(!cv) return;
+  const ctx=cv.getContext('2d');
+  function rsz(){cv.width=window.innerWidth;cv.height=window.innerHeight;}
+  rsz(); window.addEventListener('resize',rsz);
+  let t=0;
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const cx=cv.width*.38,cy=cv.height*.65;
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,340);
+    g.addColorStop(0,'rgba(0,255,136,0.14)');
+    g.addColorStop(.4,'rgba(0,100,255,0.06)');
+    g.addColorStop(1,'transparent');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    for(let i=0;i<22;i++){
+      const x=80+i*28,ph=i*.4+t;
+      const mid=cy-80-Math.sin(ph)*55-i*4;
+      const op=mid+Math.sin(ph*1.3)*20,cl=mid+Math.cos(ph*.9)*25;
+      const hi=Math.min(op,cl)-Math.abs(Math.sin(ph*2.1))*18-6;
+      const lo=Math.max(op,cl)+Math.abs(Math.cos(ph*1.7))*14+5;
+      const bull=cl<op,a=.45+.55*(i/22);
+      ctx.strokeStyle=bull?`rgba(0,255,136,${a*.7})`:`rgba(255,80,120,${a*.7})`;
+      ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+9,hi);ctx.lineTo(x+9,lo);ctx.stroke();
+      ctx.fillStyle=bull?`rgba(0,255,136,${a*.85})`:`rgba(255,60,100,${a*.7})`;
+      ctx.shadowColor=bull?'rgba(0,255,136,0.6)':'rgba(255,60,100,0.4)';ctx.shadowBlur=8;
+      ctx.fillRect(x,Math.min(op,cl),18,Math.abs(op-cl)||2);ctx.shadowBlur=0;
     }
-
-    g.appendChild(wick);
-    g.appendChild(body);
-    svg.appendChild(g);
-  });
+    t+=.003;requestAnimationFrame(draw);
+  }
+  draw();
 })();
 </script>
-</body>
-</html>
+"""
+
+_HEADER_HTML = """
+<div class="sc-page">
+  <div class="sc-header">
+    <div>
+      <div class="sc-brand-name">STOCKCAST</div>
+      <div class="sc-brand-sub">DEVELOPED BY MUAWWIZ GHANI</div>
+    </div>
+    <div class="sc-clock-wrap">TIME &nbsp;<span id="sc-clock">00:00:00</span></div>
+  </div>
+
+  <div class="sc-hero">
+    <div class="sc-hero-tag">LIVE ALPHA STREAM</div>
+    <div class="sc-live-badge"><div class="sc-live-dot"></div>MARKETS ACTIVE</div>
+    <h1>Predicting the<br>pulse of <span>global</span><br>markets.</h1>
+    <p class="sc-hero-desc">
+      Stockcast is a futuristic terminal for global markets — it analyzes,
+      monitors in real-time, and predicts the pulse of equities with
+      machine learning precision.
+    </p>
+    <div class="sc-stats">
+      <div class="sc-stat-pill">
+        <div class="sc-stat-val">98.4%</div><div class="sc-stat-lbl">CONFIDENCE</div>
+      </div>
+      <div class="sc-stat-pill">
+        <div class="sc-stat-val">12ms</div><div class="sc-stat-lbl">LATENCY</div>
+      </div>
+      <div class="sc-stat-pill">
+        <div class="sc-stat-val">1,240+</div><div class="sc-stat-lbl">TICKERS</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sc-panel-col">
+    <div class="sc-glass">
+      <div class="sc-panel-title">SECURE TERMINAL ACCESS</div>
+"""
+
+_FOOTER_HTML = """
+    </div><!-- /.sc-glass -->
+  </div><!-- /.sc-panel-col -->
+
+  <div class="sc-footer">
+    <div><a href="#">PRIVACY</a><a href="#">TERMS</a><a href="#">CONTACT</a></div>
+    <div>STOCKCAST &copy; 2026</div>
+  </div>
+</div><!-- /.sc-page -->
+"""
+
+
+def render_auth_gate(supabase_client):
+    """
+    Render the full-screen Stockcast login page.
+    Sets st.session_state.user on success, calls st.stop() otherwise.
+    """
+    if "user" not in st.session_state:
+        st.session_state.user = None
+    if "_auth_msg" not in st.session_state:
+        st.session_state._auth_msg = ("", "")
+
+    if st.session_state.user is not None:
+        return  # Already authenticated — let app.py continue
+
+    # Inject CSS + background animations
+    st.markdown(_CSS, unsafe_allow_html=True)
+
+    # Inject header + hero + open the glass panel div
+    st.markdown(_HEADER_HTML, unsafe_allow_html=True)
+
+    # Show error/success from previous attempt
+    msg_text, msg_type = st.session_state._auth_msg
+    if msg_text:
+        if msg_type == "error":
+            st.error(msg_text)
+        else:
+            st.success(msg_text)
+
+    # ── Real Streamlit tabs + forms ──
+    tab_login, tab_signup = st.tabs(["LOGIN", "SIGN UP"])
+
+    with tab_login:
+        with st.form("_sc_login", clear_on_submit=False):
+            email_l = st.text_input("IDENTITY TOKEN (EMAIL)", placeholder="name@firm.com",
+                                    key="_sc_l_email")
+            pass_l  = st.text_input("ACCESS KEY", type="password",
+                                    placeholder="••••••••••••", key="_sc_l_pass")
+            submitted_l = st.form_submit_button("AUTHORIZE ACCESS", use_container_width=True)
+
+        if submitted_l:
+            if not email_l or not pass_l:
+                st.session_state._auth_msg = ("⚠ All fields are required.", "error")
+                st.rerun()
+            else:
+                try:
+                    res = supabase_client.auth.sign_in_with_password(
+                        {"email": email_l, "password": pass_l}
+                    )
+                    st.session_state.user = res.user
+                    st.session_state._auth_msg = ("", "")
+                    st.rerun()
+                except Exception as exc:
+                    st.session_state._auth_msg = (f"Login failed: {exc}", "error")
+                    st.rerun()
+
+    with tab_signup:
+        with st.form("_sc_signup", clear_on_submit=False):
+            email_s = st.text_input("IDENTITY TOKEN (EMAIL)", placeholder="name@firm.com",
+                                    key="_sc_s_email")
+            pass_s  = st.text_input("ACCESS KEY", type="password",
+                                    placeholder="Min 6 characters", key="_sc_s_pass")
+            pass_s2 = st.text_input("CONFIRM ACCESS KEY", type="password",
+                                    placeholder="Repeat password", key="_sc_s_pass2")
+            submitted_s = st.form_submit_button("CREATE ACCOUNT", use_container_width=True)
+
+        if submitted_s:
+            if not email_s or not pass_s or not pass_s2:
+                st.session_state._auth_msg = ("⚠ All fields are required.", "error")
+                st.rerun()
+            elif pass_s != pass_s2:
+                st.session_state._auth_msg = ("⚠ Passwords do not match.", "error")
+                st.rerun()
+            elif len(pass_s) < 6:
+                st.session_state._auth_msg = ("⚠ Password must be at least 6 characters.", "error")
+                st.rerun()
+            else:
+                try:
+                    res = supabase_client.auth.sign_up(
+                        {"email": email_s, "password": pass_s}
+                    )
+                    if res.user:
+                        st.session_state._auth_msg = (
+                            "✓ Account created! Check your email to confirm, then log in.",
+                            "success"
+                        )
+                    else:
+                        st.session_state._auth_msg = ("Sign-up failed. Please try again.", "error")
+                    st.rerun()
+                except Exception as exc:
+                    st.session_state._auth_msg = (f"Sign-up failed: {exc}", "error")
+                    st.rerun()
+
+    # Close the glass panel + footer
+    st.markdown(_FOOTER_HTML, unsafe_allow_html=True)
+
+    st.stop()
