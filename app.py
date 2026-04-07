@@ -187,7 +187,7 @@ def av_get_news(ticker):
 @st.cache_data(ttl=120)
 def get_live_market_indices():
     """Fetch live S&P500, NASDAQ, DOW, VIX via yfinance — single batched download."""
-    symbols = {"S&P 500":"^GSPC","NASDAQ 100":"^NDX","DOW JONES":"^DJI","VIX":"^VIX"}
+    symbols = {"S&P 500 — Market Pulse":"^GSPC","NASDAQ 100 — Tech Momentum":"^NDX","DOW JONES":"^DJI","VIX — Volatility Signal":"^VIX"}
     syms = list(symbols.values())
     result = []
     try:
@@ -446,8 +446,11 @@ LANGUAGES = {
         "bootstrap_samples": "Bootstrap Samples (CI)", "multi_stock": "Multi-Stock Comparison",
         "compare_tickers": "Compare Tickers", "alert_signal_change": "Alert when signal changes",
         # Dashboard
-        "dashboard_title": "Dashboard", "dashboard_subtitle": "Overview",
-        "dashboard_desc": "AI-powered stock intelligence · Enter a ticker in the sidebar and click Run Forecast to begin.",
+        "dashboard_title": "Market Intelligence ", "dashboard_subtitle": "Overview",
+        "dashboard_desc": "Institutional-Grade Stock Intelligence — Simplified
+
+Analyze, forecast, and act on market data with AI-driven precision.
+Built for serious traders, not casual guessing.",
         "watchlist_live": "⭐ Watchlist — Live Prices",
         "how_it_works": "How It Works",
         "hw1_title": "Enter a Ticker", "hw1_body": "Search by company name or symbol. Add it to your watchlist to track it persistently.",
