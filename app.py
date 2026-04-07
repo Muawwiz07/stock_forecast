@@ -432,7 +432,6 @@ LANGUAGES = {
         "no_recent_news": "No recent news found for this ticker.",
         "already_in_portfolio": "{sym} already in portfolio. Remove it first to update.",
         "added_success": "✓ Added {sym} — live price ${price:.2f}",
-        "footer": "⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI",
         "model_performance": "Model Performance", "actual_vs_pred": "Actual vs Predicted",
         "feature_importance": "Feature Importance", "signal_intelligence": "Signal Intelligence",
         "forecast_next": "Forecast — Next {n} Days", "backtest_engine": "Backtesting Engine",
@@ -2136,7 +2135,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.5;">{body}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> SupportTeam :- ghani24by7@gmail.com </div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
 else:
     # ═══════════════════════════════════════════════════════════════
