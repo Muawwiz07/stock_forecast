@@ -3127,8 +3127,8 @@ st.markdown(f"""
     <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
   </div>
   <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#2d3449;letter-spacing:.08em;">
-    © 2026 Stockcast. All Rights Reserved. Proprietary &amp; Confidential.<br>
-    Unauthorized reproduction or distribution of this software is strictly prohibited.
+    © 2026 Stockcast. ⚠ Not financial advice — for educational use only. <br>
+    Stockcast · Built by Muawwiz Ghani · © 2026.
   </div>
 </div>
 """, unsafe_allow_html=True)
