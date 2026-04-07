@@ -1,3 +1,20 @@
+# =============================================================================
+# Copyright (c) 2026 Stockcast. All Rights Reserved.
+#
+# PROPRIETARY AND CONFIDENTIAL
+#
+# This software and its source code are the exclusive property of Stockcast.
+# Unauthorized copying, reproduction, modification, distribution, or use of
+# this software, in whole or in part, via any medium, is strictly prohibited
+# without the prior written permission of Stockcast.
+#
+# This software is provided "as is", without warranty of any kind, express or
+# implied. Stockcast shall not be liable for any damages arising from the use
+# of this software.
+#
+# For licensing inquiries, contact: legal@stockcast.com
+# =============================================================================
+
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -2908,6 +2925,10 @@ st.markdown(f"""
     <a href="/privacy" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
     <span style="color:#2d3449;">·</span>
     <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
+  </div>
+  <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#2d3449;letter-spacing:.08em;">
+    © 2026 Stockcast. All Rights Reserved. Proprietary &amp; Confidential.<br>
+    Unauthorized reproduction or distribution of this software is strictly prohibited.
   </div>
 </div>
 """, unsafe_allow_html=True)
