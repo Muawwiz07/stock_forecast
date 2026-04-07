@@ -28,7 +28,16 @@ from supabase import create_client
 import warnings
 import os
 import time
+import logging
 warnings.filterwarnings('ignore')
+
+# ── Logging setup ──────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("stockcast")
 
 # ── yfinance helpers ───────────────────────────────────────────────────────────
 
@@ -64,17 +73,36 @@ def av_get_daily(ticker):
     df.index.name = "Date"
     return df.sort_index()
 
+@st.cache_data(ttl=300)
+def get_ticker_full(ticker: str) -> dict:
+    """Single cached yfinance get_info() call — used by both av_get_quote and av_get_overview.
+    Halves the number of yfinance round-trips when both are called for the same ticker."""
+    for attempt in range(3):
+        try:
+            info = yf.Ticker(ticker).get_info() or {}
+            if info.get("symbol") or info.get("longName"):
+                return info
+            if attempt < 2:
+                time.sleep(2 + attempt * 2)
+        except Exception as e:
+            logger.warning("get_ticker_full attempt %d failed for '%s': %s", attempt + 1, ticker, e)
+            if attempt < 2:
+                time.sleep(2 + attempt * 2)
+    return {}
+
 @st.cache_data(ttl=60)
 def av_get_quote(ticker):
-    """Fetch live quote via yfinance. Returns dict with price, change%, prev_close."""
+    """Fetch live quote — derived from get_ticker_full to avoid duplicate yfinance calls."""
     try:
-        info = yf.Ticker(ticker).fast_info
-        price      = float(getattr(info, "last_price", 0) or 0)
-        prev_close = float(getattr(info, "previous_close", 0) or 0)
+        info       = get_ticker_full(ticker)
+        price      = float(info.get("currentPrice") or info.get("regularMarketPrice") or
+                           info.get("navPrice") or 0)
+        prev_close = float(info.get("previousClose") or info.get("regularMarketPreviousClose") or 0)
+        open_price = float(info.get("open") or info.get("regularMarketOpen") or 0)
         change_pct = ((price - prev_close) / prev_close * 100) if prev_close else 0.0
-        open_price = float(getattr(info, "open", 0) or 0)
         return {"price": price, "change_pct": change_pct, "prev_close": prev_close, "open": open_price}
-    except Exception:
+    except Exception as e:
+        logger.warning("av_get_quote failed for '%s': %s", ticker, e)
         return {"price": 0.0, "change_pct": 0.0, "prev_close": 0.0, "open": 0.0}
 
 @st.cache_data(ttl=180)
@@ -101,40 +129,35 @@ def get_live_ticker_tape():
                 arrow   = "▲" if chg_pct >= 0 else "▼"
                 css     = "tape-up" if chg_pct >= 0 else "tape-down"
                 items.append((sym, f"${price:,.2f}", f"{sign}{chg_pct:.2f}%", arrow, css))
-            except Exception:
+            except Exception as e:
+                logger.debug("Ticker tape: skipping %s — %s", sym, e)
                 continue
-        return items
-    except Exception:
+    except Exception as e:
+        logger.warning("get_live_ticker_tape batch download failed: %s", e)
         return []
 
 
 @st.cache_data(ttl=3600)
 def av_get_overview(ticker_sym):
-    """Fetch company overview via yfinance. Uses get_info() with retries for rate-limit resilience."""
-    for attempt in range(3):
-        try:
-            t    = yf.Ticker(ticker_sym)
-            info = t.get_info() or {}
-            if not info.get("symbol") and not info.get("longName"):
-                # Empty info dict — yfinance returned nothing useful
-                if attempt < 2:
-                    time.sleep(2 + attempt * 2)
-                    continue
-                return {}
-            return {
-                "Symbol":                              ticker_sym,
-                "Name":                                info.get("longName", ticker_sym),
-                "Sector":                              info.get("sector", "Unknown"),
-                "Industry":                            info.get("industry", "Unknown"),
-                "MarketCapitalization":                str(info.get("marketCap", 0) or 0),
-                "TotalDebt":                           str(info.get("totalDebt", 0) or 0),
-                "TotalAssets":                         str(info.get("totalAssets", 0) or 0),
-                "CashAndCashEquivalentsAtCarryingValue": str(info.get("totalCash", 0) or 0),
-            }
-        except Exception:
-            if attempt < 2:
-                time.sleep(2 + attempt * 2)
-    return {}
+    """Fetch company overview — delegates to get_ticker_full to avoid duplicate yfinance calls."""
+    try:
+        info = get_ticker_full(ticker_sym)
+        if not info:
+            logger.warning("av_get_overview: empty info returned for '%s'", ticker_sym)
+            return {}
+        return {
+            "Symbol":                              ticker_sym,
+            "Name":                                info.get("longName", ticker_sym),
+            "Sector":                              info.get("sector", "Unknown"),
+            "Industry":                            info.get("industry", "Unknown"),
+            "MarketCapitalization":                str(info.get("marketCap", 0) or 0),
+            "TotalDebt":                           str(info.get("totalDebt", 0) or 0),
+            "TotalAssets":                         str(info.get("totalAssets", 0) or 0),
+            "CashAndCashEquivalentsAtCarryingValue": str(info.get("totalCash", 0) or 0),
+        }
+    except Exception as e:
+        logger.error("av_get_overview failed for '%s': %s", ticker_sym, e, exc_info=True)
+        return {}
 
 @st.cache_data(ttl=300)
 def av_search(query):
@@ -157,7 +180,8 @@ def av_get_news(ticker):
             if title:
                 results.append({"title": title})
         return results
-    except Exception:
+    except Exception as e:
+        logger.warning("av_get_news failed for '%s': %s", ticker, e)
         return []
 
 @st.cache_data(ttl=120)
@@ -185,9 +209,11 @@ def get_live_market_indices():
                 sign = "+" if chg_pct >= 0 else ""
                 fmt_price = f"{price:,.2f}" if sym != "^VIX" else f"{price:.2f}"
                 result.append((name, fmt_price, f"{sign}{chg_pct:.2f}%", col))
-            except Exception:
+            except Exception as e:
+                logger.debug("Market indices: no data for %s (%s): %s", name, sym, e)
                 result.append((name, "—", "—", "#424754"))
-    except Exception:
+    except Exception as e:
+        logger.warning("get_live_market_indices batch download failed: %s", e)
         for name in symbols:
             result.append((name, "—", "—", "#424754"))
     return result
@@ -220,9 +246,11 @@ def get_live_sector_heatmap():
                 col  = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
                 sign = "+" if chg_pct >= 0 else ""
                 result.append((name, f"{sign}{chg_pct:.2f}%", col))
-            except Exception:
+            except Exception as e:
+                logger.debug("Sector heatmap: no data for %s (%s): %s", name, sym, e)
                 result.append((name, "—", "#424754"))
-    except Exception:
+    except Exception as e:
+        logger.warning("get_live_sector_heatmap batch download failed: %s", e)
         for name in sector_etfs:
             result.append((name, "—", "#424754"))
     return result
@@ -237,7 +265,8 @@ def get_fear_greed_index():
         score = float(data["fear_and_greed"]["score"])
         rating = data["fear_and_greed"]["rating"].title()
         return {"score": score, "rating": rating}
-    except Exception:
+    except Exception as e:
+        logger.warning("get_fear_greed_index failed: %s", e)
         return None
 
 import nltk
@@ -250,8 +279,8 @@ def _ensure_nltk_data():
         except LookupError:
             try:
                 nltk.download(_nltk_pkg, quiet=True)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to download NLTK package '%s': %s", _nltk_pkg, e)
 
 # ── Supabase config ────────────────────────────────────────────────────────────
 # Credentials are loaded from Streamlit secrets (secrets.toml) or environment variables.
@@ -314,7 +343,8 @@ def _sb_load_portfolio(user_id: str) -> list:
             r["name"]    = r.get("name")   or r.get("ticker", "")
             r["sector"]  = r.get("sector") or "Unknown"
         return rows
-    except Exception:
+    except Exception as e:
+        logger.error("_sb_load_portfolio failed for user '%s': %s", user_id, e, exc_info=True)
         return []
 
 def _sb_load_history(user_id: str) -> list:
@@ -322,7 +352,8 @@ def _sb_load_history(user_id: str) -> list:
         res = (supabase.table("portfolio_history").select("*")
                .eq("user_id", user_id).order("created_at", desc=True).limit(100).execute())
         return res.data or []
-    except Exception:
+    except Exception as e:
+        logger.error("_sb_load_history failed for user '%s': %s", user_id, e, exc_info=True)
         return []
 
 def _sb_upsert_holding(user_id: str, h: dict):
@@ -338,14 +369,18 @@ def _sb_upsert_holding(user_id: str, h: dict):
             "pl":            h.get("pl", 0.0),
             "pl_pct":        h.get("pl_pct", 0.0),
         }, on_conflict="user_id,ticker").execute()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("_sb_upsert_holding failed for user '%s', ticker '%s': %s",
+                     user_id, h.get("ticker"), e, exc_info=True)
+        st.warning(f"⚠ Could not save holding {h.get('ticker', '')} — please retry.")
 
 def _sb_delete_holding(user_id: str, ticker: str):
     try:
         supabase.table("portfolio_holdings").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("_sb_delete_holding failed for user '%s', ticker '%s': %s",
+                     user_id, ticker, e, exc_info=True)
+        st.warning(f"⚠ Could not remove {ticker} — please retry.")
 
 def _sb_insert_history(user_id: str, record: dict):
     try:
@@ -358,19 +393,32 @@ def _sb_insert_history(user_id: str, record: dict):
             "price":   record.get("price"),
             "amount":  record.get("amount"),
         }).execute()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("_sb_insert_history failed for user '%s', ticker '%s': %s",
+                     user_id, record.get("ticker"), e, exc_info=True)
 
 def _sb_update_prices(user_id: str, holdings: list):
-    for h in holdings:
-        try:
-            supabase.table("portfolio_holdings").update({
-                "current_price": h["current_price"],
-                "pl":            h["pl"],
-                "pl_pct":        h["pl_pct"],
-            }).eq("user_id", user_id).eq("ticker", h["ticker"]).execute()
-        except Exception:
-            pass
+    """Batch-update current_price / pl / pl_pct for all holdings in ONE round-trip."""
+    if not holdings:
+        return
+    rows = [
+        {
+            "user_id":       user_id,
+            "ticker":        h["ticker"],
+            "current_price": h["current_price"],
+            "pl":            h["pl"],
+            "pl_pct":        h["pl_pct"],
+        }
+        for h in holdings
+    ]
+    try:
+        supabase.table("portfolio_holdings") \
+            .upsert(rows, on_conflict="user_id,ticker").execute()
+        logger.info("_sb_update_prices: batch-updated %d holdings for user '%s'", len(rows), user_id)
+    except Exception as e:
+        logger.error("_sb_update_prices batch upsert failed for user '%s': %s",
+                     user_id, e, exc_info=True)
+        st.warning("⚠ Could not refresh portfolio prices — data may be stale.")
 
 # ── Multi-language support ─────────────────────────────────────────────────────
 LANGUAGES = {
@@ -432,6 +480,7 @@ LANGUAGES = {
         "no_recent_news": "No recent news found for this ticker.",
         "already_in_portfolio": "{sym} already in portfolio. Remove it first to update.",
         "added_success": "✓ Added {sym} — live price ${price:.2f}",
+        "footer": "⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI",
         "model_performance": "Model Performance", "actual_vs_pred": "Actual vs Predicted",
         "feature_importance": "Feature Importance", "signal_intelligence": "Signal Intelligence",
         "forecast_next": "Forecast — Next {n} Days", "backtest_engine": "Backtesting Engine",
@@ -1661,7 +1710,8 @@ def bootstrap_confidence_intervals(model, X_input, n_bootstrap=100, noise_std=No
             vol_idx = FEATURE_COLS.index('Volatility')
             recent_vol = float(np.nanmedian(X_input[-20:, vol_idx]))
             noise_std = max(0.005, min(0.05, recent_vol))  # clamp between 0.5% and 5%
-        except Exception:
+        except Exception as e:
+            logger.warning("bootstrap_confidence_intervals: could not auto-detect volatility, using default noise_std=0.02: %s", e)
             noise_std = 0.02
     # Use relative noise scaled to each feature's std, so a $500 stock
     # and a $5 stock both get proportionally equivalent perturbations.
@@ -1903,8 +1953,8 @@ with st.sidebar:
     if st.button(_L.get("logout", "⏏  Logout"), use_container_width=True, key="logout_btn"):
         try:
             supabase.auth.sign_out()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Supabase sign_out failed (session already expired?): %s", e)
         st.session_state.user = None
         st.session_state.run_pressed = False
         st.session_state.portfolio = []
@@ -2020,7 +2070,8 @@ with st.sidebar:
                     _col  = "#00e5b0" if _chg >= 0 else "#ff6b6b"
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;padding:.2rem 0;"><span style="color:#424754;">{wl_sym}</span> <span style="color:{_col};">{_sign} ${_px:.2f}</span></div>', unsafe_allow_html=True)
-                except Exception:
+                except Exception as e:
+                    logger.debug("Sidebar watchlist: could not load quote for '%s': %s", wl_sym, e)
                     st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;color:#424754;padding:.2rem 0;">{wl_sym}</div>', unsafe_allow_html=True)
             with wc2:
                 if st.button("✕", key=f"wl_del_{wl_sym}", use_container_width=True):
@@ -2094,7 +2145,8 @@ if not run_btn:
                       <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#dae2fd;margin:.3rem 0;">${_px:.2f}</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_col};">{_sign} {_chg:+.2f}%</div>
                     </div>""", unsafe_allow_html=True)
-                except Exception:
+                except Exception as e:
+                    logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
                     st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#424754;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
@@ -2135,7 +2187,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.5;">{body}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> SupportTeam :- ghani24by7@gmail.com </div>', unsafe_allow_html=True)
 
 else:
     # ═══════════════════════════════════════════════════════════════
@@ -2389,10 +2441,11 @@ else:
                                 _q = av_get_quote(add_sym)
                                 _live_px = _q["price"] if _q["price"] > 0 else add_cost
                                 try:
-                                    _info = yf.Ticker(add_sym).info
+                                    _info = get_ticker_full(add_sym)
                                     _name = _info.get("longName", add_sym)
                                     _sector = _info.get("sector", "Unknown") + " • " + _info.get("industry", "")
-                                except Exception:
+                                except Exception as e:
+                                    logger.warning("Could not fetch ticker info for '%s': %s", add_sym, e)
                                     _name = add_sym; _sector = "Unknown"
                             _pl = (_live_px - add_cost) * add_qty
                             _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
@@ -2433,8 +2486,8 @@ else:
                                     h["current_price"] = _q["price"]
                                     h["pl"]     = (_q["price"] - h["avg_cost"]) * h["qty"]
                                     h["pl_pct"] = ((_q["price"] - h["avg_cost"]) / h["avg_cost"] * 100)
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning("refresh_prices: failed to update '%s': %s", h.get("ticker"), e)
                         _sb_update_prices(st.session_state.user.id, st.session_state.portfolio)
                         st.rerun()
 
@@ -3118,7 +3171,7 @@ else:
 st.markdown(f"""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
-    
+    {_L["footer"]}
   </div>
   <div style="margin-top:.6rem;font-family:IBM Plex Mono,monospace;font-size:.55rem;letter-spacing:.08em;">
     <a href="/privacy" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
@@ -3126,8 +3179,8 @@ st.markdown(f"""
     <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
   </div>
   <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#2d3449;letter-spacing:.08em;">
-    © 2026 Stockcast. ⚠ Not financial advice — for educational use only. <br>
-    Stockcast · Built by Muawwiz Ghani · © 2026.
+    © 2026 Stockcast. All Rights Reserved. Proprietary &amp; Confidential.<br>
+    Unauthorized reproduction or distribution of this software is strictly prohibited.
   </div>
 </div>
 """, unsafe_allow_html=True)
