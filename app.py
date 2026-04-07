@@ -480,7 +480,6 @@ LANGUAGES = {
         "no_recent_news": "No recent news found for this ticker.",
         "already_in_portfolio": "{sym} already in portfolio. Remove it first to update.",
         "added_success": "✓ Added {sym} — live price ${price:.2f}",
-        "footer": "⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI",
         "model_performance": "Model Performance", "actual_vs_pred": "Actual vs Predicted",
         "feature_importance": "Feature Importance", "signal_intelligence": "Signal Intelligence",
         "forecast_next": "Forecast — Next {n} Days", "backtest_engine": "Backtesting Engine",
@@ -2187,7 +2186,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.5;">{body}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> SupportTeam :- ghani24by7@gmail.com </div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
 else:
     # ═══════════════════════════════════════════════════════════════
@@ -3171,7 +3170,7 @@ else:
 st.markdown(f"""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
-    {_L["footer"]}
+    
   </div>
   <div style="margin-top:.6rem;font-family:IBM Plex Mono,monospace;font-size:.55rem;letter-spacing:.08em;">
     <a href="/privacy" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
@@ -3179,8 +3178,8 @@ st.markdown(f"""
     <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
   </div>
   <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#2d3449;letter-spacing:.08em;">
-    © 2026 Stockcast. All Rights Reserved. Proprietary &amp; Confidential.<br>
-    Unauthorized reproduction or distribution of this software is strictly prohibited.
+    © 2026 Stockcast. ⚠ Not financial advice — for educational use only.<br>
+    Stockcast · Built by Muawwaz Ghani · © 2026
   </div>
 </div>
 """, unsafe_allow_html=True)
