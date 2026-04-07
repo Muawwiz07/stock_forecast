@@ -2471,18 +2471,341 @@ else:
                 sc1, sc2 = st.columns([1,1])
                 with sc1:
                     st.subheader(_L["sector_allocation"])
+        
+        # ──────────────────────────────────────────────────────────────────────
+        with port_tab:
+            st.markdown(f"""
+            <div style="margin-bottom:1.2rem;">
+              <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#dae2fd;">{_L["portfolio_title"]} <span style="color:#4d8eff;">{_L["portfolio_tracker"]}</span></div>
+              <div style="font-size:.78rem;color:#8c909f;margin-top:.2rem;">{_L["portfolio_desc"]}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── Add new holding ───────────────────────────────────────────────
+            MAX_HOLDINGS = 500
+            current_count = len(st.session_state.portfolio)
+
+            with st.expander(_L["add_holding"], expanded=True):
+                st.markdown(
+                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#424754;margin-bottom:.6rem;">'
+                    f'Holdings: {current_count} / {MAX_HOLDINGS}</div>',
+                    unsafe_allow_html=True
+                )
+                with st.form(key="pt_add_form", clear_on_submit=True):
+                    pa1, pa2, pa3 = st.columns(3)
+                    with pa1: add_sym  = st.text_input("Ticker", placeholder="e.g. AAPL", key="pt_sym_f")
+                    with pa2: add_qty  = st.number_input("Quantity", min_value=0.0001, value=1.0, step=0.5, key="pt_qty_f")
+                    with pa3: add_cost = st.number_input("Avg Buy Price ($)", min_value=0.01, value=100.0, step=0.5, key="pt_cost_f")
+                    submitted = st.form_submit_button(_L["add_to_portfolio"], use_container_width=True)
+
+                if submitted:
+                    add_sym = add_sym.strip().upper()
+                    if not add_sym:
+                        st.warning("Please enter a ticker symbol.")
+                    elif len(st.session_state.portfolio) >= MAX_HOLDINGS:
+                        st.warning(f"Maximum {MAX_HOLDINGS} holdings reached.")
+                    else:
+                        existing = [h for h in st.session_state.portfolio if h["ticker"] == add_sym]
+                        if existing:
+                            st.warning(_L["already_in_portfolio"].format(sym=add_sym))
+                        else:
+                            with st.spinner(f"Fetching live price for {add_sym}..."):
+                                _q = av_get_quote(add_sym)
+                                _live_px = _q["price"] if _q["price"] > 0 else add_cost
+                                try:
+                                    _info = yf.Ticker(add_sym).info
+                                    _name = _info.get("longName", add_sym)
+                                    _sector = _info.get("sector", "Unknown") + " • " + _info.get("industry", "")
+                                except Exception:
+                                    _name = add_sym; _sector = "Unknown"
+                            _pl = (_live_px - add_cost) * add_qty
+                            _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
+                            _new_holding = {
+                                "ticker": add_sym, "name": _name, "sector": _sector,
+                                "qty": add_qty, "avg_cost": add_cost,
+                                "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
+                            }
+                            st.session_state.portfolio.append(_new_holding)
+                            _sb_upsert_holding(st.session_state.user.id, _new_holding)
+                            _date = pd.Timestamp.today().strftime("%b %d")
+                            _hist_record = {
+                                "date": _date, "type": "BUY", "ticker": add_sym,
+                                "shares": add_qty, "price": add_cost,
+                                "amount": -(add_qty * add_cost)
+                            }
+                            st.session_state.portfolio_history.insert(0, _hist_record)
+                            _sb_insert_history(st.session_state.user.id, _hist_record)
+                            st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
+                            st.rerun()
+
+            port = st.session_state.portfolio
+
+            if not port:
+                st.info(_L["no_holdings"])
+            else:
+                # ── Action bar: Refresh + CSV Export ─────────────────────────
+                import io as _io
+                _ab1, _ab2, _ab3 = st.columns([2, 2, 4])
+
+                with _ab1:
+                    if st.button(_L["refresh_prices"], key="pt_refresh", use_container_width=True):
+                        av_get_quote.clear()
+                        for h in st.session_state.portfolio:
+                            try:
+                                _q = av_get_quote(h["ticker"])
+                                if _q["price"] > 0:
+                                    h["current_price"] = _q["price"]
+                                    h["pl"]     = (_q["price"] - h["avg_cost"]) * h["qty"]
+                                    h["pl_pct"] = ((_q["price"] - h["avg_cost"]) / h["avg_cost"] * 100)
+                            except Exception:
+                                pass
+                        _sb_update_prices(st.session_state.user.id, st.session_state.portfolio)
+                        st.rerun()
+
+                with _ab2:
+                    # Holdings CSV
+                    _csv_rows = []
+                    for h in port:
+                        _mv = h["qty"] * h["current_price"]
+                        _iv = h["qty"] * h["avg_cost"]
+                        _csv_rows.append({
+                            "Ticker":            h["ticker"],
+                            "Name":              h.get("name", h["ticker"]),
+                            "Sector":            (h.get("sector") or "Unknown").split(" •")[0].strip(),
+                            "Quantity":          h["qty"],
+                            "Avg Cost ($)":      h["avg_cost"],
+                            "Current Price ($)": h["current_price"],
+                            "Market Value ($)":  round(_mv, 2),
+                            "Invested ($)":      round(_iv, 2),
+                            "P&L ($)":           round(h["pl"], 2),
+                            "P&L (%)":           round(h["pl_pct"], 2),
+                        })
+                    _csv_buf = _io.StringIO()
+                    pd.DataFrame(_csv_rows).to_csv(_csv_buf, index=False)
+                    st.download_button(
+                        label="⬇ Export Holdings CSV",
+                        data=_csv_buf.getvalue(),
+                        file_name=f"stockcast_portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="pt_csv_holdings"
+                    )
+
+                with _ab3:
+                    # Transaction history CSV
+                    _hist_all = st.session_state.portfolio_history
+                    if _hist_all:
+                        _hist_buf = _io.StringIO()
+                        pd.DataFrame(_hist_all).to_csv(_hist_buf, index=False)
+                        st.download_button(
+                            label="⬇ Export Transaction History CSV",
+                            data=_hist_buf.getvalue(),
+                            file_name=f"stockcast_transactions_{pd.Timestamp.today().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                            use_container_width=True,
+                            key="pt_csv_hist"
+                        )
+
+                # ── KPI row (now 5 metrics including Win Rate) ────────────────
+                total_value    = sum(h["qty"] * h["current_price"] for h in port)
+                total_invested = sum(h["qty"] * h["avg_cost"]       for h in port)
+                total_pl       = total_value - total_invested
+                total_pl_pct   = (total_pl / total_invested * 100) if total_invested > 0 else 0
+                winners        = [h for h in port if h["pl"] >= 0]
+                win_rate       = len(winners) / len(port) * 100
+
+                p1, p2, p3, p4, p5 = st.columns(5)
+                p1.metric(_L["total_value"],  f"${total_value:,.2f}")
+                p2.metric(_L["total_pl"],     f"${total_pl:+,.2f}", delta=f"{total_pl_pct:+.1f}%")
+                p3.metric(_L["invested"],     f"${total_invested:,.2f}")
+                p4.metric(_L["holdings"],     str(len(port)))
+                p5.metric("Win Rate",         f"{win_rate:.0f}%",
+                          delta=f"{len(winners)}/{len(port)} profitable")
+
+                # ── Best / Worst performer ────────────────────────────────────
+                _sorted_pct = sorted(port, key=lambda h: h["pl_pct"], reverse=True)
+                _best  = _sorted_pct[0]
+                _worst = _sorted_pct[-1]
+                _bw1, _bw2 = st.columns(2)
+                with _bw1:
+                    st.markdown(f"""
+                    <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.2);
+                         border-left:4px solid #00e5b0;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
+                           text-transform:uppercase;color:#00e5b0;font-weight:700;margin-bottom:.3rem;">
+                        🏆 Best Performer
+                      </div>
+                      <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#dae2fd;">{_best["ticker"]}</div>
+                          <div style="font-size:.7rem;color:#8c909f;">{(_best.get("name") or _best["ticker"])[:30]}</div>
+                        </div>
+                        <div style="text-align:right;">
+                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#00e5b0;">+{_best["pl_pct"]:.2f}%</div>
+                          <div style="font-size:.7rem;color:#00e5b0;">+${_best["pl"]:,.2f}</div>
+                        </div>
+                      </div>
+                    </div>""", unsafe_allow_html=True)
+
+                with _bw2:
+                    _ws = "+" if _worst["pl"] >= 0 else ""
+                    st.markdown(f"""
+                    <div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.2);
+                         border-left:4px solid #ff6b6b;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
+                           text-transform:uppercase;color:#ff6b6b;font-weight:700;margin-bottom:.3rem;">
+                        📉 Worst Performer
+                      </div>
+                      <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#dae2fd;">{_worst["ticker"]}</div>
+                          <div style="font-size:.7rem;color:#8c909f;">{(_worst.get("name") or _worst["ticker"])[:30]}</div>
+                        </div>
+                        <div style="text-align:right;">
+                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#ff6b6b;">{_worst["pl_pct"]:+.2f}%</div>
+                          <div style="font-size:.7rem;color:#ff6b6b;">{_ws}${abs(_worst["pl"]):,.2f}</div>
+                        </div>
+                      </div>
+                    </div>""", unsafe_allow_html=True)
+
+                # ── P&L Over Time chart ───────────────────────────────────────
+                st.subheader("📈 Portfolio P&L Over Time")
+                with st.spinner("Building P&L history..."):
+                    try:
+                        _syms     = [h["ticker"] for h in port]
+                        _qtys     = {h["ticker"]: h["qty"]      for h in port}
+                        _costs    = {h["ticker"]: h["avg_cost"] for h in port}
+                        _raw_hist = yf.download(_syms, period="1y", interval="1d",
+                                                progress=False, auto_adjust=True)
+                        _close_h  = _raw_hist["Close"] if "Close" in _raw_hist.columns else _raw_hist
+                        if isinstance(_close_h.columns, pd.MultiIndex):
+                            _close_h = _close_h.droplevel(0, axis=1)
+                        if isinstance(_close_h, pd.Series):
+                            _close_h = _close_h.to_frame(name=_syms[0])
+
+                        _port_val  = pd.Series(0.0, index=_close_h.index)
+                        _port_cost = 0.0
+                        for sym in _syms:
+                            if sym in _close_h.columns:
+                                _port_val  += _close_h[sym].ffill() * _qtys[sym]
+                                _port_cost += _costs[sym] * _qtys[sym]
+
+                        _port_pl = _port_val - _port_cost
+
+                        # P&L chart
+                        fig_pl = go.Figure()
+                        fig_pl.add_trace(go.Scatter(
+                            x=_port_pl.index, y=_port_pl.values,
+                            name="Unrealised P&L ($)",
+                            line=dict(color="#4d8eff", width=1.8),
+                            fill="tozeroy",
+                            fillcolor="rgba(77,142,255,0.08)",
+                        ))
+                        fig_pl.add_hline(y=0, line_dash="dash",
+                                         line_color="#424754", line_width=1)
+                        fig_pl.update_layout(
+                            **PLOTLY_LAYOUT,
+                            title=dict(text="Portfolio Unrealised P&L — Last 12 Months",
+                                       font=dict(color=C_GREEN, size=12)),
+                            height=300,
+                            yaxis=dict(**PLOTLY_LAYOUT["yaxis"],
+                                       title="P&L ($)", tickprefix="$"),
+                        )
+                        st.plotly_chart(fig_pl, use_container_width=True)
+
+                        # Value vs cost basis chart
+                        fig_val = go.Figure()
+                        fig_val.add_trace(go.Scatter(
+                            x=_port_val.index, y=_port_val.values,
+                            name="Market Value",
+                            line=dict(color=C_EMERALD, width=1.8),
+                            fill="tozeroy", fillcolor="rgba(0,229,176,0.05)",
+                        ))
+                        fig_val.add_hline(
+                            y=_port_cost, line_dash="dot",
+                            line_color=C_YELLOW, line_width=1.2,
+                            annotation_text=f"Cost Basis ${_port_cost:,.0f}",
+                            annotation_font_color=C_YELLOW,
+                            annotation_font_size=9,
+                        )
+                        fig_val.update_layout(
+                            **PLOTLY_LAYOUT,
+                            title=dict(text="Portfolio Value vs Cost Basis — Last 12 Months",
+                                       font=dict(color=C_GREEN, size=12)),
+                            height=280,
+                            yaxis=dict(**PLOTLY_LAYOUT["yaxis"],
+                                       title="Value ($)", tickprefix="$"),
+                        )
+                        st.plotly_chart(fig_val, use_container_width=True)
+
+                    except Exception as _e:
+                        st.info(f"P&L chart unavailable: {_e}")
+
+                # ── Holdings table ────────────────────────────────────────────
+                st.subheader(_L["holdings_label"])
+                for h in port:
+                    _pl_col  = "#00e5b0" if h["pl"] >= 0 else "#ff6b6b"
+                    _pl_sign = "+" if h["pl"] >= 0 else ""
+                    hc1, hc2, hc3, hc4, hc5, hc6 = st.columns([1.2, 2, 1, 1, 1.5, 0.7])
+                    hc1.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;font-weight:700;color:#4d8eff;padding:.4rem 0;">{h["ticker"]}</div>', unsafe_allow_html=True)
+                    hc2.markdown(f'<div style="font-size:.75rem;color:#8c909f;padding:.4rem 0;">{(h["name"] or h["ticker"])[:28]}</div>', unsafe_allow_html=True)
+                    hc3.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#dae2fd;padding:.4rem 0;">{h["qty"]:.2f} sh</div>', unsafe_allow_html=True)
+                    hc4.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#dae2fd;padding:.4rem 0;">${h["current_price"]:.2f}</div>', unsafe_allow_html=True)
+                    hc5.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{_pl_col};font-weight:700;padding:.4rem 0;">{_pl_sign}${abs(h["pl"]):,.2f} ({_pl_sign}{h["pl_pct"]:.1f}%)</div>', unsafe_allow_html=True)
+                    if hc6.button("✕", key=f"pt_del_{h['ticker']}", use_container_width=True):
+                        _del_ticker = h["ticker"]
+                        st.session_state.portfolio = [x for x in st.session_state.portfolio if x["ticker"] != _del_ticker]
+                        _sb_delete_holding(st.session_state.user.id, _del_ticker)
+                        st.rerun()
+
+                # ── Market value bar chart ────────────────────────────────────
+                st.subheader("Holdings Breakdown")
+                _bar_cols = [C_EMERALD if h["pl"] >= 0 else C_RED for h in port]
+                fig_bar = go.Figure(go.Bar(
+                    x=[h["ticker"] for h in port],
+                    y=[h["qty"] * h["current_price"] for h in port],
+                    marker_color=_bar_cols,
+                    text=[f'${h["qty"]*h["current_price"]:,.0f}' for h in port],
+                    textposition="outside",
+                    textfont=dict(color="#8c909f", size=9, family="IBM Plex Mono"),
+                ))
+                fig_bar.update_layout(
+                    **PLOTLY_LAYOUT,
+                    title=dict(text="Market Value per Holding",
+                               font=dict(color=C_GREEN, size=12)),
+                    height=260,
+                    yaxis=dict(**PLOTLY_LAYOUT["yaxis"],
+                               title="Market Value ($)", tickprefix="$"),
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+                # ── Sector donut + Recent Activity ────────────────────────────
+                sc1, sc2 = st.columns([1, 1])
+                with sc1:
+                    st.subheader(_L["sector_allocation"])
                     sector_map = {}
                     for h in port:
                         sec = (h["sector"] or "Unknown").split(" •")[0].strip()
                         sector_map[sec] = sector_map.get(sec, 0) + h["qty"] * h["current_price"]
-                    sec_colors = {"Technology":"#4d8eff","Consumer Cyclical":"#ffdd2d","Financials":"#adc6ff","Energy":"#ff9f40","Healthcare":"#00e5b0","Unknown":"#8c909f"}
+                    sec_colors = {
+                        "Technology": "#4d8eff", "Consumer Cyclical": "#ffdd2d",
+                        "Financials": "#adc6ff", "Energy": "#ff9f40",
+                        "Healthcare": "#00e5b0", "Unknown": "#8c909f",
+                    }
                     fig_sector = go.Figure(go.Pie(
-                        labels=list(sector_map.keys()), values=list(sector_map.values()),
-                        hole=0.6, marker_colors=[sec_colors.get(s,"#8c909f") for s in sector_map.keys()],
+                        labels=list(sector_map.keys()),
+                        values=list(sector_map.values()),
+                        hole=0.6,
+                        marker_colors=[sec_colors.get(s, "#8c909f") for s in sector_map.keys()],
                         textfont_size=10, textfont_color="#dae2fd",
                     ))
-                    fig_sector.update_layout(**PLOTLY_LAYOUT, height=260, showlegend=True,
-                        annotations=[dict(text=f"{len(sector_map)}<br><span style='font-size:10px'>Sectors</span>", x=0.5, y=0.5, font_size=20, showarrow=False, font_color="#dae2fd")])
+                    fig_sector.update_layout(
+                        **PLOTLY_LAYOUT, height=260, showlegend=True,
+                        annotations=[dict(
+                            text=f"{len(sector_map)}<br><span style='font-size:10px'>Sectors</span>",
+                            x=0.5, y=0.5, font_size=20, showarrow=False,
+                            font_color="#dae2fd")])
                     st.plotly_chart(fig_sector, use_container_width=True)
 
                 with sc2:
@@ -2491,9 +2814,9 @@ else:
                     if not hist:
                         st.markdown(f'<div style="font-size:.78rem;color:#424754;padding:.5rem 0;">{_L["no_transactions"]}</div>', unsafe_allow_html=True)
                     for a in hist[:10]:
-                        type_color = {"BUY":"#4d8eff","SELL":"#00e5b0","DIVIDEND":"#ffdd2d"}.get(a["type"],"#8c909f")
-                        amt_str = f'+${a["amount"]:,.2f}' if a["amount"] >= 0 else f'-${abs(a["amount"]):,.2f}'
-                        desc = f'{a["shares"]} shares @ ${a["price"]:.2f}' if a.get("shares") and a.get("price") else a["ticker"]
+                        type_color = {"BUY": "#4d8eff", "SELL": "#00e5b0", "DIVIDEND": "#ffdd2d"}.get(a["type"], "#8c909f")
+                        amt_str    = f'+${a["amount"]:,.2f}' if a["amount"] >= 0 else f'-${abs(a["amount"]):,.2f}'
+                        desc       = f'{a["shares"]} shares @ ${a["price"]:.2f}' if a.get("shares") and a.get("price") else a["ticker"]
                         st.markdown(f"""
                         <div style="display:flex;gap:.8rem;padding:.7rem 0;border-bottom:1px solid #2d3449;align-items:center;">
                           <div style="width:2rem;height:2rem;border-radius:50%;background:rgba({','.join(str(int(type_color.lstrip('#')[i:i+2],16)) for i in (0,2,4))},0.15);
