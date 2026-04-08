@@ -60,7 +60,7 @@ def render_auth_gate(supabase):
 
     # ── Auth card shell ────────────────────────────────────────────────────────
     st.markdown('<div class="auth-card">', unsafe_allow_html=True)
-    st.markdown('<div class="auth-logo">📈 Stockcast</div>', unsafe_allow_html=True)
+    st.markdown('<div class="auth-logo">📈 Stock<span style="color:#4d8eff;">cast</span> </div>', unsafe_allow_html=True)
     st.markdown('<div class="auth-sub">AI-Powered Stock Intelligence</div>', unsafe_allow_html=True)
 
     mode = st.session_state._auth_mode
