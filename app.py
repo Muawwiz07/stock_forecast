@@ -187,7 +187,7 @@ def av_get_news(ticker):
 @st.cache_data(ttl=120)
 def get_live_market_indices():
     """Fetch live S&P500, NASDAQ, DOW, VIX via yfinance — single batched download."""
-    symbols = {"S&P 500 — Market Pulse":"^GSPC","NASDAQ 100 — Tech Momentum":"^NDX","DOW JONES":"^DJI","VIX — Volatility Signal":"^VIX"}
+    symbols = {"S&P 500":"^GSPC","NASDAQ 100":"^NDX","DOW JONES":"^DJI","VIX":"^VIX"}
     syms = list(symbols.values())
     result = []
     try:
@@ -446,10 +446,8 @@ LANGUAGES = {
         "bootstrap_samples": "Bootstrap Samples (CI)", "multi_stock": "Multi-Stock Comparison",
         "compare_tickers": "Compare Tickers", "alert_signal_change": "Alert when signal changes",
         # Dashboard
-        "dashboard_title": "Market Intelligence ", "dashboard_subtitle": "Overview",
-        "dashboard_desc":"""Institutional-Grade Stock Intelligence — Simplified
-        Analyze, forecast, and act on market data with AI-driven precision.
-        Built for serious traders, not casual guessing.""",
+        "dashboard_title": "Dashboard", "dashboard_subtitle": "Overview",
+        "dashboard_desc": "AI-powered stock intelligence · Enter a ticker in the sidebar and click Run Forecast to begin.",
         "watchlist_live": "⭐ Watchlist — Live Prices",
         "how_it_works": "How It Works",
         "hw1_title": "Enter a Ticker", "hw1_body": "Search by company name or symbol. Add it to your watchlist to track it persistently.",
@@ -955,7 +953,7 @@ html, body, [class*="css"], [data-testid="stApp"],
     background-color: var(--bg) !important;
     color: var(--t1) !important;
 }
-.block-container { padding: 0 2rem 2rem 2rem !important; max-width: 100% !important; }
+.block-container { padding: 2rem 2.5rem 3rem 2.5rem !important; max-width: 1280px !important; margin: 0 auto !important; }
 
 /* scanline + ambient glow */
 [data-testid="stApp"]::before {
@@ -990,9 +988,9 @@ html, body, [class*="css"], [data-testid="stApp"],
 
 /* ── BUTTONS ── */
 .stButton > button {
-    background: transparent !important;
-    color: var(--primary) !important;
-    border: 1px solid rgba(173,198,255,0.35) !important;
+    background: linear-gradient(90deg, #4d8eff, #6ea8ff) !important;
+    color: #fff !important;
+    border: none !important;
     border-radius: var(--radius) !important;
     font-family: var(--sans) !important;
     font-weight: 700 !important;
@@ -1003,26 +1001,26 @@ html, body, [class*="css"], [data-testid="stApp"],
     transition: all 0.18s !important;
 }
 .stButton > button:hover {
-    background: var(--accent) !important;
-    color: #fff !important;
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 20px rgba(77,142,255,0.3) !important;
+    opacity: 0.9 !important;
+    box-shadow: 0 0 20px rgba(77,142,255,0.4) !important;
     transform: translateY(-1px) !important;
 }
 .stButton > button:active { transform: translateY(0) !important; }
 
 /* ── METRICS ── */
 [data-testid="metric-container"] {
-    background: linear-gradient(145deg, var(--bg2), var(--bg3)) !important;
-    border: 1px solid var(--border) !important;
+    background: linear-gradient(145deg, #111522, #0c0f17) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
     border-top: 2px solid var(--accent) !important;
-    border-radius: var(--radius) !important;
-    padding: 1rem 1.2rem !important;
+    border-radius: 14px !important;
+    padding: 1.2rem !important;
+    transition: all 0.25s ease !important;
 }
 [data-testid="metric-container"]:hover {
-    box-shadow: 0 0 20px rgba(77,142,255,0.15) !important;
-    transform: translateY(-1px) !important;
-    transition: all 0.2s !important;
+    border: 1px solid rgba(77,142,255,0.4) !important;
+    border-top: 2px solid var(--accent) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.4) !important;
 }
 [data-testid="stMetricLabel"] {
     font-family: var(--sans) !important;
@@ -1108,27 +1106,27 @@ label, [data-testid="stSelectbox"] label,
     background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 100%);
     border-bottom: 1px solid var(--border);
     border-left: 4px solid var(--accent);
-    padding: 1rem 2rem;
-    margin: 3rem -2rem 1.5rem -2rem;
+    padding: 1.2rem 2rem;
+    margin: 3rem -2.5rem 1.5rem -2.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 32px rgba(0,0,0,0.4);
 }
 .wi-logo {
     font-family: var(--sans);
-    font-size: 1.3rem;
+    font-size: 1.6rem;
     font-weight: 800;
     color: var(--t1);
-    letter-spacing: -0.01em;
+    letter-spacing: 0.03em;
 }
 .wi-logo span { color: var(--accent); }
 .wi-sub {
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     color: var(--t3);
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    margin-top: 2px;
+    margin-top: 0.2rem;
     font-weight: 600;
 }
 .live-dot {
@@ -1160,7 +1158,7 @@ label, [data-testid="stSelectbox"] label,
     border-bottom: 1px solid var(--border);
     border-top: 1px solid var(--border);
     padding: 0.28rem 0;
-    margin: 0 -2rem 1.5rem -2rem;
+    margin: 0 -2.5rem 1.5rem -2.5rem;
 }
 .ticker-tape {
     display: inline-flex;
@@ -1180,15 +1178,16 @@ label, [data-testid="stSelectbox"] label,
 
 /* ── GLASS CARDS ── */
 .wi-card {
-    background: linear-gradient(145deg, var(--bg2), var(--bg3));
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: linear-gradient(145deg, #111522, #0c0f17);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
     padding: 1.4rem 1.6rem;
-    transition: transform 0.18s, box-shadow 0.18s;
+    transition: all 0.25s ease;
 }
 .wi-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    border: 1px solid rgba(77,142,255,0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
 }
 .wi-card-accent { border-top: 2px solid var(--accent); }
 .wi-card-emerald { border-top: 2px solid var(--emerald); }
@@ -1470,6 +1469,29 @@ label, [data-testid="stSelectbox"] label,
     transition: background 0.15s;
 }
 .wl-badge:hover { background: var(--bg4); }
+
+/* ── PREMIUM METRIC CARD (feature grid) ── */
+.metric-card {
+    background: linear-gradient(145deg, #111522, #0c0f17);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 1.2rem;
+    transition: all 0.25s ease;
+}
+.metric-card:hover {
+    border: 1px solid rgba(77,142,255,0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+}
+.section-title {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #7c8191;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+    font-family: var(--sans);
+}
 
 </style>
 """, unsafe_allow_html=True)
@@ -1877,7 +1899,7 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
 st.markdown("""
 <div class="wi-header">
   <div>
-    <div class="wi-logo">Stock<span>cast</span>
+    <div class="wi-logo">Stock<span>cast</span></div>
     <div class="wi-sub">XGBoost · 6-Factor Signals · Backtesting · Shariah Screening · News NLP</div>
   </div>
   <div style="display:flex;align-items:center;gap:1.5rem;">
@@ -2093,41 +2115,62 @@ with st.sidebar:
 if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
     st.markdown(f"""
-    <div style="font-family:Manrope,sans-serif;font-size:2.2rem;font-weight:800;letter-spacing:-.02em;color:#dae2fd;margin-bottom:.3rem;">
-      {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
+    <div class="wi-header" style="margin-top:0;margin-bottom:1.5rem;">
+      <div>
+        <div class="wi-logo">Stock<span>cast</span></div>
+        <div class="wi-sub">Institutional Market Intelligence · AI Forecasting · Real-Time Signals</div>
+      </div>
+      <div style="font-size:0.7rem;color:#7c8191;font-family:var(--sans);">
+        AI-Driven Signal Engine
+      </div>
     </div>
     <div style="font-size:.82rem;color:#8c909f;margin-bottom:1.5rem;font-weight:500;">
       {_L["dashboard_desc"]}
     </div>
     """, unsafe_allow_html=True)
 
-    # Market summary cards
-    st.markdown("""
+    # Market summary cards — live data
+    live_indices = get_live_market_indices()
+    _idx_map = {name: (price, pct, col) for name, price, pct, col in live_indices}
+    _sp  = _idx_map.get("S&P 500",    ("—","—","#424754"))
+    _nd  = _idx_map.get("NASDAQ 100", ("—","—","#adc6ff"))
+    _vix = _idx_map.get("VIX",        ("—","—","#00e5b0"))
+    _fg_data = get_fear_greed_index()
+    if _fg_data:
+        _fg_score = _fg_data["score"]
+        _fg_val = f"{_fg_score:.0f}"
+        _fg_sub = _fg_data["rating"]
+        _fg_color = "#00e5b0" if _fg_score >= 55 else ("#ff6b6b" if _fg_score <= 45 else "#ffdd2d")
+    else:
+        _fg_val = "—"; _fg_sub = _L.get("greed_territory","Greed territory"); _fg_color = "#ffdd2d"
+
+    st.markdown(f"""
     <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
       <div class="stat-card">
-        <div class="stat-label">S&amp;P 500</div>
-        <div class="stat-value" style="font-size:1.3rem;">5,137.08</div>
-        <div class="stat-sub" style="color:#00e5b0;font-weight:700;">▲ +1.24%</div>
+        <div class="stat-label">S&amp;P 500 · Market Pulse</div>
+        <div class="stat-value" style="font-size:1.3rem;">{_sp[0]}</div>
+        <div class="stat-sub" style="color:{_sp[2]};font-weight:700;">{_sp[1]}</div>
       </div>
       <div class="stat-card" style="border-top-color:#adc6ff;">
-        <div class="stat-label">NASDAQ 100</div>
-        <div class="stat-value" style="font-size:1.3rem;color:#adc6ff;">18,302</div>
-        <div class="stat-sub" style="color:#00e5b0;font-weight:700;">▲ +2.10%</div>
+        <div class="stat-label">NASDAQ 100 · Tech Momentum</div>
+        <div class="stat-value" style="font-size:1.3rem;color:#adc6ff;">{_nd[0]}</div>
+        <div class="stat-sub" style="color:{_nd[2]};font-weight:700;">{_nd[1]}</div>
       </div>
-      <div class="stat-card" style="border-top-color:#ffdd2d;">
-        <div class="stat-label">Fear &amp; Greed</div>
-        <div class="stat-value" style="font-size:1.3rem;color:#ffdd2d;">74</div>
-        <div class="stat-sub">Greed territory</div>
+      <div class="stat-card" style="border-top-color:{_fg_color};">
+        <div class="stat-label">Fear &amp; Greed · Sentiment</div>
+        <div class="stat-value" style="font-size:1.3rem;color:{_fg_color};">{_fg_val}</div>
+        <div class="stat-sub" style="color:{_fg_color};">{_fg_sub}</div>
       </div>
       <div class="stat-card" style="border-top-color:#00e5b0;">
-        <div class="stat-label">VIX</div>
-        <div class="stat-value" style="font-size:1.3rem;color:#00e5b0;">14.2</div>
-        <div class="stat-sub">Low volatility</div>
+        <div class="stat-label">VIX · Volatility</div>
+        <div class="stat-value" style="font-size:1.3rem;color:#00e5b0;">{_vix[0]}</div>
+        <div class="stat-sub" style="color:{_vix[2]};">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Watchlist live prices if any
+    st.markdown("<hr>", unsafe_allow_html=True)
     if st.session_state.watchlist:
         st.subheader(_L["watchlist_live"])
         wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
@@ -2151,6 +2194,7 @@ if not run_btn:
                     st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#424754;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
+    st.markdown("<hr>", unsafe_allow_html=True)
     st.subheader(_L["how_it_works"])
     hw1, hw2, hw3 = st.columns(3)
     for col, num, color, title_key, body_key in [
@@ -2167,6 +2211,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8c909f;line-height:1.6;">{_L[body_key]}</div>
             </div>""", unsafe_allow_html=True)
 
+    st.markdown("<hr>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
     feat_grid = [
         ("#4d8eff","📈 XGBoost Forecast","ML trained on 20 technical features. N-day forecast with 95% bootstrap CI."),
@@ -2182,10 +2227,9 @@ if not run_btn:
     for i, (color, title, body) in enumerate(feat_grid):
         with cols4[i % 4]:
             st.markdown(f"""
-            <div style="background:#131b2e;border:1px solid #2d3449;border-top:2px solid {color};
-                 padding:1.1rem 1.2rem;margin-bottom:.6rem;border-radius:.5rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:{color};font-weight:700;margin-bottom:.4rem;">{title}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.5;">{body}</div>
+            <div class="metric-card" style="border-top:2px solid {color};margin-bottom:.6rem;">
+              <div class="section-title" style="color:{color};">{title}</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#7c8191;line-height:1.5;">{body}</div>
             </div>""", unsafe_allow_html=True)
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
@@ -2403,10 +2447,12 @@ else:
 
         # ──────────────────────────────────────────────────────────────────────
         with port_tab:
-            st.markdown(f"""
-            <div style="margin-bottom:1.2rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#dae2fd;">{_L["portfolio_title"]} <span style="color:#4d8eff;">{_L["portfolio_tracker"]}</span></div>
-              <div style="font-size:.78rem;color:#8c909f;margin-top:.2rem;">{_L["portfolio_desc"]}</div>
+            st.markdown("""
+            <div class="wi-header" style="margin-top:0;margin-bottom:1.2rem;">
+              <div>
+                <div class="wi-logo">Portfolio <span>Command Center</span></div>
+                <div class="wi-sub">Monitor performance, track exposure, and manage positions in real time</div>
+              </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -3180,8 +3226,9 @@ st.markdown(f"""
     <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
   </div>
   <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#2d3449;letter-spacing:.08em;">
-    © 2026 Stockcast. ⚠ Not financial advice — for informational purposes only.<br>
-    Stockcast ·  Institutional-grade analytics  Built by Muawwaz Ghani · © 2026
+    © 2026 Stockcast. ⚠ Not financial advice — for educational use only.<br>
+    Stockcast · Built by Muawwaz Ghani · © 2026
   </div>
 </div>
 """, unsafe_allow_html=True)
+
