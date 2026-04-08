@@ -55,7 +55,7 @@ def _yf_download_with_retry(ticker, retries=3, **kwargs):
         if attempt < retries - 1:
             time.sleep(2 + attempt * 2)
     if last_exc is not None:
-        logger.warning("yfinance download failed for '%s' after %d attempts: %s: %s", ticker, retries, type(last_exc).__name__, last_exc)
+        logging.warning(f"yfinance download failed for '{ticker}' after {retries} attempts: {type(last_exc).__name__}: {last_exc}")
     return pd.DataFrame()
 
 @st.cache_data(ttl=300)
@@ -187,7 +187,7 @@ def av_get_news(ticker):
 @st.cache_data(ttl=120)
 def get_live_market_indices():
     """Fetch live S&P500, NASDAQ, DOW, VIX via yfinance — single batched download."""
-    symbols = {"S&P 500":"^GSPC","NASDAQ 100":"^NDX","DOW JONES":"^DJI","VIX":"^VIX"}
+    symbols = {"S&P 500 — Market Pulse":"^GSPC","NASDAQ 100 — Tech Momentum":"^NDX","DOW JONES":"^DJI","VIX — Volatility Signal":"^VIX"}
     syms = list(symbols.values())
     result = []
     try:
@@ -446,8 +446,10 @@ LANGUAGES = {
         "bootstrap_samples": "Bootstrap Samples (CI)", "multi_stock": "Multi-Stock Comparison",
         "compare_tickers": "Compare Tickers", "alert_signal_change": "Alert when signal changes",
         # Dashboard
-        "dashboard_title": "Dashboard", "dashboard_subtitle": "Overview",
-        "dashboard_desc": "AI-powered stock intelligence · Enter a ticker in the sidebar and click Run Forecast to begin.",
+        "dashboard_title": "Market Intelligence ", "dashboard_subtitle": "Overview",
+        "dashboard_desc":"""Institutional-Grade Stock Intelligence — Simplified
+        Analyze, forecast, and act on market data with AI-driven precision.
+        Built for serious traders, not casual guessing.""",
         "watchlist_live": "⭐ Watchlist — Live Prices",
         "how_it_works": "How It Works",
         "hw1_title": "Enter a Ticker", "hw1_body": "Search by company name or symbol. Add it to your watchlist to track it persistently.",
@@ -480,7 +482,6 @@ LANGUAGES = {
         "no_recent_news": "No recent news found for this ticker.",
         "already_in_portfolio": "{sym} already in portfolio. Remove it first to update.",
         "added_success": "✓ Added {sym} — live price ${price:.2f}",
-        "footer": "⚠ STOCKCAST · FOR EDUCATIONAL PURPOSES ONLY · NOT FINANCIAL ADVICE · Developed by MUAWWIZ GHANI",
         "model_performance": "Model Performance", "actual_vs_pred": "Actual vs Predicted",
         "feature_importance": "Feature Importance", "signal_intelligence": "Signal Intelligence",
         "forecast_next": "Forecast — Next {n} Days", "backtest_engine": "Backtesting Engine",
@@ -2187,7 +2188,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.5;">{body}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> SupportTeam :- ghani24by7@gmail.com </div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
 else:
     # ═══════════════════════════════════════════════════════════════
@@ -3171,7 +3172,7 @@ else:
 st.markdown(f"""
 <div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
   <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
-    {_L["footer"]}
+    
   </div>
   <div style="margin-top:.6rem;font-family:IBM Plex Mono,monospace;font-size:.55rem;letter-spacing:.08em;">
     <a href="/privacy" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
@@ -3179,9 +3180,8 @@ st.markdown(f"""
     <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
   </div>
   <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#2d3449;letter-spacing:.08em;">
-    © 2026 Stockcast. All Rights Reserved. Proprietary &amp; Confidential.<br>
-    Unauthorized reproduction or distribution of this software is strictly prohibited.
+    © 2026 Stockcast. ⚠ Not financial advice — for informational purposes only.<br>
+    Stockcast ·  Institutional-grade analytics  Built by Muawwaz Ghani · © 2026
   </div>
 </div>
 """, unsafe_allow_html=True)
-
