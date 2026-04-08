@@ -447,9 +447,9 @@ LANGUAGES = {
         "compare_tickers": "Compare Tickers", "alert_signal_change": "Alert when signal changes",
         # Dashboard
         "dashboard_title": "Market Intelligence ", "dashboard_subtitle": "Overview",
-        "dashboard_desc": "Institutional-Grade Stock Intelligence — Simplified
-        Analyze", forecast, and act on market data with AI-driven precision.
-        Built for serious traders, not casual guessing.",
+        "dashboard_desc":"""Institutional-Grade Stock Intelligence — Simplified
+        "Analyze, forecast", and act on market data with AI-driven precision.
+        Built for serious traders, not casual guessing.""",
         "watchlist_live": "⭐ Watchlist — Live Prices",
         "how_it_works": "How It Works",
         "hw1_title": "Enter a Ticker", "hw1_body": "Search by company name or symbol. Add it to your watchlist to track it persistently.",
