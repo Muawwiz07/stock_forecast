@@ -1228,7 +1228,7 @@ label, [data-testid="stSelectbox"] label,
 }
 .stat-value {
     font-family: var(--mono);
-    font-size: 1.4rem;
+    font-size: 1.55rem;
     font-weight: 700;
     color: var(--primary);
     line-height: 1.1;
@@ -2115,17 +2115,11 @@ with st.sidebar:
 if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
     st.markdown(f"""
-    <div class="wi-header" style="margin-top:0;margin-bottom:1.5rem;">
-      <div>
-        <div class="wi-logo">Stock<span>cast</span></div>
-        <div class="wi-sub">Institutional Market Intelligence · AI Forecasting · Real-Time Signals</div>
+    <div style="margin-bottom:1.2rem;padding-top:.5rem;">
+      <div style="font-family:var(--sans);font-size:1.6rem;font-weight:800;color:#dae2fd;letter-spacing:-.02em;line-height:1.2;">
+        {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
       </div>
-      <div style="font-size:0.7rem;color:#7c8191;font-family:var(--sans);">
-        AI-Driven Signal Engine
-      </div>
-    </div>
-    <div style="font-size:.82rem;color:#8c909f;margin-bottom:1.5rem;font-weight:500;">
-      {_L["dashboard_desc"]}
+      <div style="font-size:.8rem;color:#8c909f;margin-top:.4rem;font-weight:500;">{_L["dashboard_desc"]}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2136,42 +2130,55 @@ if not run_btn:
     _nd  = _idx_map.get("NASDAQ 100", ("—","—","#adc6ff"))
     _vix = _idx_map.get("VIX",        ("—","—","#00e5b0"))
     _fg_data = get_fear_greed_index()
-    if _fg_data:
+    if _fg_data and _fg_data.get("score"):
         _fg_score = _fg_data["score"]
         _fg_val = f"{_fg_score:.0f}"
         _fg_sub = _fg_data["rating"]
         _fg_color = "#00e5b0" if _fg_score >= 55 else ("#ff6b6b" if _fg_score <= 45 else "#ffdd2d")
     else:
-        _fg_val = "—"; _fg_sub = _L.get("greed_territory","Greed territory"); _fg_color = "#ffdd2d"
+        # Fallback: estimate from VIX — VIX < 15 → greed, > 25 → fear
+        try:
+            _vix_val = float(_vix[0].replace(",","")) if _vix[0] != "—" else None
+        except Exception:
+            _vix_val = None
+        if _vix_val is not None:
+            if _vix_val < 15:
+                _fg_val, _fg_sub, _fg_color = "Greed", "Low VIX → Risk-on", "#00e5b0"
+            elif _vix_val > 25:
+                _fg_val, _fg_sub, _fg_color = "Fear", "High VIX → Risk-off", "#ff6b6b"
+            else:
+                _fg_val, _fg_sub, _fg_color = "Neutral", "Moderate VIX", "#ffdd2d"
+        else:
+            _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#424754"
 
     st.markdown(f"""
-    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:.5rem;">
       <div class="stat-card">
         <div class="stat-label">S&amp;P 500 · Market Pulse</div>
-        <div class="stat-value" style="font-size:1.3rem;">{_sp[0]}</div>
-        <div class="stat-sub" style="color:{_sp[2]};font-weight:700;">{_sp[1]}</div>
+        <div class="stat-value">{_sp[0]}</div>
+        <div class="stat-sub" style="color:{_sp[2]};font-weight:700;font-size:.7rem;">{_sp[1]}</div>
       </div>
       <div class="stat-card" style="border-top-color:#adc6ff;">
         <div class="stat-label">NASDAQ 100 · Tech Momentum</div>
-        <div class="stat-value" style="font-size:1.3rem;color:#adc6ff;">{_nd[0]}</div>
-        <div class="stat-sub" style="color:{_nd[2]};font-weight:700;">{_nd[1]}</div>
+        <div class="stat-value" style="color:#adc6ff;">{_nd[0]}</div>
+        <div class="stat-sub" style="color:{_nd[2]};font-weight:700;font-size:.7rem;">{_nd[1]}</div>
       </div>
       <div class="stat-card" style="border-top-color:{_fg_color};">
         <div class="stat-label">Fear &amp; Greed · Sentiment</div>
-        <div class="stat-value" style="font-size:1.3rem;color:{_fg_color};">{_fg_val}</div>
-        <div class="stat-sub" style="color:{_fg_color};">{_fg_sub}</div>
+        <div class="stat-value" style="color:{_fg_color};">{_fg_val}</div>
+        <div class="stat-sub" style="color:{_fg_color};font-size:.7rem;">{_fg_sub}</div>
       </div>
       <div class="stat-card" style="border-top-color:#00e5b0;">
-        <div class="stat-label">VIX · Volatility</div>
-        <div class="stat-value" style="font-size:1.3rem;color:#00e5b0;">{_vix[0]}</div>
-        <div class="stat-sub" style="color:{_vix[2]};">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
+        <div class="stat-label">VIX · Volatility Index</div>
+        <div class="stat-value" style="color:#00e5b0;">{_vix[0]}</div>
+        <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Watchlist live prices if any
-    st.markdown("<hr>", unsafe_allow_html=True)
     if st.session_state.watchlist:
+        st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
         st.subheader(_L["watchlist_live"])
         wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
         for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
@@ -2194,7 +2201,7 @@ if not run_btn:
                     st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#424754;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
-    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["how_it_works"])
     hw1, hw2, hw3 = st.columns(3)
     for col, num, color, title_key, body_key in [
@@ -2211,7 +2218,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8c909f;line-height:1.6;">{_L[body_key]}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
     feat_grid = [
         ("#4d8eff","📈 XGBoost Forecast","ML trained on 20 technical features. N-day forecast with 95% bootstrap CI."),
