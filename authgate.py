@@ -1,1 +1,343 @@
 
+# -*- coding: utf-8 -*-
+"""
+authgate.py -- Stockcast Auth Gate
+Renders the full login.html UI via components.html().
+Uses st.query_params to pass form data from JS -> Python for Supabase auth.
+Called from app.py as: from authgate import render_auth_gate; render_auth_gate(supabase)
+"""
+
+import streamlit as st
+import streamlit.components.v1 as components
+
+# ---------------------------------------------------------------------------
+# Full login UI. JS submits by redirecting to ?_auth_action=login&... so
+# Streamlit re-runs and reads the params server-side.
+# ---------------------------------------------------------------------------
+_AUTH_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stockcast Auth Gate</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green:      #00ff88;
+    --green-dim:  #00c96a;
+    --green-glow: rgba(0,255,136,0.35);
+    --bg-deep:    #040d12;
+    --bg-card:    rgba(8,28,22,0.72);
+    --border:     rgba(0,255,136,0.22);
+    --text:       #c8ffe8;
+    --text-dim:   #3a6650;
+    --mono:       'Share Tech Mono', monospace;
+    --sans:       'Rajdhani', sans-serif;
+  }
+  html, body { height: 100%; font-family: var(--sans); background: var(--bg-deep); overflow: hidden; }
+
+  .bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 60%, rgba(0,180,90,0.13) 0%, transparent 70%),
+      radial-gradient(ellipse 90% 70% at 50% 100%, rgba(0,100,50,0.18) 0%, transparent 65%),
+      linear-gradient(180deg, #04100c 0%, #020b08 100%);
+  }
+  .bg::after {
+    content: ''; position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    background-size: 180px 180px; opacity: 0.55; pointer-events: none;
+  }
+  .orb { position: fixed; border-radius: 50%; filter: blur(60px); animation: drift 8s ease-in-out infinite alternate; pointer-events: none; z-index: 0; }
+  .orb-1 { width:320px; height:320px; background:rgba(0,255,120,0.09); top:-60px; left:-60px; animation-delay:0s; }
+  .orb-2 { width:280px; height:280px; background:rgba(0,200,100,0.07); bottom:-40px; right:-40px; animation-delay:-4s; }
+  .orb-3 { width:180px; height:180px; background:rgba(0,255,80,0.06); top:40%; left:50%; transform:translate(-50%,-50%); animation-delay:-2s; }
+  @keyframes drift { from { transform:translate(0,0) scale(1); } to { transform:translate(20px,15px) scale(1.07); } }
+
+  .wrapper { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:1.5rem; }
+
+  .card {
+    width:100%; max-width:390px;
+    background:var(--bg-card); border:1px solid var(--border); border-radius:16px;
+    padding:2.4rem 2rem 2rem;
+    backdrop-filter:blur(22px) saturate(1.4); -webkit-backdrop-filter:blur(22px) saturate(1.4);
+    box-shadow:0 0 0 1px rgba(0,255,136,0.06),0 30px 90px rgba(0,0,0,0.75),inset 0 1px 0 rgba(0,255,136,0.14),inset 0 -1px 0 rgba(0,255,136,0.04);
+    animation:fadeUp .6s cubic-bezier(.22,1,.36,1) both; position:relative;
+  }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(28px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);} }
+
+  .logo-row { text-align:center; margin-bottom:.2rem; }
+  .logo-text { font-family:var(--mono); font-size:1.3rem; color:var(--green); letter-spacing:.08em; text-shadow:0 0 20px var(--green-glow),0 0 60px rgba(0,255,136,0.15); }
+  .logo-text .blue { color:#4d9fff; }
+  .tagline { font-family:var(--mono); font-size:.55rem; color:var(--text-dim); text-align:center; letter-spacing:.25em; text-transform:uppercase; margin-bottom:2rem; }
+
+  .field { margin-bottom:1.1rem; }
+  .label { font-family:var(--mono); font-size:.62rem; color:#3d7a58; letter-spacing:.20em; text-transform:uppercase; margin-bottom:.4rem; display:block; }
+  .input { width:100%; background:rgba(0,0,0,0.45); border:1px solid rgba(0,255,136,0.18); border-radius:8px; color:var(--text); font-family:var(--mono); font-size:.88rem; padding:.7rem 1rem; outline:none; transition:border-color .2s,box-shadow .2s; caret-color:var(--green); }
+  .input::placeholder { color:#1e4030; }
+  .input:focus { border-color:rgba(0,255,136,0.50); box-shadow:0 0 0 3px rgba(0,255,136,0.08),0 0 18px rgba(0,255,136,0.10); }
+
+  .btn-glow { position:relative; width:100%; padding:.78rem 1rem; font-family:var(--mono); font-size:.78rem; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:#020d08; background:linear-gradient(90deg,#00d472,#00ff88,#00d472); background-size:200% 100%; border:none; border-radius:8px; cursor:pointer; overflow:hidden; margin-top:.3rem; transition:letter-spacing .2s,box-shadow .2s; }
+  .btn-glow::before { content:''; position:absolute; inset:-2px; background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.3) 40%,transparent 80%); background-size:200% 100%; animation:shimmer 2.4s linear infinite; border-radius:inherit; }
+  @keyframes shimmer { from{background-position:200% 0;}to{background-position:-200% 0;} }
+  .btn-glow:hover { letter-spacing:.22em; box-shadow:0 6px 32px rgba(0,255,136,0.45),0 0 0 1px rgba(0,255,136,0.3); }
+  .btn-glow:active { transform:scale(.985); }
+
+  .divider { display:flex; align-items:center; gap:.8rem; margin:1.5rem 0 1.1rem; }
+  .divider-line { flex:1; height:1px; background:rgba(0,255,136,0.10); }
+  .divider-text { font-family:var(--mono); font-size:.55rem; color:#2a5040; letter-spacing:.20em; text-transform:uppercase; white-space:nowrap; }
+
+  .alt-row { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; margin-bottom:1.4rem; }
+  .btn-alt { display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.62rem .8rem; background:rgba(0,0,0,0.35); border:1px solid rgba(0,255,136,0.14); border-radius:8px; color:#7ec8a0; font-family:var(--sans); font-size:.88rem; font-weight:600; letter-spacing:.04em; cursor:pointer; transition:all .18s; }
+  .btn-alt:hover { border-color:rgba(0,255,136,0.35); background:rgba(0,255,136,0.05); color:var(--green); }
+  .btn-alt svg { flex-shrink:0; }
+
+  .offer-banner { background:rgba(0,0,0,0.40); border:1px solid rgba(0,255,136,0.18); border-radius:10px; padding:1.1rem 1.2rem .9rem; text-align:center; position:relative; overflow:hidden; }
+  .offer-banner::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--green),transparent); }
+  .offer-title { font-family:var(--mono); font-size:.9rem; font-weight:700; color:var(--green); letter-spacing:.16em; text-shadow:0 0 16px var(--green-glow); text-transform:uppercase; margin-bottom:.25rem; }
+  .offer-sub { font-family:var(--sans); font-size:.78rem; color:#3d6a54; letter-spacing:.05em; margin-bottom:.85rem; }
+  .btn-alpha { width:100%; padding:.65rem 1rem; font-family:var(--mono); font-size:.70rem; letter-spacing:.18em; text-transform:uppercase; color:#020d08; background:linear-gradient(90deg,#00c46a,#00ff88,#00c46a); background-size:200%; border:none; border-radius:7px; cursor:pointer; position:relative; overflow:hidden; transition:box-shadow .2s; }
+  .btn-alpha::before { content:''; position:absolute; inset:-2px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent); background-size:200%; animation:shimmer 2s linear infinite; }
+  .btn-alpha:hover { box-shadow:0 4px 24px rgba(0,255,136,0.40); }
+
+  .footer { font-family:var(--mono); font-size:.50rem; color:#1c3328; text-align:center; letter-spacing:.18em; text-transform:uppercase; margin-top:1.4rem; }
+
+  .tabs { display:flex; gap:.4rem; margin-bottom:1.4rem; }
+  .tab { flex:1; padding:.45rem .4rem; font-family:var(--mono); font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; background:transparent; border:1px solid rgba(0,255,136,0.10); border-radius:6px; color:#2a5040; cursor:pointer; transition:all .18s; }
+  .tab:hover { color:var(--green); border-color:rgba(0,255,136,0.28); }
+  .tab.active { color:#020d08; background:var(--green); border-color:var(--green); box-shadow:0 0 16px rgba(0,255,136,0.40); }
+
+  .section { display:none; }
+  .section.active { display:block; }
+
+  .card::after { content:''; position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,rgba(0,255,136,0.12),transparent); animation:scan 4s linear infinite; pointer-events:none; border-radius:16px; }
+  @keyframes scan { 0%{top:0%;opacity:1;}95%{top:100%;opacity:.4;}100%{top:100%;opacity:0;} }
+
+  .msg { font-family:var(--mono); font-size:.65rem; letter-spacing:.10em; border-radius:6px; padding:.55rem .8rem; margin-top:.8rem; display:none; }
+  .msg.error   { background:rgba(255,60,60,0.12); border:1px solid rgba(255,60,60,0.30); color:#ff8080; }
+  .msg.success { background:rgba(0,255,136,0.08); border:1px solid rgba(0,255,136,0.25); color:var(--green); }
+  .msg.visible { display:block; }
+</style>
+</head>
+<body>
+
+<div class="bg"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="wrapper">
+  <div class="card">
+
+    <div class="logo-row">
+      <span class="logo-text">&#128200; Stock<span class="blue">cast</span></span>
+    </div>
+    <div class="tagline">AI-Powered Stock Intelligence</div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('login',this)">Login</button>
+      <button class="tab" onclick="switchTab('signup',this)">Sign Up</button>
+      <button class="tab" onclick="switchTab('reset',this)">Reset PW</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="section active" id="sect-login">
+      <div class="field">
+        <label class="label">Identity Token (Email)</label>
+        <input class="input" id="login-email" type="email" placeholder="name@firm.com" autocomplete="email"/>
+      </div>
+      <div class="field">
+        <label class="label">Access Key</label>
+        <input class="input" id="login-pw" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password"/>
+      </div>
+      <button class="btn-glow" onclick="handleLogin()">&#9654;&nbsp; Authorize Access</button>
+      <div class="msg" id="login-msg"></div>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <span class="divider-text">Alternative Protocols</span>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="alt-row">
+        <button class="btn-alt">
+          <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Google
+        </button>
+        <button class="btn-alt">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          SSO
+        </button>
+      </div>
+
+      <div class="offer-banner">
+        <div class="offer-title">Limited Offer</div>
+        <div class="offer-sub">Glassmorphic alpha &mdash; exclusive early access</div>
+        <button class="btn-alpha">Request Alpha Access</button>
+      </div>
+    </div>
+
+    <!-- SIGN UP -->
+    <div class="section" id="sect-signup">
+      <div class="field">
+        <label class="label">Identity Token (Email)</label>
+        <input class="input" id="signup-email" type="email" placeholder="name@firm.com"/>
+      </div>
+      <div class="field">
+        <label class="label">Access Key (min 6 chars)</label>
+        <input class="input" id="signup-pw" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"/>
+      </div>
+      <div class="field">
+        <label class="label">Confirm Access Key</label>
+        <input class="input" id="signup-pw2" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"/>
+      </div>
+      <button class="btn-glow" onclick="handleSignup()">&#128640;&nbsp; Create Account</button>
+      <div class="msg" id="signup-msg"></div>
+    </div>
+
+    <!-- RESET -->
+    <div class="section" id="sect-reset">
+      <div class="field">
+        <label class="label">Identity Token (Email)</label>
+        <input class="input" id="reset-email" type="email" placeholder="name@firm.com"/>
+      </div>
+      <button class="btn-glow" onclick="handleReset()">&#128231;&nbsp; Send Reset Link</button>
+      <div class="msg" id="reset-msg"></div>
+    </div>
+
+    <div class="footer">Stockcast &copy; 2025 &nbsp;&middot;&nbsp; Secured via Supabase Auth</div>
+  </div>
+</div>
+
+<script>
+  function switchTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('sect-' + name).classList.add('active');
+  }
+
+  function showMsg(id, type, text) {
+    const el = document.getElementById(id);
+    el.className = 'msg ' + type + ' visible';
+    el.textContent = text;
+  }
+
+  // Submit by setting query params on the TOP-LEVEL Streamlit window.
+  // This triggers a Streamlit re-run with the params readable server-side.
+  function submitToStreamlit(params) {
+    const url = new URL(window.top.location.href);
+    // Clear old auth params first
+    ['_auth_action','_auth_email','_auth_pw'].forEach(k => url.searchParams.delete(k));
+    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+    window.top.location.href = url.toString();
+  }
+
+  function handleLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const pw    = document.getElementById('login-pw').value;
+    if (!email || !pw) { showMsg('login-msg','error','Please enter your email and password.'); return; }
+    submitToStreamlit({ _auth_action:'login', _auth_email: email, _auth_pw: pw });
+  }
+
+  function handleSignup() {
+    const email = document.getElementById('signup-email').value.trim();
+    const pw    = document.getElementById('signup-pw').value;
+    const pw2   = document.getElementById('signup-pw2').value;
+    if (!email || !pw)  { showMsg('signup-msg','error','Please fill in all fields.'); return; }
+    if (pw.length < 6)  { showMsg('signup-msg','error','Password must be at least 6 characters.'); return; }
+    if (pw !== pw2)     { showMsg('signup-msg','error','Passwords do not match.'); return; }
+    submitToStreamlit({ _auth_action:'signup', _auth_email: email, _auth_pw: pw });
+  }
+
+  function handleReset() {
+    const email = document.getElementById('reset-email').value.trim();
+    if (!email) { showMsg('reset-msg','error','Please enter your email address.'); return; }
+    submitToStreamlit({ _auth_action:'reset', _auth_email: email });
+  }
+</script>
+</body>
+</html>"""
+
+
+def render_auth_gate(supabase):
+    """
+    Renders the full login.html UI and handles Supabase auth.
+    JS submits by navigating the top window to ?_auth_action=...
+    Python reads query params on re-run, calls Supabase, then clears params.
+    """
+
+    # -- Initialise session state ----------------------------------------------
+    if "user" not in st.session_state:
+        st.session_state.user = None
+
+    # -- Already authenticated — let app.py continue --------------------------
+    if st.session_state.user is not None:
+        return
+
+    # -- Read query params (populated by JS on form submit) -------------------
+    params = st.query_params
+    action = params.get("_auth_action", "")
+    email  = params.get("_auth_email", "").strip()
+    pw     = params.get("_auth_pw", "")
+
+    if action == "login" and email and pw:
+        # Clear params immediately so a refresh doesn't re-submit
+        st.query_params.clear()
+        try:
+            res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
+            if res.user:
+                st.session_state.user = res.user
+                st.rerun()
+            else:
+                st.error("Login failed -- check your credentials.")
+        except Exception as e:
+            err = str(e)
+            if "Invalid login credentials" in err or "invalid_credentials" in err:
+                st.error("Invalid email or password.")
+            elif "Email not confirmed" in err:
+                st.warning("Please confirm your email before logging in.")
+            else:
+                st.error(f"Login error: {err}")
+
+    elif action == "signup" and email and pw:
+        st.query_params.clear()
+        try:
+            res = supabase.auth.sign_up({"email": email, "password": pw})
+            if res.user:
+                st.success("Account created! Check your email to confirm, then log in.")
+            else:
+                st.error("Sign-up failed -- please try again.")
+        except Exception as e:
+            err = str(e)
+            if "already registered" in err or "already been registered" in err:
+                st.error("This email is already registered. Try logging in instead.")
+            else:
+                st.error(f"Sign-up error: {err}")
+
+    elif action == "reset" and email:
+        st.query_params.clear()
+        try:
+            supabase.auth.reset_password_email(email)
+            st.success("Reset link sent -- check your inbox.")
+        except Exception as e:
+            st.error(f"Could not send reset email: {e}")
+
+    # -- Hide Streamlit chrome ------------------------------------------------
+    st.markdown("""
+        <style>
+        [data-testid="stSidebar"]      { display:none !important; }
+        [data-testid="stToolbar"]      { display:none !important; }
+        [data-testid="stDecoration"]   { display:none !important; }
+        [data-testid="stStatusWidget"] { display:none !important; }
+        footer, #MainMenu              { display:none !important; }
+        .block-container               { padding:0 !important; max-width:100% !important; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # -- Render the HTML UI ---------------------------------------------------
+    components.html(_AUTH_HTML, height=750, scrolling=False)
+
+    # -- Block app.py from running --------------------------------------------
+    st.stop()
