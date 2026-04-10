@@ -1,8 +1,4 @@
-"""
-authgate.py — Stockcast Auth Gate
-Handles login, signup, and password reset UI using Supabase Auth.
-Called from app.py as: from authgate import render_auth_gate; render_auth_gate(supabase)
-"""
+
 
 <!DOCTYPE html>
 <html lang="en">
