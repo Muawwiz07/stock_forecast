@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 authgate.py -- Stockcast Auth Gate
-Renders the full login.html UI inside Streamlit via components.html().
-Communicates form submissions back to Streamlit via postMessage.
+Renders the full login.html UI via components.html().
+Uses st.query_params to pass form data from JS -> Python for Supabase auth.
 Called from app.py as: from authgate import render_auth_gate; render_auth_gate(supabase)
 """
 
@@ -10,7 +10,8 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ---------------------------------------------------------------------------
-# Full login UI HTML -- special characters are safe inside a Python string.
+# Full login UI. JS submits by redirecting to ?_auth_action=login&... so
+# Streamlit re-runs and reads the params server-side.
 # ---------------------------------------------------------------------------
 _AUTH_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -51,71 +52,71 @@ _AUTH_HTML = """<!DOCTYPE html>
   .orb-1 { width:320px; height:320px; background:rgba(0,255,120,0.09); top:-60px; left:-60px; animation-delay:0s; }
   .orb-2 { width:280px; height:280px; background:rgba(0,200,100,0.07); bottom:-40px; right:-40px; animation-delay:-4s; }
   .orb-3 { width:180px; height:180px; background:rgba(0,255,80,0.06); top:40%; left:50%; transform:translate(-50%,-50%); animation-delay:-2s; }
-  @keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(20px,15px) scale(1.07); } }
+  @keyframes drift { from { transform:translate(0,0) scale(1); } to { transform:translate(20px,15px) scale(1.07); } }
 
-  .wrapper { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1.5rem; }
+  .wrapper { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:1.5rem; }
 
   .card {
-    width: 100%; max-width: 390px;
-    background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
-    padding: 2.4rem 2rem 2rem;
-    backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
-    box-shadow: 0 0 0 1px rgba(0,255,136,0.06), 0 30px 90px rgba(0,0,0,0.75), inset 0 1px 0 rgba(0,255,136,0.14), inset 0 -1px 0 rgba(0,255,136,0.04);
-    animation: fadeUp .6s cubic-bezier(.22,1,.36,1) both; position: relative;
+    width:100%; max-width:390px;
+    background:var(--bg-card); border:1px solid var(--border); border-radius:16px;
+    padding:2.4rem 2rem 2rem;
+    backdrop-filter:blur(22px) saturate(1.4); -webkit-backdrop-filter:blur(22px) saturate(1.4);
+    box-shadow:0 0 0 1px rgba(0,255,136,0.06),0 30px 90px rgba(0,0,0,0.75),inset 0 1px 0 rgba(0,255,136,0.14),inset 0 -1px 0 rgba(0,255,136,0.04);
+    animation:fadeUp .6s cubic-bezier(.22,1,.36,1) both; position:relative;
   }
-  @keyframes fadeUp { from { opacity:0; transform:translateY(28px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(28px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);} }
 
-  .logo-row { text-align: center; margin-bottom: .2rem; }
-  .logo-text { font-family: var(--mono); font-size: 1.3rem; color: var(--green); letter-spacing: .08em; text-shadow: 0 0 20px var(--green-glow), 0 0 60px rgba(0,255,136,0.15); }
-  .logo-text .blue { color: #4d9fff; }
-  .tagline { font-family: var(--mono); font-size: .55rem; color: var(--text-dim); text-align: center; letter-spacing: .25em; text-transform: uppercase; margin-bottom: 2rem; }
+  .logo-row { text-align:center; margin-bottom:.2rem; }
+  .logo-text { font-family:var(--mono); font-size:1.3rem; color:var(--green); letter-spacing:.08em; text-shadow:0 0 20px var(--green-glow),0 0 60px rgba(0,255,136,0.15); }
+  .logo-text .blue { color:#4d9fff; }
+  .tagline { font-family:var(--mono); font-size:.55rem; color:var(--text-dim); text-align:center; letter-spacing:.25em; text-transform:uppercase; margin-bottom:2rem; }
 
-  .field { margin-bottom: 1.1rem; }
-  .label { font-family: var(--mono); font-size: .62rem; color: #3d7a58; letter-spacing: .20em; text-transform: uppercase; margin-bottom: .4rem; display: block; }
-  .input { width: 100%; background: rgba(0,0,0,0.45); border: 1px solid rgba(0,255,136,0.18); border-radius: 8px; color: var(--text); font-family: var(--mono); font-size: .88rem; padding: .7rem 1rem; outline: none; transition: border-color .2s, box-shadow .2s; caret-color: var(--green); }
-  .input::placeholder { color: #1e4030; }
-  .input:focus { border-color: rgba(0,255,136,0.50); box-shadow: 0 0 0 3px rgba(0,255,136,0.08), 0 0 18px rgba(0,255,136,0.10); }
+  .field { margin-bottom:1.1rem; }
+  .label { font-family:var(--mono); font-size:.62rem; color:#3d7a58; letter-spacing:.20em; text-transform:uppercase; margin-bottom:.4rem; display:block; }
+  .input { width:100%; background:rgba(0,0,0,0.45); border:1px solid rgba(0,255,136,0.18); border-radius:8px; color:var(--text); font-family:var(--mono); font-size:.88rem; padding:.7rem 1rem; outline:none; transition:border-color .2s,box-shadow .2s; caret-color:var(--green); }
+  .input::placeholder { color:#1e4030; }
+  .input:focus { border-color:rgba(0,255,136,0.50); box-shadow:0 0 0 3px rgba(0,255,136,0.08),0 0 18px rgba(0,255,136,0.10); }
 
-  .btn-glow { position: relative; width: 100%; padding: .78rem 1rem; font-family: var(--mono); font-size: .78rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #020d08; background: linear-gradient(90deg, #00d472, #00ff88, #00d472); background-size: 200% 100%; border: none; border-radius: 8px; cursor: pointer; overflow: hidden; margin-top: .3rem; transition: letter-spacing .2s, box-shadow .2s; }
-  .btn-glow::before { content: ''; position: absolute; inset: -2px; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 40%, transparent 80%); background-size: 200% 100%; animation: shimmer 2.4s linear infinite; border-radius: inherit; }
-  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-  .btn-glow:hover { letter-spacing: .22em; box-shadow: 0 6px 32px rgba(0,255,136,0.45), 0 0 0 1px rgba(0,255,136,0.3); }
-  .btn-glow:active { transform: scale(.985); }
+  .btn-glow { position:relative; width:100%; padding:.78rem 1rem; font-family:var(--mono); font-size:.78rem; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:#020d08; background:linear-gradient(90deg,#00d472,#00ff88,#00d472); background-size:200% 100%; border:none; border-radius:8px; cursor:pointer; overflow:hidden; margin-top:.3rem; transition:letter-spacing .2s,box-shadow .2s; }
+  .btn-glow::before { content:''; position:absolute; inset:-2px; background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.3) 40%,transparent 80%); background-size:200% 100%; animation:shimmer 2.4s linear infinite; border-radius:inherit; }
+  @keyframes shimmer { from{background-position:200% 0;}to{background-position:-200% 0;} }
+  .btn-glow:hover { letter-spacing:.22em; box-shadow:0 6px 32px rgba(0,255,136,0.45),0 0 0 1px rgba(0,255,136,0.3); }
+  .btn-glow:active { transform:scale(.985); }
 
-  .divider { display: flex; align-items: center; gap: .8rem; margin: 1.5rem 0 1.1rem; }
-  .divider-line { flex: 1; height: 1px; background: rgba(0,255,136,0.10); }
-  .divider-text { font-family: var(--mono); font-size: .55rem; color: #2a5040; letter-spacing: .20em; text-transform: uppercase; white-space: nowrap; }
+  .divider { display:flex; align-items:center; gap:.8rem; margin:1.5rem 0 1.1rem; }
+  .divider-line { flex:1; height:1px; background:rgba(0,255,136,0.10); }
+  .divider-text { font-family:var(--mono); font-size:.55rem; color:#2a5040; letter-spacing:.20em; text-transform:uppercase; white-space:nowrap; }
 
-  .alt-row { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-bottom: 1.4rem; }
-  .btn-alt { display: flex; align-items: center; justify-content: center; gap: .5rem; padding: .62rem .8rem; background: rgba(0,0,0,0.35); border: 1px solid rgba(0,255,136,0.14); border-radius: 8px; color: #7ec8a0; font-family: var(--sans); font-size: .88rem; font-weight: 600; letter-spacing: .04em; cursor: pointer; transition: all .18s; }
-  .btn-alt:hover { border-color: rgba(0,255,136,0.35); background: rgba(0,255,136,0.05); color: var(--green); }
-  .btn-alt svg { flex-shrink: 0; }
+  .alt-row { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; margin-bottom:1.4rem; }
+  .btn-alt { display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.62rem .8rem; background:rgba(0,0,0,0.35); border:1px solid rgba(0,255,136,0.14); border-radius:8px; color:#7ec8a0; font-family:var(--sans); font-size:.88rem; font-weight:600; letter-spacing:.04em; cursor:pointer; transition:all .18s; }
+  .btn-alt:hover { border-color:rgba(0,255,136,0.35); background:rgba(0,255,136,0.05); color:var(--green); }
+  .btn-alt svg { flex-shrink:0; }
 
-  .offer-banner { background: rgba(0,0,0,0.40); border: 1px solid rgba(0,255,136,0.18); border-radius: 10px; padding: 1.1rem 1.2rem .9rem; text-align: center; position: relative; overflow: hidden; }
-  .offer-banner::before { content: ''; position: absolute; top:0; left:0; right:0; height: 1px; background: linear-gradient(90deg, transparent, var(--green), transparent); }
-  .offer-title { font-family: var(--mono); font-size: .9rem; font-weight: 700; color: var(--green); letter-spacing: .16em; text-shadow: 0 0 16px var(--green-glow); text-transform: uppercase; margin-bottom: .25rem; }
-  .offer-sub { font-family: var(--sans); font-size: .78rem; color: #3d6a54; letter-spacing: .05em; margin-bottom: .85rem; }
-  .btn-alpha { width: 100%; padding: .65rem 1rem; font-family: var(--mono); font-size: .70rem; letter-spacing: .18em; text-transform: uppercase; color: #020d08; background: linear-gradient(90deg, #00c46a, #00ff88, #00c46a); background-size: 200%; border: none; border-radius: 7px; cursor: pointer; position: relative; overflow: hidden; transition: box-shadow .2s; }
-  .btn-alpha::before { content: ''; position: absolute; inset: -2px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent); background-size: 200%; animation: shimmer 2s linear infinite; }
-  .btn-alpha:hover { box-shadow: 0 4px 24px rgba(0,255,136,0.40); }
+  .offer-banner { background:rgba(0,0,0,0.40); border:1px solid rgba(0,255,136,0.18); border-radius:10px; padding:1.1rem 1.2rem .9rem; text-align:center; position:relative; overflow:hidden; }
+  .offer-banner::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--green),transparent); }
+  .offer-title { font-family:var(--mono); font-size:.9rem; font-weight:700; color:var(--green); letter-spacing:.16em; text-shadow:0 0 16px var(--green-glow); text-transform:uppercase; margin-bottom:.25rem; }
+  .offer-sub { font-family:var(--sans); font-size:.78rem; color:#3d6a54; letter-spacing:.05em; margin-bottom:.85rem; }
+  .btn-alpha { width:100%; padding:.65rem 1rem; font-family:var(--mono); font-size:.70rem; letter-spacing:.18em; text-transform:uppercase; color:#020d08; background:linear-gradient(90deg,#00c46a,#00ff88,#00c46a); background-size:200%; border:none; border-radius:7px; cursor:pointer; position:relative; overflow:hidden; transition:box-shadow .2s; }
+  .btn-alpha::before { content:''; position:absolute; inset:-2px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent); background-size:200%; animation:shimmer 2s linear infinite; }
+  .btn-alpha:hover { box-shadow:0 4px 24px rgba(0,255,136,0.40); }
 
-  .footer { font-family: var(--mono); font-size: .50rem; color: #1c3328; text-align: center; letter-spacing: .18em; text-transform: uppercase; margin-top: 1.4rem; }
+  .footer { font-family:var(--mono); font-size:.50rem; color:#1c3328; text-align:center; letter-spacing:.18em; text-transform:uppercase; margin-top:1.4rem; }
 
-  .tabs { display: flex; gap: .4rem; margin-bottom: 1.4rem; }
-  .tab { flex: 1; padding: .45rem .4rem; font-family: var(--mono); font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; background: transparent; border: 1px solid rgba(0,255,136,0.10); border-radius: 6px; color: #2a5040; cursor: pointer; transition: all .18s; }
-  .tab:hover { color: var(--green); border-color: rgba(0,255,136,0.28); }
-  .tab.active { color: #020d08; background: var(--green); border-color: var(--green); box-shadow: 0 0 16px rgba(0,255,136,0.40); }
+  .tabs { display:flex; gap:.4rem; margin-bottom:1.4rem; }
+  .tab { flex:1; padding:.45rem .4rem; font-family:var(--mono); font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; background:transparent; border:1px solid rgba(0,255,136,0.10); border-radius:6px; color:#2a5040; cursor:pointer; transition:all .18s; }
+  .tab:hover { color:var(--green); border-color:rgba(0,255,136,0.28); }
+  .tab.active { color:#020d08; background:var(--green); border-color:var(--green); box-shadow:0 0 16px rgba(0,255,136,0.40); }
 
-  .section { display: none; }
-  .section.active { display: block; }
+  .section { display:none; }
+  .section.active { display:block; }
 
-  .card::after { content: ''; position: absolute; left:0; right:0; height: 2px; background: linear-gradient(90deg, transparent, rgba(0,255,136,0.12), transparent); animation: scan 4s linear infinite; pointer-events: none; border-radius: 16px; }
-  @keyframes scan { 0% { top: 0%; opacity:1; } 95% { top:100%; opacity:.4; } 100% { top:100%; opacity:0; } }
+  .card::after { content:''; position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,rgba(0,255,136,0.12),transparent); animation:scan 4s linear infinite; pointer-events:none; border-radius:16px; }
+  @keyframes scan { 0%{top:0%;opacity:1;}95%{top:100%;opacity:.4;}100%{top:100%;opacity:0;} }
 
-  .msg { font-family: var(--mono); font-size: .65rem; letter-spacing: .10em; border-radius: 6px; padding: .55rem .8rem; margin-top: .8rem; display: none; }
-  .msg.error   { background: rgba(255,60,60,0.12); border: 1px solid rgba(255,60,60,0.30); color: #ff8080; }
-  .msg.success { background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.25); color: var(--green); }
-  .msg.visible { display: block; }
+  .msg { font-family:var(--mono); font-size:.65rem; letter-spacing:.10em; border-radius:6px; padding:.55rem .8rem; margin-top:.8rem; display:none; }
+  .msg.error   { background:rgba(255,60,60,0.12); border:1px solid rgba(255,60,60,0.30); color:#ff8080; }
+  .msg.success { background:rgba(0,255,136,0.08); border:1px solid rgba(0,255,136,0.25); color:var(--green); }
+  .msg.visible { display:block; }
 </style>
 </head>
 <body>
@@ -222,35 +223,37 @@ _AUTH_HTML = """<!DOCTYPE html>
     el.textContent = text;
   }
 
-  // Send action to Streamlit via postMessage
-  function sendToStreamlit(data) {
-    window.parent.postMessage(
-      Object.assign({ type: 'streamlit:setComponentValue' }, { value: data }),
-      '*'
-    );
+  // Submit by setting query params on the TOP-LEVEL Streamlit window.
+  // This triggers a Streamlit re-run with the params readable server-side.
+  function submitToStreamlit(params) {
+    const url = new URL(window.top.location.href);
+    // Clear old auth params first
+    ['_auth_action','_auth_email','_auth_pw'].forEach(k => url.searchParams.delete(k));
+    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+    window.top.location.href = url.toString();
   }
 
   function handleLogin() {
     const email = document.getElementById('login-email').value.trim();
     const pw    = document.getElementById('login-pw').value;
-    if (!email || !pw) { showMsg('login-msg', 'error', 'Please enter your email and password.'); return; }
-    sendToStreamlit({ action: 'login', email: email, password: pw });
+    if (!email || !pw) { showMsg('login-msg','error','Please enter your email and password.'); return; }
+    submitToStreamlit({ _auth_action:'login', _auth_email: email, _auth_pw: pw });
   }
 
   function handleSignup() {
     const email = document.getElementById('signup-email').value.trim();
     const pw    = document.getElementById('signup-pw').value;
     const pw2   = document.getElementById('signup-pw2').value;
-    if (!email || !pw) { showMsg('signup-msg', 'error', 'Please fill in all fields.'); return; }
-    if (pw.length < 6) { showMsg('signup-msg', 'error', 'Password must be at least 6 characters.'); return; }
-    if (pw !== pw2)    { showMsg('signup-msg', 'error', 'Passwords do not match.'); return; }
-    sendToStreamlit({ action: 'signup', email: email, password: pw });
+    if (!email || !pw)  { showMsg('signup-msg','error','Please fill in all fields.'); return; }
+    if (pw.length < 6)  { showMsg('signup-msg','error','Password must be at least 6 characters.'); return; }
+    if (pw !== pw2)     { showMsg('signup-msg','error','Passwords do not match.'); return; }
+    submitToStreamlit({ _auth_action:'signup', _auth_email: email, _auth_pw: pw });
   }
 
   function handleReset() {
     const email = document.getElementById('reset-email').value.trim();
-    if (!email) { showMsg('reset-msg', 'error', 'Please enter your email address.'); return; }
-    sendToStreamlit({ action: 'reset', email: email });
+    if (!email) { showMsg('reset-msg','error','Please enter your email address.'); return; }
+    submitToStreamlit({ _auth_action:'reset', _auth_email: email });
   }
 </script>
 </body>
@@ -260,7 +263,8 @@ _AUTH_HTML = """<!DOCTYPE html>
 def render_auth_gate(supabase):
     """
     Renders the full login.html UI and handles Supabase auth.
-    Blocks app.py from continuing until the user is authenticated.
+    JS submits by navigating the top window to ?_auth_action=...
+    Python reads query params on re-run, calls Supabase, then clears params.
     """
 
     # -- Initialise session state ----------------------------------------------
@@ -271,64 +275,68 @@ def render_auth_gate(supabase):
     if st.session_state.user is not None:
         return
 
-    # -- Hide Streamlit chrome so the HTML UI fills the viewport --------------
+    # -- Read query params (populated by JS on form submit) -------------------
+    params = st.query_params
+    action = params.get("_auth_action", "")
+    email  = params.get("_auth_email", "").strip()
+    pw     = params.get("_auth_pw", "")
+
+    if action == "login" and email and pw:
+        # Clear params immediately so a refresh doesn't re-submit
+        st.query_params.clear()
+        try:
+            res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
+            if res.user:
+                st.session_state.user = res.user
+                st.rerun()
+            else:
+                st.error("Login failed -- check your credentials.")
+        except Exception as e:
+            err = str(e)
+            if "Invalid login credentials" in err or "invalid_credentials" in err:
+                st.error("Invalid email or password.")
+            elif "Email not confirmed" in err:
+                st.warning("Please confirm your email before logging in.")
+            else:
+                st.error(f"Login error: {err}")
+
+    elif action == "signup" and email and pw:
+        st.query_params.clear()
+        try:
+            res = supabase.auth.sign_up({"email": email, "password": pw})
+            if res.user:
+                st.success("Account created! Check your email to confirm, then log in.")
+            else:
+                st.error("Sign-up failed -- please try again.")
+        except Exception as e:
+            err = str(e)
+            if "already registered" in err or "already been registered" in err:
+                st.error("This email is already registered. Try logging in instead.")
+            else:
+                st.error(f"Sign-up error: {err}")
+
+    elif action == "reset" and email:
+        st.query_params.clear()
+        try:
+            supabase.auth.reset_password_email(email)
+            st.success("Reset link sent -- check your inbox.")
+        except Exception as e:
+            st.error(f"Could not send reset email: {e}")
+
+    # -- Hide Streamlit chrome ------------------------------------------------
     st.markdown("""
         <style>
-        [data-testid="stSidebar"]      { display: none !important; }
-        [data-testid="stToolbar"]      { display: none !important; }
-        [data-testid="stDecoration"]   { display: none !important; }
-        [data-testid="stStatusWidget"] { display: none !important; }
-        footer, #MainMenu              { display: none !important; }
-        .block-container               { padding: 0 !important; max-width: 100% !important; }
+        [data-testid="stSidebar"]      { display:none !important; }
+        [data-testid="stToolbar"]      { display:none !important; }
+        [data-testid="stDecoration"]   { display:none !important; }
+        [data-testid="stStatusWidget"] { display:none !important; }
+        footer, #MainMenu              { display:none !important; }
+        .block-container               { padding:0 !important; max-width:100% !important; }
         </style>
     """, unsafe_allow_html=True)
 
-    # -- Render the HTML component; result = value from postMessage -----------
-    result = components.html(_AUTH_HTML, height=750, scrolling=False)
+    # -- Render the HTML UI ---------------------------------------------------
+    components.html(_AUTH_HTML, height=750, scrolling=False)
 
-    # -- Handle the submitted action ------------------------------------------
-    if isinstance(result, dict):
-        action   = result.get("action", "")
-        email    = result.get("email", "").strip()
-        password = result.get("password", "")
-
-        if action == "login":
-            try:
-                res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                if res.user:
-                    st.session_state.user = res.user
-                    st.rerun()
-                else:
-                    st.error("Login failed -- check your credentials.")
-            except Exception as e:
-                err = str(e)
-                if "Invalid login credentials" in err or "invalid_credentials" in err:
-                    st.error("Invalid email or password.")
-                elif "Email not confirmed" in err:
-                    st.warning("Please confirm your email before logging in.")
-                else:
-                    st.error(f"Login error: {err}")
-
-        elif action == "signup":
-            try:
-                res = supabase.auth.sign_up({"email": email, "password": password})
-                if res.user:
-                    st.success("Account created! Check your email to confirm, then log in.")
-                else:
-                    st.error("Sign-up failed -- please try again.")
-            except Exception as e:
-                err = str(e)
-                if "already registered" in err or "already been registered" in err:
-                    st.error("This email is already registered. Try logging in instead.")
-                else:
-                    st.error(f"Sign-up error: {err}")
-
-        elif action == "reset":
-            try:
-                supabase.auth.reset_password_email(email)
-                st.success("Reset link sent -- check your inbox.")
-            except Exception as e:
-                st.error(f"Could not send reset email: {e}")
-
-    # -- Block the rest of app.py from running --------------------------------
+    # -- Block app.py from running --------------------------------------------
     st.stop()
