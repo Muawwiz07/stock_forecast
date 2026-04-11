@@ -3430,27 +3430,19 @@ _footer_year = _dt.datetime.utcnow().year
 st.markdown(f"""
 <div style="margin-top:4rem;padding:2rem 0 1.5rem;border-top:1px solid #1e2640;">
   <div style="max-width:900px;margin:0 auto;text-align:center;">
-
-    <!-- Logo -->
     <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;color:#2d3449;letter-spacing:-.01em;margin-bottom:.4rem;">
       Stock<span style="color:#253660;">cast</span>
     </div>
-
-    <!-- Tagline -->
     <div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#1e2640;letter-spacing:.08em;font-weight:500;margin-bottom:1.2rem;">
       AI-powered stock insights for smarter decisions
     </div>
-
-    <!-- Trust signals row -->
     <div style="display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">🔒 Secure Auth</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">📡 Live Market Data</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">🤖 XGBoost AI Engine</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">☪ Shariah Screening</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">📰 News Sentiment NLP</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F512; Secure Auth</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F4E1; Live Market Data</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F916; XGBoost AI Engine</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">Shariah Screening</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F4F0; News Sentiment NLP</div>
     </div>
-
-    <!-- Links -->
     <div style="margin-bottom:.8rem;font-family:IBM Plex Mono,monospace;font-size:.53rem;letter-spacing:.06em;">
       <a href="/privacy" target="_blank" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
       <span style="color:#1e2640;">·</span>
@@ -3458,20 +3450,15 @@ st.markdown(f"""
       <span style="color:#1e2640;">·</span>
       <a href="mailto:support@stockcast.com" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Support</a>
     </div>
-
-    <!-- Disclaimer -->
     <div style="font-family:Manrope,sans-serif;font-size:.52rem;color:#1e2640;letter-spacing:.04em;line-height:1.7;max-width:680px;margin:0 auto .8rem;">
-      ⚠ Stockcast is for <b style="color:#2d3449;">educational and informational purposes only</b>. 
-      Nothing on this platform constitutes financial, investment, legal, or tax advice. 
-      Past performance is not indicative of future results. 
+      &#9888; Stockcast is for <b style="color:#2d3449;">educational and informational purposes only</b>.
+      Nothing on this platform constitutes financial, investment, legal, or tax advice.
+      Past performance is not indicative of future results.
       Always consult a licensed financial advisor before making investment decisions.
     </div>
-
-    <!-- Copyright -->
     <div style="font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#1e2640;letter-spacing:.06em;">
-      © {_footer_year} Stockcast · Built by Muawwiz Ghani · All Rights Reserved
+      &copy; {_footer_year} Stockcast &middot; Built by Muawwiz Ghani &middot; All Rights Reserved
     </div>
-
   </div>
 </div>
 """, unsafe_allow_html=True)
