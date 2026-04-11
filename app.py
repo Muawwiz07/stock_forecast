@@ -874,7 +874,7 @@ LANGUAGES = {
 }
 # ── Page config — MUST be first Streamlit call ────────────────────────────────
 st.set_page_config(
-    page_title="Stockcast —  Stock Analytics",
+    page_title="Stockcast — AI-Powered Stock Insights",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -893,6 +893,8 @@ if "portfolio" not in st.session_state:
     st.session_state.portfolio = []
 if "portfolio_history" not in st.session_state:
     st.session_state.portfolio_history = []
+if "free_credits_used" not in st.session_state:
+    st.session_state.free_credits_used = 0
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -954,6 +956,84 @@ html, body, [class*="css"], [data-testid="stApp"],
     color: var(--t1) !important;
 }
 .block-container { padding: 2rem 2.5rem 3rem 2.5rem !important; max-width: 1280px !important; margin: 0 auto !important; }
+
+/* ── MOBILE RESPONSIVENESS ── */
+@media (max-width: 768px) {
+    .block-container { padding: 1rem 1rem 2rem 1rem !important; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .signal-panel { flex-direction: column !important; }
+    .signal-main { flex: none !important; width: 100% !important; }
+    .wi-header { padding: 0.8rem 1rem !important; margin: 2rem -1rem 1rem -1rem !important; flex-direction: column !important; gap: 0.6rem !important; }
+    .ticker-tape-wrap { margin: 0 -1rem 1rem -1rem !important; }
+    .signal-details { grid-template-columns: 1fr 1fr !important; }
+    [data-testid="stPlotlyChart"] { overflow-x: auto !important; }
+}
+@media (max-width: 480px) {
+    .stat-grid { grid-template-columns: 1fr 1fr !important; gap: 0.5rem !important; }
+    .stat-value { font-size: 1.2rem !important; }
+    .wi-logo { font-size: 1.3rem !important; }
+}
+
+/* ── CREDIT BADGE ── */
+.credits-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(77,142,255,0.1);
+    border: 1px solid rgba(77,142,255,0.25);
+    border-radius: 2rem;
+    padding: 0.3rem 0.85rem;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--primary);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+.credits-dot { width: 6px; height: 6px; background: var(--emerald); border-radius: 50%; }
+
+/* ── TRUST SIGNALS ── */
+.trust-bar {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0.5rem 0;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--t4);
+    letter-spacing: 0.06em;
+}
+.trust-item { display: flex; align-items: center; gap: 0.3rem; }
+.trust-item span { color: var(--t3); }
+
+/* ── DISCLAIMER ── */
+.disclaimer-bar {
+    background: rgba(255,221,45,0.03);
+    border: 1px solid rgba(255,221,45,0.12);
+    border-left: 3px solid rgba(255,221,45,0.4);
+    padding: 0.45rem 1rem;
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    color: var(--t4);
+    letter-spacing: 0.05em;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin-top: 0.5rem;
+}
+
+/* ── LAST UPDATED CHIP ── */
+.updated-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(0,229,176,0.06);
+    border: 1px solid rgba(0,229,176,0.15);
+    border-radius: var(--radius);
+    padding: 0.2rem 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    color: var(--emerald);
+    letter-spacing: 0.08em;
+}
 
 /* scanline + ambient glow */
 [data-testid="stApp"]::before {
@@ -1065,6 +1145,13 @@ p, .stMarkdown p { color: var(--t2) !important; font-size: 0.85rem !important; }
     background: var(--bg2) !important;
     border-radius: var(--radius) !important;
 }
+
+/* ── CHART OVERFLOW FIX ── */
+[data-testid="stPlotlyChart"] {
+    width: 100% !important;
+    overflow-x: hidden !important;
+}
+.js-plotly-plot { max-width: 100% !important; }
 
 /* ── LABELS ── */
 label, [data-testid="stSelectbox"] label,
@@ -1492,6 +1579,71 @@ label, [data-testid="stSelectbox"] label,
     font-weight: 700;
     font-family: var(--sans);
 }
+/* ── LOGIN / WELCOME SCREEN (authgate.py) ── */
+/* These classes are available for authgate.py to use */
+.login-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    background: radial-gradient(ellipse at 30% 20%, rgba(77,142,255,0.06) 0%, transparent 55%),
+                radial-gradient(ellipse at 80% 80%, rgba(0,229,176,0.04) 0%, transparent 50%),
+                var(--bg);
+}
+.login-card {
+    background: linear-gradient(145deg, #111828, #0c1220);
+    border: 1px solid rgba(77,142,255,0.15);
+    border-radius: 20px;
+    padding: 2.8rem 2.4rem 2.4rem;
+    width: 100%;
+    max-width: 420px;
+    box-shadow:
+        0 0 0 1px rgba(77,142,255,0.05),
+        0 20px 60px rgba(0,0,0,0.6),
+        0 0 80px rgba(77,142,255,0.04);
+}
+.login-logo {
+    font-family: Manrope, sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #dae2fd;
+    letter-spacing: -.02em;
+    margin-bottom: .2rem;
+    text-align: center;
+}
+.login-logo span { color: #4d8eff; }
+.login-tagline {
+    font-family: Manrope, sans-serif;
+    font-size: .72rem;
+    color: #424754;
+    text-align: center;
+    letter-spacing: .06em;
+    margin-bottom: 2rem;
+    font-weight: 500;
+}
+.login-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(77,142,255,0.2), transparent);
+    margin: 1.4rem 0;
+}
+.login-feature-row {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    margin: 1.2rem 0 .8rem;
+}
+.login-feature {
+    font-family: IBM Plex Mono, monospace;
+    font-size: .56rem;
+    color: #2d3449;
+    letter-spacing: .06em;
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+}
+.login-feature span { color: #424754; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -1874,7 +2026,14 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 
 
 # ── Auth Gate ─────────────────────────────────────────────────────────────────
-# UI lives in authgate.py — edit that file to change the login/signup design.
+# Login / welcome screen lives in authgate.py.
+# Polish checklist for authgate.py:
+#   • Use .login-wrap, .login-card, .login-logo, .login-tagline CSS classes (defined above)
+#   • App name: "Stockcast"
+#   • Tagline: "AI-powered stock insights for smarter decisions"
+#   • Feature pills: 📈 XGBoost AI · ⭐ Watchlist · 💼 Portfolio · ☪ Shariah · 📰 News NLP
+#   • Keep form fields minimal: Email + Password + CTA button only
+#   • No background image stretching — use radial-gradient backgrounds via CSS only
 from authgate import render_auth_gate
 render_auth_gate(supabase)
 
@@ -1896,17 +2055,21 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
 # ═══════════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════════
-st.markdown("""
+import datetime as _dt
+_now_str = _dt.datetime.utcnow().strftime("%H:%M UTC")
+st.markdown(f"""
 <div class="wi-header">
   <div>
     <div class="wi-logo">Stock<span>cast</span></div>
-    <div class="wi-sub">XGBoost · 6-Factor Signals · Backtesting · Shariah Screening · News NLP</div>
+    <div class="wi-sub">AI-powered stock insights for smarter decisions</div>
   </div>
-  <div style="display:flex;align-items:center;gap:1.5rem;">
-    <div style="text-align:right;">
-      <div style="font-size:.55rem;color:#424754;letter-spacing:.14em;text-transform:uppercase;font-weight:700;font-family:Manrope,sans-serif;">Platform</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#8c909f;">Developed by Muawwiz Ghani</div>
+  <div style="display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;">
+    <div class="trust-bar" style="margin:0;padding:0;gap:.9rem;">
+      <div class="trust-item"><span>🔒</span> <span>Secure Auth</span></div>
+      <div class="trust-item"><span>📡</span> <span>Live Data</span></div>
+      <div class="trust-item"><span>🤖</span> <span>XGBoost AI</span></div>
     </div>
+    <div class="updated-chip">🕐 {_now_str}</div>
     <div style="width:1px;height:28px;background:#2d3449;"></div>
     <div>
       <span class="live-dot"></span>
@@ -1957,18 +2120,27 @@ with st.sidebar:
     _L = LANGUAGES[st.session_state.lang]
 
     # Logo + User
+    _free_credits = st.session_state.get("free_credits_used", 0)
+    _credits_left = max(0, 10 - _free_credits)
     st.markdown(f"""
-    <div style="padding:1.4rem 1rem 0.8rem;">
-      <div style="font-family:Manrope,sans-serif;font-size:1.4rem;font-weight:800;color:#dae2fd;letter-spacing:-.01em;">
+    <div style="padding:1.2rem 1rem 0.6rem;">
+      <div style="font-family:Manrope,sans-serif;font-size:1.5rem;font-weight:800;color:#dae2fd;letter-spacing:-.01em;">
         Stock<span style="color:#4d8eff;">cast</span>
       </div>
-      <div style="font-size:.55rem;color:#424754;letter-spacing:.1em;text-transform:uppercase;font-weight:700;margin-top:2px;">
-        Developed by Muawwiz Ghani
+      <div style="font-size:.58rem;color:#8c909f;margin-top:3px;font-family:Manrope,sans-serif;font-weight:500;letter-spacing:.02em;">
+        AI-powered stock insights
+      </div>
+    </div>
+    <div style="padding:0 1rem .6rem;">
+      <div class="credits-badge">
+        <div class="credits-dot"></div>
+        {_credits_left} free analyses left
       </div>
     </div>
     <div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);
          border-left:3px solid #4d8eff;padding:.55rem 1rem;margin:.4rem 0 .6rem;
-         font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#adc6ff;letter-spacing:.04em;">
+         font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#adc6ff;letter-spacing:.04em;
+         overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
       👤 {st.session_state.user.email}
     </div>
     """, unsafe_allow_html=True)
@@ -2114,12 +2286,19 @@ with st.sidebar:
 # ═══════════════════════════════════════════════════════════════════
 if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
+    _dash_updated = _dt.datetime.utcnow().strftime("%b %d, %Y · %H:%M UTC")
     st.markdown(f"""
-    <div style="margin-bottom:1.2rem;padding-top:.5rem;">
-      <div style="font-family:var(--sans);font-size:1.6rem;font-weight:800;color:#dae2fd;letter-spacing:-.02em;line-height:1.2;">
-        {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
+    <div style="margin-bottom:1.2rem;padding-top:.5rem;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.6rem;">
+      <div>
+        <div style="font-family:var(--sans);font-size:1.6rem;font-weight:800;color:#dae2fd;letter-spacing:-.02em;line-height:1.2;">
+          {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
+        </div>
+        <div style="font-size:.8rem;color:#8c909f;margin-top:.4rem;font-weight:500;">{_L["dashboard_desc"]}</div>
       </div>
-      <div style="font-size:.8rem;color:#8c909f;margin-top:.4rem;font-weight:500;">{_L["dashboard_desc"]}</div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;">
+        <div class="updated-chip">🕐 Updated {_dash_updated}</div>
+        <div class="disclaimer-bar" style="font-size:.54rem;">⚠ For educational use only · Not financial advice</div>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2171,15 +2350,21 @@ if not run_btn:
       <div class="stat-card" style="border-top-color:#00e5b0;">
         <div class="stat-label">VIX · Volatility Index</div>
         <div class="stat-value" style="color:#00e5b0;">{_vix[0]}</div>
-        <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
+        <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]}</div>
       </div>
     </div>
+    <div class="disclaimer-bar">⚠ Market data is for informational purposes only and may be delayed. Stockcast is not a registered investment advisor. Past performance is not indicative of future results.</div>
     """, unsafe_allow_html=True)
 
     # Watchlist live prices if any
     if st.session_state.watchlist:
         st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-        st.subheader(_L["watchlist_live"])
+        _wl_time = _dt.datetime.utcnow().strftime("%H:%M UTC")
+        st.markdown(f"""
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;">{_L["watchlist_live"]}</div>
+          <div class="updated-chip">🕐 {_wl_time}</div>
+        </div>""", unsafe_allow_html=True)
         wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
         for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
             with wl_cols[i % 4]:
@@ -2191,10 +2376,12 @@ if not run_btn:
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(f"""
                     <div style="background:linear-gradient(145deg,#131b2e,#171f33);border:1px solid #2d3449;
-                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.5rem;">
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#424754;text-transform:uppercase;">{wl_sym}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#dae2fd;margin:.3rem 0;">${_px:.2f}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_col};">{_sign} {_chg:+.2f}%</div>
+                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.5rem;
+                         transition:all .2s;">
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;letter-spacing:.14em;color:#424754;text-transform:uppercase;margin-bottom:.25rem;">{wl_sym}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#dae2fd;margin:.2rem 0;">${_px:.2f}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;font-weight:700;color:{_col};">{_sign} {_chg:+.2f}%</div>
+                      <div style="font-size:.5rem;color:#2d3449;margin-top:.4rem;font-family:Manrope,sans-serif;letter-spacing:.06em;">LIVE PRICE</div>
                     </div>""", unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
@@ -2245,6 +2432,9 @@ else:
     # ═══════════════════════════════════════════════════════════════
     # ANALYSIS ENGINE
     # ═══════════════════════════════════════════════════════════════
+    # Track free credit usage
+    st.session_state.free_credits_used = st.session_state.get("free_credits_used", 0) + 1
+
     if st.sidebar.button(_L.get("back", "← Back to Dashboard"), use_container_width=True, key="back_btn"):
         st.session_state.run_pressed = False
         st.rerun()
@@ -2268,6 +2458,18 @@ else:
         st.stop()
 
     st.success(_L["days_loaded"].format(n=len(df), ticker=ticker))
+
+    _analysis_time = _dt.datetime.utcnow().strftime("%b %d, %Y · %H:%M UTC")
+    st.markdown(f"""
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin:.4rem 0 .6rem;">
+      <div class="trust-bar" style="margin:0;padding:0;">
+        <div class="trust-item"><span>📊</span> <span>{len(df)} trading days loaded</span></div>
+        <div class="trust-item"><span>🤖</span> <span>XGBoost · 20 features</span></div>
+        <div class="trust-item"><span>📡</span> <span>Yahoo Finance</span></div>
+      </div>
+      <div class="updated-chip">🕐 Data as of {_analysis_time}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown(f"""
     <div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.3);
@@ -2896,6 +3098,7 @@ else:
             conf_label = _L["high_confidence"] if confidence_score>=80 else _L["moderate_confidence"] if confidence_score>=60 else _L["low_confidence"]
             filled = int(confidence_score / 5)
             bar_html = "".join(f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;background:{conf_color};opacity:{1.0 if i<filled else 0.1};border-radius:1px;"></span>' for i in range(20))
+            _conf_updated = _dt.datetime.utcnow().strftime("%H:%M UTC")
             st.markdown(f"""
             <div style="background:#131b2e;border:1px solid #2d3449;border-left:3px solid {conf_color};
                  padding:1.2rem 1.6rem;margin:1rem 0;border-radius:0 .5rem .5rem 0;">
@@ -2904,6 +3107,7 @@ else:
                   <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#424754;margin-bottom:.3rem;font-weight:700;">{_L["model_conf_score"]}</div>
                   <div style="font-family:IBM Plex Mono,monospace;font-size:2.2rem;font-weight:700;color:{conf_color};">{confidence_score:.0f}<span style="font-size:1rem;color:#8c909f;">/100</span></div>
                   <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.14em;color:{conf_color};margin-top:.3rem;font-weight:700;">{conf_label}</div>
+                  <div class="updated-chip" style="margin-top:.6rem;font-size:.5rem;">🕐 Computed {_conf_updated}</div>
                 </div>
                 <div style="flex:1;min-width:220px;">
                   <div style="margin-bottom:.6rem;">{bar_html}</div>
@@ -3222,20 +3426,52 @@ else:
                     st.warning(f"Could not fetch news: {e}")
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
+_footer_year = _dt.datetime.utcnow().year
 st.markdown(f"""
-<div style="text-align:center;margin-top:3rem;padding:1.5rem;border-top:1px solid #2d3449;">
-  <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#2d3449;letter-spacing:.1em;">
-    
-  </div>
-  <div style="margin-top:.6rem;font-family:IBM Plex Mono,monospace;font-size:.55rem;letter-spacing:.08em;">
-    <a href="/privacy" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
-    <span style="color:#2d3449;">·</span>
-    <a href="/terms" target="_blank" style="color:#3a4460;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
-  </div>
-  <div style="margin-top:.8rem;font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#2d3449;letter-spacing:.08em;">
-    © 2026 Stockcast. ⚠ Not financial advice — for educational use only.<br>
-    Stockcast · Built by Muawwaz Ghani · © 2026
+<div style="margin-top:4rem;padding:2rem 0 1.5rem;border-top:1px solid #1e2640;">
+  <div style="max-width:900px;margin:0 auto;text-align:center;">
+
+    <!-- Logo -->
+    <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;color:#2d3449;letter-spacing:-.01em;margin-bottom:.4rem;">
+      Stock<span style="color:#253660;">cast</span>
+    </div>
+
+    <!-- Tagline -->
+    <div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#1e2640;letter-spacing:.08em;font-weight:500;margin-bottom:1.2rem;">
+      AI-powered stock insights for smarter decisions
+    </div>
+
+    <!-- Trust signals row -->
+    <div style="display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">🔒 Secure Auth</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">📡 Live Market Data</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">🤖 XGBoost AI Engine</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">☪ Shariah Screening</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">📰 News Sentiment NLP</div>
+    </div>
+
+    <!-- Links -->
+    <div style="margin-bottom:.8rem;font-family:IBM Plex Mono,monospace;font-size:.53rem;letter-spacing:.06em;">
+      <a href="/privacy" target="_blank" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
+      <span style="color:#1e2640;">·</span>
+      <a href="/terms" target="_blank" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
+      <span style="color:#1e2640;">·</span>
+      <a href="mailto:support@stockcast.com" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Support</a>
+    </div>
+
+    <!-- Disclaimer -->
+    <div style="font-family:Manrope,sans-serif;font-size:.52rem;color:#1e2640;letter-spacing:.04em;line-height:1.7;max-width:680px;margin:0 auto .8rem;">
+      ⚠ Stockcast is for <b style="color:#2d3449;">educational and informational purposes only</b>. 
+      Nothing on this platform constitutes financial, investment, legal, or tax advice. 
+      Past performance is not indicative of future results. 
+      Always consult a licensed financial advisor before making investment decisions.
+    </div>
+
+    <!-- Copyright -->
+    <div style="font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#1e2640;letter-spacing:.06em;">
+      © {_footer_year} Stockcast · Built by Muawwiz Ghani · All Rights Reserved
+    </div>
+
   </div>
 </div>
 """, unsafe_allow_html=True)
-
