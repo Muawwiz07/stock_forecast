@@ -420,6 +420,89 @@ def _sb_update_prices(user_id: str, holdings: list):
                      user_id, e, exc_info=True)
         st.warning("⚠ Could not refresh portfolio prices — data may be stale.")
 
+# ── Watchlist Supabase helpers ────────────────────────────────────────────────
+# Required table (run once in Supabase SQL editor):
+#
+#   CREATE TABLE IF NOT EXISTS watchlist (
+#     id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+#     user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+#     stock_symbol TEXT NOT NULL,
+#     created_at   TIMESTAMPTZ DEFAULT NOW(),
+#     UNIQUE(user_id, stock_symbol)
+#   );
+
+FREE_PLAN_WATCHLIST_LIMIT = 5
+
+def _sb_load_watchlist(user_id: str) -> list:
+    try:
+        res = (supabase.table("watchlist").select("stock_symbol")
+               .eq("user_id", user_id).order("created_at").execute())
+        return [r["stock_symbol"] for r in (res.data or [])]
+    except Exception as e:
+        logger.error("_sb_load_watchlist failed for user '%s': %s", user_id, e)
+        return []
+
+def _sb_add_watchlist(user_id: str, symbol: str) -> bool:
+    try:
+        supabase.table("watchlist").insert(
+            {"user_id": user_id, "stock_symbol": symbol.upper()}
+        ).execute()
+        return True
+    except Exception as e:
+        logger.error("_sb_add_watchlist failed for user '%s', symbol '%s': %s", user_id, symbol, e)
+        return False
+
+def _sb_remove_watchlist(user_id: str, symbol: str):
+    try:
+        supabase.table("watchlist").delete().eq("user_id", user_id).eq("stock_symbol", symbol).execute()
+    except Exception as e:
+        logger.error("_sb_remove_watchlist failed for user '%s', symbol '%s': %s", user_id, symbol, e)
+
+# ── Usage limit Supabase helpers ──────────────────────────────────────────────
+# Required table (run once in Supabase SQL editor):
+#
+#   CREATE TABLE IF NOT EXISTS user_usage (
+#     user_id       UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+#     usage_count   INT NOT NULL DEFAULT 0,
+#     last_used_date DATE NOT NULL DEFAULT CURRENT_DATE
+#   );
+
+FREE_PLAN_DAILY_LIMIT = 3
+
+def _sb_get_usage(user_id: str) -> dict:
+    """Returns {usage_count, last_used_date}. Resets count if date has changed."""
+    today = pd.Timestamp.now().date().isoformat()
+    try:
+        res = supabase.table("user_usage").select("*").eq("user_id", user_id).execute()
+        row = (res.data or [None])[0]
+        if not row:
+            # First time — insert a fresh row
+            supabase.table("user_usage").insert(
+                {"user_id": user_id, "usage_count": 0, "last_used_date": today}
+            ).execute()
+            return {"usage_count": 0, "last_used_date": today}
+        if row["last_used_date"] != today:
+            # New day — reset
+            supabase.table("user_usage").update(
+                {"usage_count": 0, "last_used_date": today}
+            ).eq("user_id", user_id).execute()
+            return {"usage_count": 0, "last_used_date": today}
+        return row
+    except Exception as e:
+        logger.error("_sb_get_usage failed for user '%s': %s", user_id, e)
+        return {"usage_count": 0, "last_used_date": today}
+
+def _sb_increment_usage(user_id: str):
+    today = pd.Timestamp.now().date().isoformat()
+    try:
+        supabase.table("user_usage").upsert(
+            {"user_id": user_id, "usage_count": st.session_state.get("usage_count", 0) + 1,
+             "last_used_date": today},
+            on_conflict="user_id"
+        ).execute()
+    except Exception as e:
+        logger.error("_sb_increment_usage failed for user '%s': %s", user_id, e)
+
 # ── Multi-language support ─────────────────────────────────────────────────────
 LANGUAGES = {
     "English": {
@@ -893,6 +976,16 @@ if "portfolio" not in st.session_state:
     st.session_state.portfolio = []
 if "portfolio_history" not in st.session_state:
     st.session_state.portfolio_history = []
+if "run_pressed" not in st.session_state:
+    st.session_state.run_pressed = False
+if "usage_count" not in st.session_state:
+    st.session_state.usage_count = 0
+if "analyses_today" not in st.session_state:
+    st.session_state.analyses_today = 0
+if "show_onboarding" not in st.session_state:
+    st.session_state.show_onboarding = True
+if "load_ticker_from_watchlist" not in st.session_state:
+    st.session_state.load_ticker_from_watchlist = None
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -2146,13 +2239,22 @@ if st.session_state.user is None:  # fallback guard (render_auth_gate calls st.s
     st.stop()
 
 
-# ── Load portfolio from Supabase once per login session ───────────────────────
+# ── Load user data from Supabase once per login session ──────────────────────
 _current_uid = st.session_state.user.id if st.session_state.user else None
 if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_uid:
     _loaded = _sb_load_portfolio(_current_uid)
     st.session_state.portfolio = _loaded
     _loaded_hist = _sb_load_history(_current_uid)
     st.session_state.portfolio_history = _loaded_hist
+    # Load watchlist from Supabase
+    _wl = _sb_load_watchlist(_current_uid)
+    st.session_state.watchlist = _wl
+    # Load usage count
+    _usage = _sb_get_usage(_current_uid)
+    st.session_state.usage_count = _usage.get("usage_count", 0)
+    st.session_state.analyses_today = _usage.get("usage_count", 0)
+    # Show onboarding only for brand-new users (empty watchlist + no usage)
+    st.session_state.show_onboarding = (len(_wl) == 0 and st.session_state.usage_count == 0)
     st.session_state._portfolio_loaded_for = _current_uid
 
 
@@ -2228,8 +2330,9 @@ with st.sidebar:
     _L = LANGUAGES[st.session_state.lang]
 
     # Logo + User
-    _analyses_today = st.session_state.get("analyses_today", 0)
-    _plan_pct = min(100, int(_analyses_today / 5 * 100))
+    _usage_count = st.session_state.get("usage_count", 0)
+    _plan_pct = min(100, int(_usage_count / FREE_PLAN_DAILY_LIMIT * 100))
+    _usage_color = "#ff5f5f" if _usage_count >= FREE_PLAN_DAILY_LIMIT else "#4d8eff" if _usage_count >= 2 else "#00e5b0"
     st.markdown(f"""
     <div style="padding:1.5rem 1rem 0.9rem;">
       <div style="font-family:Manrope,sans-serif;font-size:1.45rem;font-weight:800;color:#e4eafd;letter-spacing:-.02em;line-height:1;">
@@ -2247,13 +2350,32 @@ with st.sidebar:
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{st.session_state.user.email}</span>
     </div>
     <div class="plan-badge">
-      <div>
-        <div class="plan-badge-label">Free Plan</div>
-        <div class="usage-bar-bg"><div class="usage-bar-fill" style="width:{_plan_pct}%;"></div></div>
+      <div style="flex:1;">
+        <div class="plan-badge-label">Free Plan · Daily Analyses</div>
+        <div class="usage-bar-bg"><div class="usage-bar-fill" style="width:{_plan_pct}%;background:linear-gradient(90deg,{_usage_color},{_usage_color});"></div></div>
       </div>
-      <div class="plan-badge-value">{_analyses_today} / 5 today</div>
+      <div class="plan-badge-value" style="color:{_usage_color};">{_usage_count} / {FREE_PLAN_DAILY_LIMIT}</div>
     </div>
     """, unsafe_allow_html=True)
+
+    if _usage_count >= FREE_PLAN_DAILY_LIMIT:
+        st.markdown(f"""
+        <div style="background:rgba(255,95,95,0.08);border:1px solid rgba(255,95,95,0.25);
+             border-left:3px solid #ff5f5f;padding:.7rem 1rem;margin:.3rem 0 .6rem;
+             border-radius:0 .5rem .5rem 0;">
+          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
+               letter-spacing:.1em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.3rem;">
+            Daily Limit Reached
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.72rem;color:#8a8fa0;line-height:1.5;">
+            You've used all {FREE_PLAN_DAILY_LIMIT} free analyses today. Resets at midnight.
+          </div>
+          <div style="margin-top:.5rem;font-family:Manrope,sans-serif;font-size:.65rem;
+               color:#4d8eff;font-weight:700;cursor:pointer;">
+            ✦ Upgrade to Pro — Unlimited analyses →
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     if st.button(_L.get("logout", "⏏  Logout"), use_container_width=True, key="logout_btn"):
         try:
@@ -2269,10 +2391,16 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # Ticker Search
+    # Ticker Search — respects watchlist click override
+    _wl_override = st.session_state.get("load_ticker_from_watchlist")
     st.markdown(f'<div class="stat-row">{_L["search_label"]}</div>', unsafe_allow_html=True)
     search_query = st.text_input("Search", placeholder="e.g. Apple, TSLA, Saudi Aramco…",
-                                 label_visibility="collapsed", key="search_input")
+                                 label_visibility="collapsed", key="search_input",
+                                 value=_wl_override or "")
+    # Clear watchlist override after consuming it
+    if _wl_override:
+        st.session_state.load_ticker_from_watchlist = None
+
     ticker = "AAPL"
     if search_query and len(search_query.strip()) >= 1:
         search_results = search_tickers(search_query.strip())
@@ -2285,9 +2413,23 @@ with st.sidebar:
             st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffd426;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#ffd426;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="stat-row">{_L["ticker"]}</div>', unsafe_allow_html=True)
-        ticker = st.text_input("Ticker", value="AAPL", placeholder="AAPL, TSLA, MSFT…",
+        ticker = st.text_input("Ticker", value=_wl_override or "AAPL", placeholder="AAPL, TSLA, MSFT…",
                                label_visibility="collapsed", key="direct_ticker").strip().upper() or "AAPL"
         st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#4d8eff;letter-spacing:.07em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["active_ticker"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
+
+    # ⭐ Add to Watchlist inline button
+    _in_wl = ticker in st.session_state.watchlist
+    _wl_full = len(st.session_state.watchlist) >= FREE_PLAN_WATCHLIST_LIMIT
+    if _in_wl:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#00e5b0;padding:.2rem 0;">⭐ {ticker} is in your watchlist</div>', unsafe_allow_html=True)
+    elif _wl_full:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;padding:.2rem 0;">Watchlist full ({FREE_PLAN_WATCHLIST_LIMIT}/{FREE_PLAN_WATCHLIST_LIMIT})</div>', unsafe_allow_html=True)
+    else:
+        if st.button(f"⭐ Add {ticker} to Watchlist", use_container_width=True, key="sidebar_wl_add"):
+            if ticker not in st.session_state.watchlist:
+                if _sb_add_watchlist(st.session_state.user.id, ticker):
+                    st.session_state.watchlist.append(ticker)
+                    st.rerun()
 
     col1, col2 = st.columns(2)
     with col1: start_date = st.date_input(_L["from"], value=pd.to_datetime("2018-01-01"))
@@ -2351,38 +2493,81 @@ with st.sidebar:
         compare_tickers = []
 
     st.markdown("---")
-    if st.button(_L["run"], use_container_width=True):
-        st.session_state.run_pressed = True
-        st.session_state.analyses_today = st.session_state.get("analyses_today", 0) + 1
-    run_btn = st.session_state.get("run_pressed", False)
+    _at_limit = st.session_state.get("usage_count", 0) >= FREE_PLAN_DAILY_LIMIT
+    if _at_limit:
+        st.markdown(f"""
+        <div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);
+             padding:.75rem 1rem;border-radius:.5rem;text-align:center;">
+          <div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#ff5f5f;
+               font-weight:700;letter-spacing:.08em;text-transform:uppercase;">
+            🔒 Daily limit reached
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;margin-top:.3rem;">
+            {FREE_PLAN_DAILY_LIMIT}/{FREE_PLAN_DAILY_LIMIT} analyses used today
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        _remaining = FREE_PLAN_DAILY_LIMIT - st.session_state.get("usage_count", 0)
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#8a8fa0;text-align:center;margin-bottom:.3rem;">{_remaining} analysis remaining today</div>', unsafe_allow_html=True)
+        if st.button(_L["run"], use_container_width=True, disabled=_at_limit):
+            st.session_state.run_pressed = True
+            new_count = st.session_state.get("usage_count", 0) + 1
+            st.session_state.usage_count = new_count
+            st.session_state.analyses_today = new_count
+            _sb_increment_usage(st.session_state.user.id)
+    run_btn = st.session_state.get("run_pressed", False) and not _at_limit
 
     # Watchlist
     st.markdown("---")
-    st.markdown(f"""<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">{_L["watchlist"]}</div>""", unsafe_allow_html=True)
-    wl_c1, wl_c2 = st.columns([3,1])
-    with wl_c1: add_ticker_input = st.text_input("Add", placeholder="e.g. AAPL", label_visibility="collapsed", key="wl_add").strip().upper()
-    with wl_c2: add_clicked = st.button("＋", use_container_width=True, key="wl_add_btn")
-    if add_clicked and add_ticker_input:
-        if add_ticker_input not in st.session_state.watchlist:
-            st.session_state.watchlist.append(add_ticker_input)
+    _wl_count = len(st.session_state.watchlist)
+    _wl_at_limit = _wl_count >= FREE_PLAN_WATCHLIST_LIMIT
+    st.markdown(f"""
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+      <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;">{_L["watchlist"]}</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:{'#ff5f5f' if _wl_at_limit else '#3e4558'};">{_wl_count}/{FREE_PLAN_WATCHLIST_LIMIT}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not _wl_at_limit:
+        wl_c1, wl_c2 = st.columns([3, 1])
+        with wl_c1:
+            add_ticker_input = st.text_input("Add", placeholder="e.g. AAPL", label_visibility="collapsed", key="wl_add").strip().upper()
+        with wl_c2:
+            add_clicked = st.button("＋", use_container_width=True, key="wl_add_btn")
+        if add_clicked and add_ticker_input:
+            if add_ticker_input not in st.session_state.watchlist:
+                if _sb_add_watchlist(st.session_state.user.id, add_ticker_input):
+                    st.session_state.watchlist.append(add_ticker_input)
+                    st.rerun()
+    else:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;margin-bottom:.4rem;">Max {FREE_PLAN_WATCHLIST_LIMIT} stocks on Free Plan</div>', unsafe_allow_html=True)
+
     if st.session_state.watchlist:
         for wl_sym in list(st.session_state.watchlist):
-            wc1, wc2 = st.columns([3,1])
+            wc1, wc2, wc3 = st.columns([2, 2, 1])
             with wc1:
+                # Clickable — loads that ticker into the analysis
+                if st.button(wl_sym, key=f"wl_load_{wl_sym}", use_container_width=True):
+                    st.session_state.load_ticker_from_watchlist = wl_sym
+                    st.session_state.run_pressed = False
+                    st.rerun()
+            with wc2:
                 try:
                     _qt   = av_get_quote(wl_sym)
                     _px   = _qt["price"]
                     _chg  = _qt["change_pct"]
                     _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
                     _sign = "▲" if _chg >= 0 else "▼"
-                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;padding:.2rem 0;"><span style="color:#3e4558;">{wl_sym}</span> <span style="color:{_col};">{_sign} ${_px:.2f}</span></div>', unsafe_allow_html=True)
-                except Exception as e:
-                    logger.debug("Sidebar watchlist: could not load quote for '%s': %s", wl_sym, e)
-                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;color:#3e4558;padding:.2rem 0;">{wl_sym}</div>', unsafe_allow_html=True)
-            with wc2:
+                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:{_col};padding:.4rem 0;text-align:right;">{_sign} ${_px:.2f}</div>', unsafe_allow_html=True)
+                except Exception:
+                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;padding:.4rem 0;text-align:right;">—</div>', unsafe_allow_html=True)
+            with wc3:
                 if st.button("✕", key=f"wl_del_{wl_sym}", use_container_width=True):
+                    _sb_remove_watchlist(st.session_state.user.id, wl_sym)
                     st.session_state.watchlist.remove(wl_sym)
-                    if wl_sym in st.session_state.alert_signals: del st.session_state.alert_signals[wl_sym]
+                    if wl_sym in st.session_state.alert_signals:
+                        del st.session_state.alert_signals[wl_sym]
                     st.rerun()
     else:
         st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#252f47;padding:.3rem 0;">{_L["no_stocks_saved"]}</div>', unsafe_allow_html=True)
@@ -2407,6 +2592,76 @@ if not run_btn:
            max-width:600px;">{_L["dashboard_desc"]}</div>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── Onboarding card — only for new users ──────────────────────────────────
+    if st.session_state.get("show_onboarding", False):
+        _user_first = st.session_state.user.email.split("@")[0].title()
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,rgba(77,142,255,0.1) 0%,rgba(0,229,176,0.06) 100%);
+             border:1px solid rgba(77,142,255,0.25);border-radius:1rem;padding:1.8rem 2rem;
+             margin-bottom:1.5rem;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:-20px;right:-20px;width:120px;height:120px;
+               border-radius:50%;background:radial-gradient(circle,rgba(77,142,255,0.15),transparent 70%);
+               pointer-events:none;"></div>
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;letter-spacing:.14em;
+               text-transform:uppercase;color:#4d8eff;margin-bottom:.4rem;font-weight:700;">
+            Welcome to Stockcast
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:1.25rem;font-weight:800;
+               color:#e4eafd;letter-spacing:-.02em;margin-bottom:.4rem;">
+            Hi {_user_first} 👋 — Your AI stock research assistant is ready.
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.85rem;color:#8a8fa0;
+               margin-bottom:1.2rem;line-height:1.6;max-width:560px;">
+            AI-powered stock insights for smarter decisions. Here's how to get started:
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;">
+            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(77,142,255,0.2);
+                 border-radius:.75rem;padding:1rem 1.1rem;">
+              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;
+                   color:#4d8eff;margin-bottom:.4rem;">01</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
+                   letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
+                Search a Stock
+              </div>
+              <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#8a8fa0;line-height:1.5;">
+                Type a company name or ticker in the sidebar search.
+              </div>
+            </div>
+            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(0,229,176,0.2);
+                 border-radius:.75rem;padding:1rem 1.1rem;">
+              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;
+                   color:#00e5b0;margin-bottom:.4rem;">02</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
+                   letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
+                Run Analysis
+              </div>
+              <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#8a8fa0;line-height:1.5;">
+                Click "Run Analysis" — your AI assistant will analyse 20 signals in seconds.
+              </div>
+            </div>
+            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(255,212,38,0.2);
+                 border-radius:.75rem;padding:1rem 1.1rem;">
+              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;
+                   color:#ffd426;margin-bottom:.4rem;">03</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
+                   letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
+                Save to Watchlist
+              </div>
+              <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#8a8fa0;line-height:1.5;">
+                Add up to {FREE_PLAN_WATCHLIST_LIMIT} stocks to your watchlist for quick access.
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:1rem;font-family:Manrope,sans-serif;font-size:.65rem;
+               color:#3e4558;letter-spacing:.04em;">
+            Free Plan · {FREE_PLAN_DAILY_LIMIT} analyses per day · {FREE_PLAN_WATCHLIST_LIMIT} watchlist stocks
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Got it — dismiss", key="dismiss_onboarding"):
+            st.session_state.show_onboarding = False
+            st.rerun()
 
     # Market summary cards — live data
     live_indices = get_live_market_indices()
@@ -2583,6 +2838,21 @@ else:
     """, unsafe_allow_html=True)
 
     tab_analysis, tab_methodology = st.tabs([_L["analysis_tab"], _L["methodology_tab"]])
+
+    # ⭐ Add to Watchlist — prominent action on results page
+    _in_wl_main = ticker in st.session_state.watchlist
+    _wl_full_main = len(st.session_state.watchlist) >= FREE_PLAN_WATCHLIST_LIMIT
+    _wl_col1, _wl_col2 = st.columns([3, 1])
+    with _wl_col2:
+        if _in_wl_main:
+            st.markdown(f'<div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.25);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.65rem;color:#00e5b0;font-weight:700;text-align:center;">⭐ In Watchlist</div>', unsafe_allow_html=True)
+        elif _wl_full_main:
+            st.markdown(f'<div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;text-align:center;">Watchlist full</div>', unsafe_allow_html=True)
+        else:
+            if st.button(f"⭐ Add to Watchlist", key="forecast_wl_add", use_container_width=True):
+                if _sb_add_watchlist(st.session_state.user.id, ticker):
+                    st.session_state.watchlist.append(ticker)
+                    st.rerun()
 
     with tab_methodology:
         render_methodology_page(seq_len_val=seq_len, ci_n=ci_bootstrap_n, show_ci=show_conf_interval)
