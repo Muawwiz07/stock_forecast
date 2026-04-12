@@ -874,7 +874,7 @@ LANGUAGES = {
 }
 # ── Page config — MUST be first Streamlit call ────────────────────────────────
 st.set_page_config(
-    page_title="Stockcast — AI-Powered Stock Insights",
+    page_title="Stockcast · AI Stock Intelligence",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -893,59 +893,69 @@ if "portfolio" not in st.session_state:
     st.session_state.portfolio = []
 if "portfolio_history" not in st.session_state:
     st.session_state.portfolio_history = []
-if "free_credits_used" not in st.session_state:
-    st.session_state.free_credits_used = 0
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
 PLOTLY_LAYOUT = dict(
-    paper_bgcolor="#0b1326",
-    plot_bgcolor="#0b1326",
-    font=dict(family="Manrope", color="#8c909f", size=10),
-    xaxis=dict(gridcolor="#424754", linecolor="#424754", tickfont=dict(color="#8c909f", size=10), showgrid=True, zeroline=False),
-    yaxis=dict(gridcolor="#424754", linecolor="#424754", tickfont=dict(color="#8c909f", size=10), showgrid=True, zeroline=False),
-    legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="#424754", borderwidth=1, font=dict(size=10)),
-    margin=dict(l=10, r=10, t=40, b=10),
+    paper_bgcolor="#080e1c",
+    plot_bgcolor="#080e1c",
+    font=dict(family="Manrope", color="#8a8fa0", size=11),
+    xaxis=dict(gridcolor="#1e2740", linecolor="#1e2740", tickfont=dict(color="#8a8fa0", size=10),
+               showgrid=True, zeroline=False, showspikes=True, spikethickness=1,
+               spikecolor="#4d8eff", spikedash="dot"),
+    yaxis=dict(gridcolor="#1e2740", linecolor="#1e2740", tickfont=dict(color="#8a8fa0", size=10),
+               showgrid=True, zeroline=False),
+    legend=dict(bgcolor="rgba(8,14,28,0.8)", bordercolor="#252f47", borderwidth=1,
+                font=dict(size=11, family="Manrope"), itemsizing="constant"),
+    margin=dict(l=12, r=12, t=44, b=12),
     hovermode="x unified",
-    hoverlabel=dict(bgcolor="#131b2e", bordercolor="#2d3449", font=dict(family="Manrope", size=11, color="#dae2fd")),
+    hoverlabel=dict(bgcolor="#0f1727", bordercolor="#252f47",
+                    font=dict(family="IBM Plex Mono", size=11, color="#e4eafd")),
+    dragmode="pan",
+    selectdirection="h",
 )
 
-C_GREEN  = "#adc6ff"
-C_ACCENT = "#4d8eff"
-C_RED    = "#ff6b6b"
-C_YELLOW = "#ffdd2d"
-C_GREY   = "#8c909f"
+C_GREEN   = "#adc6ff"
+C_ACCENT  = "#4d8eff"
+C_RED     = "#ff5f5f"
+C_YELLOW  = "#ffd426"
+C_GREY    = "#8a8fa0"
 C_EMERALD = "#00e5b0"
 
 # ── Master CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 /* ── ROOT ── */
 :root {
-    --bg:          #0b1326;
-    --bg2:         #131b2e;
-    --bg3:         #171f33;
-    --bg4:         #222a3d;
-    --bg5:         #2d3449;
+    --bg:          #080e1c;
+    --bg2:         #0f1727;
+    --bg3:         #141d30;
+    --bg4:         #1e2740;
+    --bg5:         #29334d;
     --primary:     #adc6ff;
     --accent:      #4d8eff;
+    --accent2:     #6ea8ff;
     --on-primary:  #002e6a;
     --secondary:   #b1c6f9;
-    --t1:          #dae2fd;
-    --t2:          #c2c6d6;
-    --t3:          #8c909f;
-    --t4:          #424754;
-    --border:      #2d3449;
-    --border2:     #424754;
+    --t1:          #e4eafd;
+    --t2:          #c8cedd;
+    --t3:          #8a8fa0;
+    --t4:          #3e4558;
+    --border:      #252f47;
+    --border2:     #3e4558;
     --emerald:     #00e5b0;
-    --red:         #ff6b6b;
-    --yellow:      #ffdd2d;
+    --red:         #ff5f5f;
+    --yellow:      #ffd426;
     --mono:        'IBM Plex Mono', monospace;
     --sans:        'Manrope', sans-serif;
-    --radius:      0.5rem;
+    --radius:      0.6rem;
+    --radius-lg:   1rem;
+    --shadow-sm:   0 2px 8px rgba(0,0,0,0.3);
+    --shadow-md:   0 6px 24px rgba(0,0,0,0.45);
+    --shadow-lg:   0 12px 40px rgba(0,0,0,0.55);
 }
 
 /* ── GLOBAL ── */
@@ -954,94 +964,22 @@ html, body, [class*="css"], [data-testid="stApp"],
     font-family: var(--sans) !important;
     background-color: var(--bg) !important;
     color: var(--t1) !important;
+    -webkit-font-smoothing: antialiased !important;
 }
-.block-container { padding: 2rem 2.5rem 3rem 2.5rem !important; max-width: 1280px !important; margin: 0 auto !important; }
-
-/* ── MOBILE RESPONSIVENESS ── */
-@media (max-width: 768px) {
-    .block-container { padding: 1rem 1rem 2rem 1rem !important; }
-    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
-    .signal-panel { flex-direction: column !important; }
-    .signal-main { flex: none !important; width: 100% !important; }
-    .wi-header { padding: 0.8rem 1rem !important; margin: 2rem -1rem 1rem -1rem !important; flex-direction: column !important; gap: 0.6rem !important; }
-    .ticker-tape-wrap { margin: 0 -1rem 1rem -1rem !important; }
-    .signal-details { grid-template-columns: 1fr 1fr !important; }
-    [data-testid="stPlotlyChart"] { overflow-x: auto !important; }
-}
-@media (max-width: 480px) {
-    .stat-grid { grid-template-columns: 1fr 1fr !important; gap: 0.5rem !important; }
-    .stat-value { font-size: 1.2rem !important; }
-    .wi-logo { font-size: 1.3rem !important; }
+.block-container {
+    padding: 1.5rem 2.5rem 4rem 2.5rem !important;
+    max-width: 1320px !important;
+    margin: 0 auto !important;
 }
 
-/* ── CREDIT BADGE ── */
-.credits-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(77,142,255,0.1);
-    border: 1px solid rgba(77,142,255,0.25);
-    border-radius: 2rem;
-    padding: 0.3rem 0.85rem;
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    color: var(--primary);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-}
-.credits-dot { width: 6px; height: 6px; background: var(--emerald); border-radius: 50%; }
-
-/* ── TRUST SIGNALS ── */
-.trust-bar {
-    display: flex;
-    gap: 1.2rem;
-    flex-wrap: wrap;
-    align-items: center;
-    padding: 0.5rem 0;
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    color: var(--t4);
-    letter-spacing: 0.06em;
-}
-.trust-item { display: flex; align-items: center; gap: 0.3rem; }
-.trust-item span { color: var(--t3); }
-
-/* ── DISCLAIMER ── */
-.disclaimer-bar {
-    background: rgba(255,221,45,0.03);
-    border: 1px solid rgba(255,221,45,0.12);
-    border-left: 3px solid rgba(255,221,45,0.4);
-    padding: 0.45rem 1rem;
-    font-family: var(--mono);
-    font-size: 0.58rem;
-    color: var(--t4);
-    letter-spacing: 0.05em;
-    border-radius: 0 var(--radius) var(--radius) 0;
-    margin-top: 0.5rem;
-}
-
-/* ── LAST UPDATED CHIP ── */
-.updated-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    background: rgba(0,229,176,0.06);
-    border: 1px solid rgba(0,229,176,0.15);
-    border-radius: var(--radius);
-    padding: 0.2rem 0.6rem;
-    font-family: var(--mono);
-    font-size: 0.55rem;
-    color: var(--emerald);
-    letter-spacing: 0.08em;
-}
-
-/* scanline + ambient glow */
+/* ambient glow layers */
 [data-testid="stApp"]::before {
     content: '';
     position: fixed; inset: 0;
     background:
-        radial-gradient(ellipse at 0% 0%, rgba(77,142,255,0.05) 0%, transparent 50%),
-        radial-gradient(ellipse at 100% 100%, rgba(173,198,255,0.04) 0%, transparent 50%);
+        radial-gradient(ellipse 80% 50% at 10% 0%, rgba(77,142,255,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 100%, rgba(0,229,176,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 30% at 50% 50%, rgba(173,198,255,0.02) 0%, transparent 70%);
     pointer-events: none; z-index: 0;
 }
 
@@ -1060,161 +998,275 @@ html, body, [class*="css"], [data-testid="stApp"],
     font-family: var(--mono) !important;
     font-weight: 600 !important;
     letter-spacing: 0.04em !important;
+    font-size: 0.82rem !important;
+    padding: 0.5rem 0.75rem !important;
 }
 [data-testid="stSidebar"] input:focus {
     border-color: var(--accent) !important;
-    box-shadow: 0 0 0 2px rgba(77,142,255,0.25) !important;
+    box-shadow: 0 0 0 3px rgba(77,142,255,0.2) !important;
 }
 
 /* ── BUTTONS ── */
 .stButton > button {
-    background: linear-gradient(90deg, #4d8eff, #6ea8ff) !important;
+    background: linear-gradient(135deg, #3d7bf5 0%, #5a9aff 100%) !important;
     color: #fff !important;
     border: none !important;
     border-radius: var(--radius) !important;
     font-family: var(--sans) !important;
     font-weight: 700 !important;
-    font-size: 0.75rem !important;
-    letter-spacing: 0.06em !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.07em !important;
     text-transform: uppercase !important;
-    padding: 0.6rem 1.4rem !important;
-    transition: all 0.18s !important;
+    padding: 0.65rem 1.5rem !important;
+    transition: all 0.2s cubic-bezier(0.4,0,0.2,1) !important;
+    box-shadow: 0 2px 12px rgba(77,142,255,0.25) !important;
 }
 .stButton > button:hover {
-    opacity: 0.9 !important;
-    box-shadow: 0 0 20px rgba(77,142,255,0.4) !important;
+    background: linear-gradient(135deg, #4d8eff 0%, #6ea8ff 100%) !important;
+    box-shadow: 0 4px 20px rgba(77,142,255,0.5) !important;
     transform: translateY(-1px) !important;
 }
-.stButton > button:active { transform: translateY(0) !important; }
+.stButton > button:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 1px 6px rgba(77,142,255,0.3) !important;
+}
+
+/* Run Forecast button — bigger, more prominent */
+[data-testid="stSidebar"] .stButton > button {
+    padding: 0.75rem 1.5rem !important;
+    font-size: 0.73rem !important;
+}
 
 /* ── METRICS ── */
 [data-testid="metric-container"] {
-    background: linear-gradient(145deg, #111522, #0c0f17) !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
+    background: linear-gradient(145deg, #0f1727, #0a1020) !important;
+    border: 1px solid rgba(255,255,255,0.05) !important;
     border-top: 2px solid var(--accent) !important;
-    border-radius: 14px !important;
-    padding: 1.2rem !important;
-    transition: all 0.25s ease !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 1.3rem 1.4rem !important;
+    transition: all 0.22s cubic-bezier(0.4,0,0.2,1) !important;
+    box-shadow: var(--shadow-sm) !important;
 }
 [data-testid="metric-container"]:hover {
-    border: 1px solid rgba(77,142,255,0.4) !important;
+    border-color: rgba(77,142,255,0.35) !important;
     border-top: 2px solid var(--accent) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 8px 28px rgba(0,0,0,0.4) !important;
+    transform: translateY(-3px) !important;
+    box-shadow: var(--shadow-md) !important;
 }
 [data-testid="stMetricLabel"] {
     font-family: var(--sans) !important;
-    font-size: 0.6rem !important;
-    letter-spacing: 0.12em !important;
+    font-size: 0.58rem !important;
+    letter-spacing: 0.14em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
     font-weight: 700 !important;
 }
 [data-testid="stMetricValue"] {
     font-family: var(--mono) !important;
-    font-size: 1.55rem !important;
+    font-size: 1.6rem !important;
     font-weight: 700 !important;
     color: var(--primary) !important;
+    line-height: 1.2 !important;
+}
+[data-testid="stMetricDelta"] {
+    font-family: var(--mono) !important;
+    font-size: 0.72rem !important;
 }
 
 /* ── HEADINGS ── */
 h2, h3 {
     font-family: var(--sans) !important;
     color: var(--t1) !important;
-    font-size: 0.72rem !important;
-    letter-spacing: 0.14em !important;
+    font-size: 0.65rem !important;
+    letter-spacing: 0.16em !important;
     text-transform: uppercase !important;
     border-bottom: 1px solid var(--border) !important;
-    padding-bottom: 0.5rem !important;
-    margin-top: 1.4rem !important;
+    padding-bottom: 0.55rem !important;
+    margin-top: 1.8rem !important;
+    margin-bottom: 1rem !important;
     font-weight: 800 !important;
 }
 h4 {
     font-family: var(--sans) !important;
-    font-size: 0.65rem !important;
+    font-size: 0.63rem !important;
     letter-spacing: 0.1em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
+    margin-top: 1.2rem !important;
 }
-hr { border-color: var(--border) !important; }
-p, .stMarkdown p { color: var(--t2) !important; font-size: 0.85rem !important; }
+hr { border-color: var(--border) !important; margin: 1.2rem 0 !important; }
+p, .stMarkdown p {
+    color: var(--t2) !important;
+    font-size: 0.88rem !important;
+    line-height: 1.7 !important;
+}
 
 /* ── DATAFRAME ── */
 [data-testid="stDataFrame"] {
     border: 1px solid var(--border) !important;
     background: var(--bg2) !important;
     border-radius: var(--radius) !important;
+    overflow: hidden !important;
 }
 
-/* ── CHART OVERFLOW FIX ── */
-[data-testid="stPlotlyChart"] {
-    width: 100% !important;
-    overflow-x: hidden !important;
+/* ── FORM INPUTS (global) ── */
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input {
+    background-color: var(--bg3) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: var(--radius) !important;
+    color: var(--t1) !important;
+    font-family: var(--mono) !important;
+    font-size: 0.84rem !important;
+    padding: 0.55rem 0.85rem !important;
+    transition: border-color 0.18s, box-shadow 0.18s !important;
 }
-.js-plotly-plot { max-width: 100% !important; }
+[data-testid="stTextInput"] input:focus,
+[data-testid="stNumberInput"] input:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(77,142,255,0.18) !important;
+    outline: none !important;
+}
+[data-testid="stSelectbox"] > div > div {
+    background-color: var(--bg3) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: var(--radius) !important;
+    color: var(--t1) !important;
+    font-size: 0.84rem !important;
+}
 
 /* ── LABELS ── */
 label, [data-testid="stSelectbox"] label,
 [data-testid="stSlider"] label,
-[data-testid="stTextInput"] label {
+[data-testid="stTextInput"] label,
+[data-testid="stNumberInput"] label {
     font-family: var(--sans) !important;
-    font-size: 0.6rem !important;
-    letter-spacing: 0.1em !important;
+    font-size: 0.58rem !important;
+    letter-spacing: 0.11em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
     font-weight: 700 !important;
+    margin-bottom: 0.3rem !important;
+}
+
+/* ── SLIDER ── */
+[data-testid="stSlider"] [role="slider"] {
+    background: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(77,142,255,0.25) !important;
+}
+
+/* ── CHECKBOX ── */
+[data-testid="stCheckbox"] label {
+    font-family: var(--sans) !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.02em !important;
+    text-transform: none !important;
+    color: var(--t2) !important;
+    font-weight: 500 !important;
+}
+
+/* ── EXPANDER ── */
+[data-testid="stExpander"] {
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    background: var(--bg2) !important;
+    margin-bottom: 0.6rem !important;
+}
+[data-testid="stExpander"] summary {
+    font-family: var(--sans) !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    color: var(--t2) !important;
+    padding: 0.7rem 1rem !important;
+}
+
+/* ── SPINNER ── */
+[data-testid="stSpinner"] p {
+    font-family: var(--mono) !important;
+    font-size: 0.7rem !important;
+    color: var(--accent) !important;
+    letter-spacing: 0.08em !important;
+}
+
+/* ── SUCCESS / INFO / WARNING / ERROR ── */
+[data-testid="stSuccess"] {
+    background: rgba(0,229,176,0.07) !important;
+    border: 1px solid rgba(0,229,176,0.25) !important;
+    border-radius: var(--radius) !important;
+}
+[data-testid="stInfo"] {
+    background: rgba(77,142,255,0.07) !important;
+    border: 1px solid rgba(77,142,255,0.2) !important;
+    border-radius: var(--radius) !important;
+}
+[data-testid="stWarning"] {
+    background: rgba(255,212,38,0.07) !important;
+    border: 1px solid rgba(255,212,38,0.2) !important;
+    border-radius: var(--radius) !important;
+}
+[data-testid="stError"] {
+    background: rgba(255,95,95,0.07) !important;
+    border: 1px solid rgba(255,95,95,0.2) !important;
+    border-radius: var(--radius) !important;
 }
 
 /* ── TABS ── */
 [data-testid="stTabs"] [role="tablist"] {
     background: var(--bg2) !important;
     border-bottom: 1px solid var(--border) !important;
-    gap: 2px !important;
+    gap: 4px !important;
+    padding: 0 0.5rem !important;
 }
 [data-testid="stTabs"] [role="tab"] {
     font-family: var(--sans) !important;
-    font-size: 0.68rem !important;
+    font-size: 0.66rem !important;
     font-weight: 700 !important;
-    letter-spacing: 0.08em !important;
+    letter-spacing: 0.09em !important;
     color: var(--t3) !important;
     border: none !important;
     border-bottom: 2px solid transparent !important;
     text-transform: uppercase !important;
+    padding: 0.65rem 1rem !important;
+    transition: color 0.15s, border-color 0.15s !important;
+}
+[data-testid="stTabs"] [role="tab"]:hover {
+    color: var(--t2) !important;
 }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
     color: var(--primary) !important;
     border-bottom-color: var(--accent) !important;
     background: transparent !important;
 }
-[data-testid="stTabPanel"] { background: transparent !important; padding: 1rem 0 !important; }
+[data-testid="stTabPanel"] { background: transparent !important; padding: 1.2rem 0 !important; }
 
 /* ── APP HEADER ── */
 .wi-header {
     background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 100%);
     border-bottom: 1px solid var(--border);
     border-left: 4px solid var(--accent);
-    padding: 1.2rem 2rem;
-    margin: 3rem -2.5rem 1.5rem -2.5rem;
+    padding: 1.3rem 2rem;
+    margin: 2rem -2.5rem 1.8rem -2.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 4px 32px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 40px rgba(0,0,0,0.5);
 }
 .wi-logo {
     font-family: var(--sans);
-    font-size: 1.6rem;
+    font-size: 1.65rem;
     font-weight: 800;
     color: var(--t1);
-    letter-spacing: 0.03em;
+    letter-spacing: -0.01em;
 }
 .wi-logo span { color: var(--accent); }
 .wi-sub {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--t3);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
-    margin-top: 0.2rem;
+    margin-top: 0.25rem;
     font-weight: 600;
+    line-height: 1.4;
 }
 .live-dot {
     display: inline-block;
@@ -1224,142 +1276,165 @@ label, [data-testid="stSelectbox"] label,
     animation: pulse-dot 2s infinite;
     margin-right: 5px;
     vertical-align: middle;
-    box-shadow: 0 0 8px rgba(0,229,176,0.5);
+    box-shadow: 0 0 10px rgba(0,229,176,0.6);
 }
 @keyframes pulse-dot {
-    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,229,176,0.4); }
-    50%      { opacity:.8; box-shadow: 0 0 0 6px rgba(0,229,176,0); }
+    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,229,176,0.5); }
+    50%      { opacity:.85; box-shadow: 0 0 0 7px rgba(0,229,176,0); }
 }
 .live-label {
     font-family: var(--mono);
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     color: var(--emerald);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.13em;
     vertical-align: middle;
+}
+
+/* ── DATA FRESHNESS BADGE ── */
+.freshness-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(0,229,176,0.06);
+    border: 1px solid rgba(0,229,176,0.18);
+    border-radius: 2rem;
+    padding: 0.28rem 0.75rem;
+    font-family: var(--mono);
+    font-size: 0.56rem;
+    letter-spacing: 0.08em;
+    color: var(--emerald);
 }
 
 /* ── TICKER TAPE ── */
 .ticker-tape-wrap {
     overflow: hidden;
-    background: var(--bg2);
+    background: linear-gradient(90deg, var(--bg2), var(--bg3), var(--bg2));
     border-bottom: 1px solid var(--border);
     border-top: 1px solid var(--border);
-    padding: 0.28rem 0;
-    margin: 0 -2.5rem 1.5rem -2.5rem;
+    padding: 0.32rem 0;
+    margin: 0 -2.5rem 2rem -2.5rem;
 }
 .ticker-tape {
     display: inline-flex;
-    gap: 2.5rem;
-    animation: tape 38s linear infinite;
+    gap: 2.8rem;
+    animation: tape 40s linear infinite;
     white-space: nowrap;
     font-family: var(--mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.05em;
+    font-size: 0.63rem;
+    letter-spacing: 0.04em;
     color: var(--t3);
 }
 .ticker-tape:hover { animation-play-state: paused; }
 @keyframes tape { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 .tape-up   { color: var(--emerald); font-weight: 700; }
 .tape-down { color: var(--red); font-weight: 700; }
-.tape-sym  { color: var(--t4); font-size: 0.58rem; margin-right: 0.25rem; }
+.tape-sym  { color: var(--t4); font-size: 0.56rem; margin-right: 0.3rem; }
 
 /* ── GLASS CARDS ── */
 .wi-card {
-    background: linear-gradient(145deg, #111522, #0c0f17);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 14px;
-    padding: 1.4rem 1.6rem;
-    transition: all 0.25s ease;
+    background: linear-gradient(145deg, #0f1727, #090e1b);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 1.7rem;
+    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: var(--shadow-sm);
 }
 .wi-card:hover {
-    border: 1px solid rgba(77,142,255,0.4);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+    border-color: rgba(77,142,255,0.35);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
 }
-.wi-card-accent { border-top: 2px solid var(--accent); }
+.wi-card-accent  { border-top: 2px solid var(--accent); }
 .wi-card-emerald { border-top: 2px solid var(--emerald); }
-.wi-card-red { border-top: 2px solid var(--red); }
-.wi-card-yellow { border-top: 2px solid var(--yellow); }
+.wi-card-red     { border-top: 2px solid var(--red); }
+.wi-card-yellow  { border-top: 2px solid var(--yellow); }
 
 /* ── SUMMARY STAT GRID ── */
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 0.75rem;
-    margin: 1rem 0;
+    gap: 0.85rem;
+    margin: 1.2rem 0;
 }
 .stat-card {
-    background: linear-gradient(145deg, var(--bg2), var(--bg3));
+    background: linear-gradient(145deg, var(--bg2), #0a1020);
     border: 1px solid var(--border);
     border-top: 2px solid var(--accent);
-    border-radius: var(--radius);
-    padding: 1rem 1.2rem;
+    border-radius: var(--radius-lg);
+    padding: 1.15rem 1.4rem;
     position: relative;
     overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
 .stat-card::after {
     content: '';
     position: absolute;
     top: 0; right: 0;
-    width: 50px; height: 50px;
-    background: radial-gradient(circle at top right, rgba(77,142,255,0.07), transparent 70%);
+    width: 70px; height: 70px;
+    background: radial-gradient(circle at top right, rgba(77,142,255,0.08), transparent 70%);
 }
 .stat-label {
     font-family: var(--sans);
-    font-size: 0.56rem;
-    letter-spacing: 0.14em;
+    font-size: 0.54rem;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--t3);
     font-weight: 700;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 .stat-value {
     font-family: var(--mono);
-    font-size: 1.55rem;
+    font-size: 1.65rem;
     font-weight: 700;
     color: var(--primary);
     line-height: 1.1;
 }
-.stat-sub { font-size: 0.58rem; color: var(--t3); margin-top: 3px; font-family: var(--sans); }
+.stat-sub { font-size: 0.6rem; color: var(--t3); margin-top: 4px; font-family: var(--sans); font-weight: 600; }
 
 /* ── SIGNAL PANEL ── */
 .signal-panel {
     display: flex;
-    gap: 1rem;
-    margin: 1.2rem 0;
+    gap: 1.2rem;
+    margin: 1.4rem 0;
     flex-wrap: wrap;
 }
 .signal-main {
-    flex: 0 0 240px;
+    flex: 0 0 260px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2rem 1.5rem;
+    padding: 2.2rem 1.8rem;
     border: 2px solid var(--accent);
     background: rgba(77,142,255,0.05);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     position: relative;
     overflow: hidden;
-    box-shadow: 0 0 30px rgba(77,142,255,0.08);
+    box-shadow: 0 0 40px rgba(77,142,255,0.1), var(--shadow-sm);
+    transition: box-shadow 0.2s;
 }
 .signal-main::before {
     content: '';
     position: absolute;
-    bottom: -20px; right: -20px;
-    width: 100px; height: 100px;
+    bottom: -25px; right: -25px;
+    width: 120px; height: 120px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(77,142,255,0.18) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(77,142,255,0.2) 0%, transparent 70%);
 }
-.signal-main.sell { border-color: var(--red); background: rgba(255,107,107,0.05); box-shadow: 0 0 30px rgba(255,107,107,0.08); }
-.signal-main.sell::before { background: radial-gradient(circle, rgba(255,107,107,0.18) 0%, transparent 70%); }
-.signal-main.hold { border-color: var(--yellow); background: rgba(255,221,45,0.05); box-shadow: 0 0 30px rgba(255,221,45,0.08); }
-.signal-main.hold::before { background: radial-gradient(circle, rgba(255,221,45,0.18) 0%, transparent 70%); }
+.signal-main.sell { border-color: var(--red); background: rgba(255,95,95,0.05); box-shadow: 0 0 40px rgba(255,95,95,0.1), var(--shadow-sm); }
+.signal-main.sell::before { background: radial-gradient(circle, rgba(255,95,95,0.2) 0%, transparent 70%); }
+.signal-main.hold { border-color: var(--yellow); background: rgba(255,212,38,0.05); box-shadow: 0 0 40px rgba(255,212,38,0.1), var(--shadow-sm); }
+.signal-main.hold::before { background: radial-gradient(circle, rgba(255,212,38,0.2) 0%, transparent 70%); }
 .signal-action {
     font-family: var(--mono);
-    font-size: 2.2rem;
+    font-size: 2.4rem;
     font-weight: 800;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.18em;
     color: var(--primary);
     line-height: 1;
 }
@@ -1367,13 +1442,13 @@ label, [data-testid="stSelectbox"] label,
 .signal-action.hold { color: var(--yellow); }
 .signal-pct {
     font-family: var(--mono);
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 600;
-    margin-top: 0.5rem;
+    margin-top: 0.6rem;
     color: var(--t1);
 }
 .signal-lbl {
-    font-size: 0.54rem;
+    font-size: 0.52rem;
     letter-spacing: 0.2em;
     color: var(--t3);
     margin-top: 8px;
@@ -1385,13 +1460,13 @@ label, [data-testid="stSelectbox"] label,
     flex: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-    min-width: 200px;
+    gap: 0.7rem;
+    min-width: 220px;
 }
 .sig-card {
     background: linear-gradient(145deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border);
-    padding: 0.75rem 1rem;
+    padding: 0.85rem 1.1rem;
     position: relative;
     border-radius: var(--radius);
     overflow: hidden;
@@ -1404,33 +1479,34 @@ label, [data-testid="stSelectbox"] label,
     top: 0; left: 0;
     width: 3px; height: 100%;
     background: var(--border);
+    border-radius: 2px 0 0 2px;
 }
 .sig-card.positive::before { background: var(--emerald); }
 .sig-card.negative::before { background: var(--red); }
 .sig-card.neutral::before  { background: var(--yellow); }
-.sig-lbl { font-size: 0.53rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--t3); margin-bottom: 4px; font-weight: 700; font-family: var(--sans); }
-.sig-val { font-family: var(--mono); font-size: 0.88rem; font-weight: 600; color: var(--t1); }
-.sig-sub { font-size: 0.54rem; color: var(--t3); margin-top: 2px; font-family: var(--sans); }
+.sig-lbl { font-size: 0.52rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--t3); margin-bottom: 5px; font-weight: 700; font-family: var(--sans); }
+.sig-val { font-family: var(--mono); font-size: 0.9rem; font-weight: 700; color: var(--t1); }
+.sig-sub { font-size: 0.55rem; color: var(--t3); margin-top: 3px; font-family: var(--sans); }
 
 /* ── COMPOSITE METER ── */
 .composite-meter {
     background: linear-gradient(145deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border);
     border-left: 3px solid var(--accent);
-    padding: 1rem 1.5rem;
-    margin: 0.8rem 0;
-    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1.2rem 1.6rem;
+    margin: 1rem 0;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
-.meter-title { font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--t3); margin-bottom: 0.8rem; font-weight: 700; font-family: var(--sans); }
-.sir { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.4rem; font-family: var(--mono); font-size: 0.67rem; }
-.sir-label { color: var(--t2); width: 120px; flex-shrink: 0; }
-.sir-bar-bg { flex: 1; height: 4px; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
-.sir-bar { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
-.sir-bar.positive { background: linear-gradient(90deg, var(--emerald), rgba(0,229,176,0.5)); }
-.sir-bar.negative { background: linear-gradient(90deg, var(--red), rgba(255,107,107,0.5)); }
-.sir-bar.neutral  { background: linear-gradient(90deg, var(--yellow), rgba(255,221,45,0.5)); }
-.sir-val { width: 55px; text-align: right; font-weight: 600; color: var(--t1); }
-.sir-sig { width: 40px; text-align: right; font-size: 0.57rem; letter-spacing: 0.08em; font-weight: 700; }
+.meter-title { font-size: 0.54rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--t3); margin-bottom: 0.9rem; font-weight: 700; font-family: var(--sans); }
+.sir { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-family: var(--mono); font-size: 0.66rem; }
+.sir-label { color: var(--t2); width: 130px; flex-shrink: 0; }
+.sir-bar-bg { flex: 1; height: 5px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
+.sir-bar { height: 100%; border-radius: 3px; transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
+.sir-bar.positive { background: linear-gradient(90deg, var(--emerald), rgba(0,229,176,0.4)); }
+.sir-bar.negative { background: linear-gradient(90deg, var(--red), rgba(255,95,95,0.4)); }
+.sir-bar.neutral  { background: linear-gradient(90deg, var(--yellow), rgba(255,212,38,0.4)); }
+.sir-val { width: 58px; text-align: right; font-weight: 600; color: var(--t1); }
+.sir-sig { width: 42px; text-align: right; font-size: 0.56rem; letter-spacing: 0.08em; font-weight: 700; }
 .sir-sig.buy { color: var(--emerald); }
 .sir-sig.sell { color: var(--red); }
 .sir-sig.hold { color: var(--yellow); }
@@ -1439,81 +1515,128 @@ label, [data-testid="stSelectbox"] label,
 .bt-card {
     background: linear-gradient(145deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border);
-    border-top: 2px solid var(--border);
-    padding: 1rem 1.2rem;
-    margin-bottom: 0.4rem;
+    border-top: 2px solid var(--border2);
+    padding: 1.1rem 1.3rem;
+    margin-bottom: 0.5rem;
     font-family: var(--mono);
     border-radius: var(--radius);
+    transition: transform 0.15s;
 }
-.bt-label { font-size: 0.58rem; color: var(--t3); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 4px; font-family: var(--sans); font-weight: 700; }
-.bt-val       { font-size: 1.3rem; font-weight: 700; color: var(--t1); }
-.bt-val-green { font-size: 1.3rem; font-weight: 700; color: var(--emerald); }
-.bt-val-red   { font-size: 1.3rem; font-weight: 700; color: var(--red); }
+.bt-card:hover { transform: translateY(-1px); }
+.bt-label { font-size: 0.56rem; color: var(--t3); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 5px; font-family: var(--sans); font-weight: 700; }
+.bt-val       { font-size: 1.35rem; font-weight: 700; color: var(--t1); }
+.bt-val-green { font-size: 1.35rem; font-weight: 700; color: var(--emerald); }
+.bt-val-red   { font-size: 1.35rem; font-weight: 700; color: var(--red); }
 
 /* ── HALAL CARDS ── */
 .halal-card {
     background: rgba(0,229,176,0.03);
     border: 1px solid rgba(0,229,176,0.15);
     border-left: 3px solid var(--emerald);
-    padding: 0.85rem 1.2rem;
-    margin: 0.3rem 0;
+    padding: 0.9rem 1.3rem;
+    margin: 0.4rem 0;
     font-family: var(--sans);
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     color: var(--t2);
+    line-height: 1.5;
     border-radius: 0 var(--radius) var(--radius) 0;
 }
 .halal-card-fail {
-    background: rgba(255,107,107,0.03);
-    border: 1px solid rgba(255,107,107,0.15);
+    background: rgba(255,95,95,0.03);
+    border: 1px solid rgba(255,95,95,0.15);
     border-left: 3px solid var(--red);
-    padding: 0.85rem 1.2rem;
-    margin: 0.3rem 0;
+    padding: 0.9rem 1.3rem;
+    margin: 0.4rem 0;
     font-family: var(--sans);
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     color: var(--t2);
+    line-height: 1.5;
     border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 /* ── MODEL BADGE ── */
 .model-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     background: rgba(77,142,255,0.1);
-    border: 1px solid rgba(77,142,255,0.25);
+    border: 1px solid rgba(77,142,255,0.22);
     color: var(--primary);
     font-family: var(--sans);
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     font-weight: 700;
-    padding: 0.22rem 0.85rem;
-    letter-spacing: 0.08em;
+    padding: 0.25rem 0.9rem;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    margin-bottom: 0.8rem;
-    border-radius: var(--radius);
+    margin-bottom: 0.9rem;
+    border-radius: 2rem;
 }
 
 /* ── ALERT BOX ── */
 .alert-box {
-    background: rgba(77,142,255,0.05);
-    border: 1px solid rgba(77,142,255,0.3);
+    background: rgba(77,142,255,0.06);
+    border: 1px solid rgba(77,142,255,0.28);
     border-left: 3px solid var(--accent);
-    padding: 0.85rem 1.3rem;
+    padding: 0.9rem 1.4rem;
     font-family: var(--sans);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: var(--primary);
-    margin: 0.8rem 0;
-    letter-spacing: 0.03em;
+    margin: 0.9rem 0;
+    letter-spacing: 0.02em;
     border-radius: 0 var(--radius) var(--radius) 0;
+    line-height: 1.5;
 }
 
 /* ── SIDEBAR STAT ROW ── */
 .stat-row {
     font-family: var(--sans);
-    font-size: 0.58rem;
+    font-size: 0.57rem;
     color: var(--t3);
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    margin-top: 3px;
+    font-weight: 700;
+}
+
+/* ── FREE PLAN BADGE ── */
+.plan-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(77,142,255,0.06);
+    border: 1px solid rgba(77,142,255,0.18);
+    border-radius: var(--radius);
+    padding: 0.55rem 0.85rem;
+    margin: 0.5rem 0;
+}
+.plan-badge-label {
+    font-family: var(--sans);
+    font-size: 0.56rem;
+    font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    margin-bottom: 4px;
-    margin-top: 2px;
-    font-weight: 700;
+    color: var(--t3);
+}
+.plan-badge-value {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+.usage-bar-bg {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    margin-top: 0.4rem;
+    overflow: hidden;
+}
+.usage-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.6s ease;
 }
 
 /* ── NAV ITEM ── */
@@ -1521,8 +1644,8 @@ label, [data-testid="stSelectbox"] label,
     background: var(--bg4);
     border-left: 3px solid var(--accent);
     color: var(--primary) !important;
-    padding: 0.5rem 1rem;
-    font-size: 0.7rem;
+    padding: 0.55rem 1rem;
+    font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1532,8 +1655,8 @@ label, [data-testid="stSelectbox"] label,
 }
 .nav-item-idle {
     color: var(--t3);
-    padding: 0.5rem 1rem;
-    font-size: 0.7rem;
+    padding: 0.55rem 1rem;
+    font-size: 0.68rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -1548,7 +1671,7 @@ label, [data-testid="stSelectbox"] label,
     align-items: center;
     background: var(--bg3);
     border: 1px solid var(--border);
-    padding: 0.5rem 0.75rem;
+    padding: 0.55rem 0.8rem;
     border-radius: var(--radius);
     margin-bottom: 0.3rem;
     font-family: var(--mono);
@@ -1559,91 +1682,79 @@ label, [data-testid="stSelectbox"] label,
 
 /* ── PREMIUM METRIC CARD (feature grid) ── */
 .metric-card {
-    background: linear-gradient(145deg, #111522, #0c0f17);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 14px;
-    padding: 1.2rem;
-    transition: all 0.25s ease;
+    background: linear-gradient(145deg, #0f1727, #080e1c);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: var(--radius-lg);
+    padding: 1.3rem 1.4rem;
+    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+    height: 100%;
+    box-shadow: var(--shadow-sm);
 }
 .metric-card:hover {
-    border: 1px solid rgba(77,142,255,0.4);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+    border-color: rgba(77,142,255,0.35);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
 }
 .section-title {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.13em;
     color: #7c8191;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.55rem;
     font-weight: 700;
     font-family: var(--sans);
+    line-height: 1.4;
 }
-/* ── LOGIN / WELCOME SCREEN (authgate.py) ── */
-/* These classes are available for authgate.py to use */
-.login-wrap {
-    min-height: 100vh;
+
+/* ── TRUST ELEMENTS ── */
+.trust-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 2rem 1rem;
-    background: radial-gradient(ellipse at 30% 20%, rgba(77,142,255,0.06) 0%, transparent 55%),
-                radial-gradient(ellipse at 80% 80%, rgba(0,229,176,0.04) 0%, transparent 50%),
-                var(--bg);
-}
-.login-card {
-    background: linear-gradient(145deg, #111828, #0c1220);
-    border: 1px solid rgba(77,142,255,0.15);
-    border-radius: 20px;
-    padding: 2.8rem 2.4rem 2.4rem;
-    width: 100%;
-    max-width: 420px;
-    box-shadow:
-        0 0 0 1px rgba(77,142,255,0.05),
-        0 20px 60px rgba(0,0,0,0.6),
-        0 0 80px rgba(77,142,255,0.04);
-}
-.login-logo {
-    font-family: Manrope, sans-serif;
-    font-size: 2rem;
-    font-weight: 800;
-    color: #dae2fd;
-    letter-spacing: -.02em;
-    margin-bottom: .2rem;
-    text-align: center;
-}
-.login-logo span { color: #4d8eff; }
-.login-tagline {
-    font-family: Manrope, sans-serif;
-    font-size: .72rem;
-    color: #424754;
-    text-align: center;
-    letter-spacing: .06em;
-    margin-bottom: 2rem;
-    font-weight: 500;
-}
-.login-divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(77,142,255,0.2), transparent);
-    margin: 1.4rem 0;
-}
-.login-feature-row {
-    display: flex;
-    justify-content: center;
     gap: 1.2rem;
     flex-wrap: wrap;
-    margin: 1.2rem 0 .8rem;
+    margin: 0.8rem 0 0;
 }
-.login-feature {
-    font-family: IBM Plex Mono, monospace;
-    font-size: .56rem;
-    color: #2d3449;
-    letter-spacing: .06em;
+.trust-item {
     display: flex;
     align-items: center;
-    gap: .25rem;
+    gap: 0.3rem;
+    font-family: var(--sans);
+    font-size: 0.57rem;
+    font-weight: 600;
+    color: var(--t4);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
-.login-feature span { color: #424754; }
+.trust-item-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--emerald);
+    flex-shrink: 0;
+}
+
+/* ── DISCLAIMER PILL ── */
+.disclaimer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,95,95,0.07);
+    border: 1px solid rgba(255,95,95,0.18);
+    border-radius: 2rem;
+    padding: 0.32rem 0.85rem;
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.07em;
+    color: rgba(255,95,95,0.7);
+}
+
+/* ── TIMESTAMP CAPTION ── */
+.data-ts {
+    font-family: var(--mono);
+    font-size: 0.54rem;
+    color: var(--t4);
+    letter-spacing: 0.07em;
+    margin-top: 0.3rem;
+}
 
 </style>
 """, unsafe_allow_html=True)
@@ -2026,14 +2137,7 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 
 
 # ── Auth Gate ─────────────────────────────────────────────────────────────────
-# Login / welcome screen lives in authgate.py.
-# Polish checklist for authgate.py:
-#   • Use .login-wrap, .login-card, .login-logo, .login-tagline CSS classes (defined above)
-#   • App name: "Stockcast"
-#   • Tagline: "AI-powered stock insights for smarter decisions"
-#   • Feature pills: 📈 XGBoost AI · ⭐ Watchlist · 💼 Portfolio · ☪ Shariah · 📰 News NLP
-#   • Keep form fields minimal: Email + Password + CTA button only
-#   • No background image stretching — use radial-gradient backgrounds via CSS only
+# UI lives in authgate.py — edit that file to change the login/signup design.
 from authgate import render_auth_gate
 render_auth_gate(supabase)
 
@@ -2055,25 +2159,29 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
 # ═══════════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════════
-import datetime as _dt
-_now_str = _dt.datetime.utcnow().strftime("%H:%M UTC")
 st.markdown(f"""
 <div class="wi-header">
   <div>
     <div class="wi-logo">Stock<span>cast</span></div>
-    <div class="wi-sub">AI-powered stock insights for smarter decisions</div>
-  </div>
-  <div style="display:flex;align-items:center;gap:1.2rem;flex-wrap:wrap;">
-    <div class="trust-bar" style="margin:0;padding:0;gap:.9rem;">
-      <div class="trust-item"><span>🔒</span> <span>Secure Auth</span></div>
-      <div class="trust-item"><span>📡</span> <span>Live Data</span></div>
-      <div class="trust-item"><span>🤖</span> <span>XGBoost AI</span></div>
+    <div class="wi-sub">XGBoost · 6-Factor Signals · Backtesting · Shariah Screening · News NLP</div>
+    <div class="trust-row">
+      <span class="trust-item"><span class="trust-item-dot"></span>Data via Yahoo Finance</span>
+      <span class="trust-item"><span class="trust-item-dot" style="background:#4d8eff;"></span>Supabase Auth</span>
+      <span class="trust-item"><span class="trust-item-dot" style="background:#ffd426;"></span>For Educational Use Only</span>
     </div>
-    <div class="updated-chip">🕐 {_now_str}</div>
-    <div style="width:1px;height:28px;background:#2d3449;"></div>
-    <div>
-      <span class="live-dot"></span>
-      <span class="live-label">LIVE · NYSE/NASDAQ</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:1.5rem;">
+    <div style="text-align:right;">
+      <div style="font-size:.52rem;color:#3e4558;letter-spacing:.14em;text-transform:uppercase;font-weight:700;font-family:Manrope,sans-serif;">Developed by</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#8a8fa0;margin-top:1px;">Muawwiz Ghani</div>
+    </div>
+    <div style="width:1px;height:32px;background:#252f47;"></div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+      <div>
+        <span class="live-dot"></span>
+        <span class="live-label">LIVE · NYSE/NASDAQ</span>
+      </div>
+      <span class="disclaimer-pill">⚠ Not Financial Advice</span>
     </div>
   </div>
 </div>
@@ -2120,28 +2228,30 @@ with st.sidebar:
     _L = LANGUAGES[st.session_state.lang]
 
     # Logo + User
-    _free_credits = st.session_state.get("free_credits_used", 0)
-    _credits_left = max(0, 10 - _free_credits)
+    _analyses_today = st.session_state.get("analyses_today", 0)
+    _plan_pct = min(100, int(_analyses_today / 5 * 100))
     st.markdown(f"""
-    <div style="padding:1.2rem 1rem 0.6rem;">
-      <div style="font-family:Manrope,sans-serif;font-size:1.5rem;font-weight:800;color:#dae2fd;letter-spacing:-.01em;">
+    <div style="padding:1.5rem 1rem 0.9rem;">
+      <div style="font-family:Manrope,sans-serif;font-size:1.45rem;font-weight:800;color:#e4eafd;letter-spacing:-.02em;line-height:1;">
         Stock<span style="color:#4d8eff;">cast</span>
       </div>
-      <div style="font-size:.58rem;color:#8c909f;margin-top:3px;font-family:Manrope,sans-serif;font-weight:500;letter-spacing:.02em;">
-        AI-powered stock insights
+      <div style="font-size:.52rem;color:#3e4558;letter-spacing:.1em;text-transform:uppercase;font-weight:700;margin-top:3px;">
+        by Muawwiz Ghani
       </div>
     </div>
-    <div style="padding:0 1rem .6rem;">
-      <div class="credits-badge">
-        <div class="credits-dot"></div>
-        {_credits_left} free analyses left
-      </div>
+    <div style="background:rgba(77,142,255,0.07);border:1px solid rgba(77,142,255,0.18);
+         border-left:3px solid #4d8eff;padding:.55rem 1rem;margin:.3rem 0 .5rem;
+         font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#adc6ff;letter-spacing:.04em;
+         border-radius:0 .5rem .5rem 0;display:flex;align-items:center;gap:.5rem;">
+      <span style="color:#3e4558;">👤</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{st.session_state.user.email}</span>
     </div>
-    <div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);
-         border-left:3px solid #4d8eff;padding:.55rem 1rem;margin:.4rem 0 .6rem;
-         font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#adc6ff;letter-spacing:.04em;
-         overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-      👤 {st.session_state.user.email}
+    <div class="plan-badge">
+      <div>
+        <div class="plan-badge-label">Free Plan</div>
+        <div class="usage-bar-bg"><div class="usage-bar-fill" style="width:{_plan_pct}%;"></div></div>
+      </div>
+      <div class="plan-badge-value">{_analyses_today} / 5 today</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2243,6 +2353,7 @@ with st.sidebar:
     st.markdown("---")
     if st.button(_L["run"], use_container_width=True):
         st.session_state.run_pressed = True
+        st.session_state.analyses_today = st.session_state.get("analyses_today", 0) + 1
     run_btn = st.session_state.get("run_pressed", False)
 
     # Watchlist
@@ -2286,19 +2397,14 @@ with st.sidebar:
 # ═══════════════════════════════════════════════════════════════════
 if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
-    _dash_updated = _dt.datetime.utcnow().strftime("%b %d, %Y · %H:%M UTC")
     st.markdown(f"""
-    <div style="margin-bottom:1.2rem;padding-top:.5rem;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.6rem;">
-      <div>
-        <div style="font-family:var(--sans);font-size:1.6rem;font-weight:800;color:#dae2fd;letter-spacing:-.02em;line-height:1.2;">
-          {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
-        </div>
-        <div style="font-size:.8rem;color:#8c909f;margin-top:.4rem;font-weight:500;">{_L["dashboard_desc"]}</div>
+    <div style="margin-bottom:1.5rem;padding-top:.5rem;">
+      <div style="font-family:var(--sans);font-size:1.75rem;font-weight:800;color:#e4eafd;
+           letter-spacing:-.03em;line-height:1.2;">
+        {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;">
-        <div class="updated-chip">🕐 Updated {_dash_updated}</div>
-        <div class="disclaimer-bar" style="font-size:.54rem;">⚠ For educational use only · Not financial advice</div>
-      </div>
+      <div style="font-size:.84rem;color:#8a8fa0;margin-top:.5rem;font-weight:500;line-height:1.6;
+           max-width:600px;">{_L["dashboard_desc"]}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2350,21 +2456,15 @@ if not run_btn:
       <div class="stat-card" style="border-top-color:#00e5b0;">
         <div class="stat-label">VIX · Volatility Index</div>
         <div class="stat-value" style="color:#00e5b0;">{_vix[0]}</div>
-        <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]}</div>
+        <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
       </div>
     </div>
-    <div class="disclaimer-bar">⚠ Market data is for informational purposes only and may be delayed. Stockcast is not a registered investment advisor. Past performance is not indicative of future results.</div>
     """, unsafe_allow_html=True)
 
     # Watchlist live prices if any
     if st.session_state.watchlist:
         st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-        _wl_time = _dt.datetime.utcnow().strftime("%H:%M UTC")
-        st.markdown(f"""
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
-          <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;">{_L["watchlist_live"]}</div>
-          <div class="updated-chip">🕐 {_wl_time}</div>
-        </div>""", unsafe_allow_html=True)
+        st.subheader(_L["watchlist_live"])
         wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
         for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
             with wl_cols[i % 4]:
@@ -2376,12 +2476,10 @@ if not run_btn:
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(f"""
                     <div style="background:linear-gradient(145deg,#131b2e,#171f33);border:1px solid #2d3449;
-                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.5rem;
-                         transition:all .2s;">
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;letter-spacing:.14em;color:#424754;text-transform:uppercase;margin-bottom:.25rem;">{wl_sym}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#dae2fd;margin:.2rem 0;">${_px:.2f}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;font-weight:700;color:{_col};">{_sign} {_chg:+.2f}%</div>
-                      <div style="font-size:.5rem;color:#2d3449;margin-top:.4rem;font-family:Manrope,sans-serif;letter-spacing:.06em;">LIVE PRICE</div>
+                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.5rem;">
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#424754;text-transform:uppercase;">{wl_sym}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#dae2fd;margin:.3rem 0;">${_px:.2f}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_col};">{_sign} {_chg:+.2f}%</div>
                     </div>""", unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
@@ -2432,9 +2530,6 @@ else:
     # ═══════════════════════════════════════════════════════════════
     # ANALYSIS ENGINE
     # ═══════════════════════════════════════════════════════════════
-    # Track free credit usage
-    st.session_state.free_credits_used = st.session_state.get("free_credits_used", 0) + 1
-
     if st.sidebar.button(_L.get("back", "← Back to Dashboard"), use_container_width=True, key="back_btn"):
         st.session_state.run_pressed = False
         st.rerun()
@@ -2459,15 +2554,19 @@ else:
 
     st.success(_L["days_loaded"].format(n=len(df), ticker=ticker))
 
-    _analysis_time = _dt.datetime.utcnow().strftime("%b %d, %Y · %H:%M UTC")
+    # Data freshness + trust row
+    _now_ts = pd.Timestamp.now().strftime("%b %d, %Y · %H:%M UTC")
     st.markdown(f"""
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin:.4rem 0 .6rem;">
-      <div class="trust-bar" style="margin:0;padding:0;">
-        <div class="trust-item"><span>📊</span> <span>{len(df)} trading days loaded</span></div>
-        <div class="trust-item"><span>🤖</span> <span>XGBoost · 20 features</span></div>
-        <div class="trust-item"><span>📡</span> <span>Yahoo Finance</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+         gap:.5rem;margin:.2rem 0 .8rem;padding:.55rem 1.1rem;
+         background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.12);border-radius:.5rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <span class="live-dot"></span>
+        <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#00e5b0;letter-spacing:.06em;">
+          {len(df)} trading days · via Yahoo Finance · refreshed {_now_ts}
+        </span>
       </div>
-      <div class="updated-chip">🕐 Data as of {_analysis_time}</div>
+      <span class="disclaimer-pill">⚠ Not Financial Advice · Educational Use Only</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -2508,8 +2607,8 @@ else:
         fig_candle.add_trace(go.Bar(x=df.index, y=df['Volume'].squeeze(), name="Volume", marker_color=colors_vol, opacity=0.5), row=2, col=1)
         candle_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("xaxis","yaxis")}
         fig_candle.update_layout(**candle_layout,
-            title=dict(text=f"{ticker} · Candlestick · MA50/200 · Bollinger · Volume", font=dict(color=C_GREEN, size=12)),
-            xaxis_rangeslider_visible=False, height=560)
+            title=dict(text=f"{ticker} · Candlestick · MA50/200 · Bollinger · Volume", font=dict(color=C_GREEN, size=13)),
+            xaxis_rangeslider_visible=False, height=620)
         fig_candle.update_xaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
         fig_candle.update_yaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
         st.plotly_chart(fig_candle, use_container_width=True)
@@ -2529,7 +2628,7 @@ else:
         hist_colors = [C_EMERALD if v >= 0 else C_RED for v in macd_hist]
         fig_tech.add_trace(go.Bar(x=df.index, y=macd_hist, name="Histogram", marker_color=hist_colors, opacity=0.65), row=2, col=1)
         subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis','yaxis')}
-        fig_tech.update_layout(**subplot_layout, height=450)
+        fig_tech.update_layout(**subplot_layout, height=500)
         fig_tech.update_xaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
         fig_tech.update_yaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
         fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
@@ -2640,7 +2739,7 @@ else:
             fig1 = go.Figure()
             fig1.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_ACCENT, width=1.5), fill='tozeroy', fillcolor='rgba(77,142,255,0.05)'))
             fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted", line=dict(color=C_EMERALD, width=1.5, dash='dot')))
-            fig1.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · XGBoost Model Fit (Test Set)", font=dict(color=C_GREEN, size=12)), height=350)
+            fig1.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · XGBoost Model Fit (Test Set)", font=dict(color=C_GREEN, size=13)), height=400)
             st.plotly_chart(fig1, use_container_width=True)
 
             # Feature Importance
@@ -2651,7 +2750,7 @@ else:
             imp_df = pd.DataFrame({'feature': all_feature_names, 'importance': importances}).sort_values('importance', ascending=True).tail(20)
             fig_imp = go.Figure(go.Bar(x=imp_df['importance'], y=imp_df['feature'], orientation='h',
                 marker=dict(color=imp_df['importance'], colorscale=[[0,"#131b2e"],[0.5,"#1a3050"],[1,C_ACCENT]], showscale=False)))
-            fig_imp.update_layout(**{k: v for k, v in PLOTLY_LAYOUT.items() if k != "xaxis"}, title=dict(text="Top 20 Feature Importances", font=dict(color=C_GREEN, size=12)), height=430, xaxis=dict(**PLOTLY_LAYOUT["xaxis"], title="Importance Score"))
+            fig_imp.update_layout(**{k: v for k, v in PLOTLY_LAYOUT.items() if k != "xaxis"}, title=dict(text="Top 20 Feature Importances", font=dict(color=C_GREEN, size=13)), height=480, xaxis=dict(**PLOTLY_LAYOUT["xaxis"], title="Importance Score"))
             st.plotly_chart(fig_imp, use_container_width=True)
 
         # ──────────────────────────────────────────────────────────────────────
@@ -3098,7 +3197,6 @@ else:
             conf_label = _L["high_confidence"] if confidence_score>=80 else _L["moderate_confidence"] if confidence_score>=60 else _L["low_confidence"]
             filled = int(confidence_score / 5)
             bar_html = "".join(f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;background:{conf_color};opacity:{1.0 if i<filled else 0.1};border-radius:1px;"></span>' for i in range(20))
-            _conf_updated = _dt.datetime.utcnow().strftime("%H:%M UTC")
             st.markdown(f"""
             <div style="background:#131b2e;border:1px solid #2d3449;border-left:3px solid {conf_color};
                  padding:1.2rem 1.6rem;margin:1rem 0;border-radius:0 .5rem .5rem 0;">
@@ -3107,7 +3205,6 @@ else:
                   <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#424754;margin-bottom:.3rem;font-weight:700;">{_L["model_conf_score"]}</div>
                   <div style="font-family:IBM Plex Mono,monospace;font-size:2.2rem;font-weight:700;color:{conf_color};">{confidence_score:.0f}<span style="font-size:1rem;color:#8c909f;">/100</span></div>
                   <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.14em;color:{conf_color};margin-top:.3rem;font-weight:700;">{conf_label}</div>
-                  <div class="updated-chip" style="margin-top:.6rem;font-size:.5rem;">🕐 Computed {_conf_updated}</div>
                 </div>
                 <div style="flex:1;min-width:220px;">
                   <div style="margin-bottom:.6rem;">{bar_html}</div>
@@ -3222,8 +3319,8 @@ else:
                 fig3.add_vline(x=4.5, line_dash="dot", line_color="#2d3449", annotation_text="↑ Higher confidence | Lower confidence ↓",
                                annotation_font=dict(color="#424754", size=9), annotation_position="top")
             fig3.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"{ticker} · {future_days}-Day Price Forecast · Band shows ±1.5σ uncertainty growth", font=dict(color=C_GREEN, size=12)),
-                xaxis_title="Days from today", yaxis_title="Price (USD)", height=380)
+                title=dict(text=f"{ticker} · {future_days}-Day Price Forecast · Band shows ±1.5σ uncertainty growth", font=dict(color=C_GREEN, size=13)),
+                xaxis_title="Days from today", yaxis_title="Price (USD)", height=420)
             st.plotly_chart(fig3, use_container_width=True)
 
             if future_days > 5:
@@ -3266,7 +3363,7 @@ else:
                 fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy", line=dict(color=C_EMERALD, width=2), fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
                 fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold", line=dict(color=C_ACCENT, width=1.5, dash="dot")))
                 fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY, annotation_text=f"Start ${bt_initial_capital:,}", annotation_font_color=C_GREY)
-                fig_eq.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · Strategy Equity Curve vs Buy & Hold", font=dict(color=C_GREEN, size=12)), height=380)
+                fig_eq.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · Strategy Equity Curve vs Buy & Hold", font=dict(color=C_GREEN, size=13)), height=420)
                 st.plotly_chart(fig_eq, use_container_width=True)
 
                 if not bt["trades_df"].empty:
@@ -3426,39 +3523,28 @@ else:
                     st.warning(f"Could not fetch news: {e}")
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
-_footer_year = _dt.datetime.utcnow().year
 st.markdown(f"""
-<div style="margin-top:4rem;padding:2rem 0 1.5rem;border-top:1px solid #1e2640;">
-  <div style="max-width:900px;margin:0 auto;text-align:center;">
-    <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;color:#2d3449;letter-spacing:-.01em;margin-bottom:.4rem;">
-      Stock<span style="color:#253660;">cast</span>
-    </div>
-    <div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#1e2640;letter-spacing:.08em;font-weight:500;margin-bottom:1.2rem;">
-      AI-powered stock insights for smarter decisions
-    </div>
-    <div style="display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F512; Secure Auth</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F4E1; Live Market Data</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F916; XGBoost AI Engine</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">Shariah Screening</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#2d3449;letter-spacing:.06em;">&#x1F4F0; News Sentiment NLP</div>
-    </div>
-    <div style="margin-bottom:.8rem;font-family:IBM Plex Mono,monospace;font-size:.53rem;letter-spacing:.06em;">
-      <a href="/privacy" target="_blank" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Privacy Policy</a>
-      <span style="color:#1e2640;">·</span>
-      <a href="/terms" target="_blank" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Terms of Service</a>
-      <span style="color:#1e2640;">·</span>
-      <a href="mailto:support@stockcast.com" style="color:#2d3449;text-decoration:none;margin:0 .5rem;">Support</a>
-    </div>
-    <div style="font-family:Manrope,sans-serif;font-size:.52rem;color:#1e2640;letter-spacing:.04em;line-height:1.7;max-width:680px;margin:0 auto .8rem;">
-      &#9888; Stockcast is for <b style="color:#2d3449;">educational and informational purposes only</b>.
-      Nothing on this platform constitutes financial, investment, legal, or tax advice.
-      Past performance is not indicative of future results.
-      Always consult a licensed financial advisor before making investment decisions.
-    </div>
-    <div style="font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#1e2640;letter-spacing:.06em;">
-      &copy; {_footer_year} Stockcast &middot; Built by Muawwiz Ghani &middot; All Rights Reserved
-    </div>
+<div style="text-align:center;margin-top:4rem;padding:2rem 1rem;border-top:1px solid #1e2740;">
+  <div style="display:flex;align-items:center;justify-content:center;gap:1.2rem;flex-wrap:wrap;margin-bottom:1rem;">
+    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot"></span>Data via Yahoo Finance</span>
+    <span style="color:#1e2740;">·</span>
+    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#4d8eff;"></span>Auth by Supabase</span>
+    <span style="color:#1e2740;">·</span>
+    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#ffd426;"></span>XGBoost Forecasting</span>
+    <span style="color:#1e2740;">·</span>
+    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#00e5b0;"></span>Shariah Screening</span>
+  </div>
+  <div style="margin-bottom:.7rem;">
+    <a href="/privacy" target="_blank" style="color:#3e4558;text-decoration:none;font-family:IBM Plex Mono,monospace;font-size:.54rem;letter-spacing:.08em;margin:0 .6rem;">Privacy Policy</a>
+    <span style="color:#1e2740;">·</span>
+    <a href="/terms" target="_blank" style="color:#3e4558;text-decoration:none;font-family:IBM Plex Mono,monospace;font-size:.54rem;letter-spacing:.08em;margin:0 .6rem;">Terms of Service</a>
+  </div>
+  <div style="margin-bottom:.5rem;">
+    <span class="disclaimer-pill">⚠ Stockcast is for educational and research purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a licensed financial advisor.</span>
+  </div>
+  <div style="font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#1e2740;letter-spacing:.08em;margin-top:.6rem;">
+    © 2026 Stockcast · Built by Muawwiz Ghani · v2.0
   </div>
 </div>
 """, unsafe_allow_html=True)
+
