@@ -205,17 +205,17 @@ def get_live_market_indices():
                 else:
                     raise ValueError("no data")
                 chg_pct = ((price - prev) / prev * 100) if prev else 0.0
-                col  = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
+                col  = "#00e5b0" if chg_pct >= 0 else "#ff5f5f"
                 sign = "+" if chg_pct >= 0 else ""
                 fmt_price = f"{price:,.2f}" if sym != "^VIX" else f"{price:.2f}"
                 result.append((name, fmt_price, f"{sign}{chg_pct:.2f}%", col))
             except Exception as e:
                 logger.debug("Market indices: no data for %s (%s): %s", name, sym, e)
-                result.append((name, "—", "—", "#424754"))
+                result.append((name, "—", "—", "#3e4558"))
     except Exception as e:
         logger.warning("get_live_market_indices batch download failed: %s", e)
         for name in symbols:
-            result.append((name, "—", "—", "#424754"))
+            result.append((name, "—", "—", "#3e4558"))
     return result
 
 @st.cache_data(ttl=300)
@@ -243,16 +243,16 @@ def get_live_sector_heatmap():
                 else:
                     raise ValueError("no data")
                 chg_pct = ((price - prev) / prev * 100) if prev else 0.0
-                col  = "#00e5b0" if chg_pct >= 0 else "#ff6b6b"
+                col  = "#00e5b0" if chg_pct >= 0 else "#ff5f5f"
                 sign = "+" if chg_pct >= 0 else ""
                 result.append((name, f"{sign}{chg_pct:.2f}%", col))
             except Exception as e:
                 logger.debug("Sector heatmap: no data for %s (%s): %s", name, sym, e)
-                result.append((name, "—", "#424754"))
+                result.append((name, "—", "#3e4558"))
     except Exception as e:
         logger.warning("get_live_sector_heatmap batch download failed: %s", e)
         for name in sector_etfs:
-            result.append((name, "—", "#424754"))
+            result.append((name, "—", "#3e4558"))
     return result
 
 @st.cache_data(ttl=3600)
@@ -424,35 +424,35 @@ def _sb_update_prices(user_id: str, holdings: list):
 LANGUAGES = {
     "English": {
         # Sidebar controls
-        "run": "▶  Run Forecast", "ticker": "Ticker", "from": "From", "to": "To",
+        "run": "▶  Run Analysis", "ticker": "Ticker", "from": "From", "to": "To",
         "mode": "Mode", "beginner": "🟢 Beginner", "pro": "🔴 Pro",
         "watchlist": "⭐ Watchlist", "alerts": "🔔 Signal Alerts",
-        "forecast": "Forecast", "days": "Days", "add": "Add",
+        "forecast": "Outlook", "days": "Days", "add": "Add",
         "portfolio": "💼  Portfolio", "markets": "🌍  Markets",
         "back": "← Back to Dashboard",
         "search_label": "🔍 Search Company / Ticker",
-        "lookback": "Lookback Window (days)", "horizon": "Forecast Horizon (days)",
+        "lookback": "Lookback Window (days)", "horizon": "Outlook Horizon (days)",
         "simple_view": "✓ Simple view active",
         "pro_view": "⚡ Pro view — all parameters unlocked",
-        "fast_mode": "⚡ Fast Mode (skip CI + backtest)",
+        "fast_mode": "⚡ Fast Mode (skip CI + simulator)",
         "xgb_params": "XGBoost Hyperparameters",
         "alert_target": "Price Alert Target ($)",
-        "backtesting": "Backtesting", "enable_backtest": "Enable Backtesting Engine",
+        "backtesting": "Strategy Simulator", "enable_backtest": "Enable Strategy Simulator",
         "init_capital": "Initial Capital ($)", "commission": "Commission per Trade ($)",
         "signal_thresh": "Signal Threshold (%)", "extra_features": "Extra Features",
         "model_compare": "Model Comparison (XGB vs LR vs Prophet)",
         "halal_check": "Halal / Shariah Compliance Check",
-        "conf_interval": "Confidence Intervals on Forecast",
+        "conf_interval": "Confidence Intervals on Outlook",
         "bootstrap_samples": "Bootstrap Samples (CI)", "multi_stock": "Multi-Stock Comparison",
         "compare_tickers": "Compare Tickers", "alert_signal_change": "Alert when signal changes",
         # Dashboard
         "dashboard_title": "Dashboard", "dashboard_subtitle": "Overview",
-        "dashboard_desc": "AI-powered stock intelligence · Enter a ticker in the sidebar and click Run Forecast to begin.",
+        "dashboard_desc": "Your AI stock research assistant · Enter a ticker in the sidebar and click Run Analysis to begin.",
         "watchlist_live": "⭐ Watchlist — Live Prices",
         "how_it_works": "How It Works",
         "hw1_title": "Enter a Ticker", "hw1_body": "Search by company name or symbol. Add it to your watchlist to track it persistently.",
-        "hw2_title": "Run the Model", "hw2_body": "XGBoost trains on 7 years of OHLCV data with 20 engineered features. Results in seconds.",
-        "hw3_title": "Read the Signal", "hw3_body": "Get a BUY / SELL / HOLD verdict with a full explanation of every contributing factor.",
+        "hw2_title": "Run the Assistant", "hw2_body": "Your AI assistant analyses 7 years of market data across 20 technical signals. Results in seconds.",
+        "hw3_title": "Read the Signal", "hw3_body": "Get a BUY / SELL / HOLD research signal with a full breakdown of every contributing factor.",
         "platform_features": "Platform Features",
         "no_stocks_saved": "No stocks saved yet.",
         "no_holdings": "No holdings yet. Add your first stock above.",
@@ -471,8 +471,8 @@ LANGUAGES = {
         "news_sentiment": "News Sentiment NLP", "screening_criteria": "Screening Criteria",
         "analysis_tab": "📊  Analysis", "methodology_tab": "📖  Methodology",
         "dashboard_tab": "🖥  Dashboard",
-        "reality_check_title": "⚠ Model Reality Check — Read Before Trading",
-        "reality_check_body": "This model uses <b style='color:#dae2fd;'>price &amp; volume data only</b>. It has <b style='color:#ff6b6b;'>zero awareness</b> of: &nbsp;📰 breaking news &nbsp;·&nbsp;📊 earnings releases &nbsp;·&nbsp;🏦 Fed/macro events &nbsp;·&nbsp;🧠 analyst upgrades &nbsp;·&nbsp;🌍 geopolitical events. <b style='color:#ffdd2d;'>Use signals as one input — never as sole decision.</b>",
+        "reality_check_title": "💡 How to Use This Assistant",
+        "reality_check_body": "Like any research assistant, Stockcast works best when <b style='color:#e4eafd;'>combined with your own judgment</b> and current market context. The assistant analyses <b style='color:#4d8eff;'>price &amp; volume patterns</b> — complement it with: &nbsp;📰 recent news &nbsp;·&nbsp;📊 earnings releases &nbsp;·&nbsp;🏦 macro events &nbsp;·&nbsp;🧠 analyst reports &nbsp;·&nbsp;🌍 sector context. <b style='color:#ffd426;'>Use signals as a research input — never as the sole basis for a trade.</b>",
         "logout": "⏏  Logout",
         "verify_symbol": "Using: {ticker} — verify symbol",
         "active_ticker": "● ACTIVE: {ticker}",
@@ -480,33 +480,33 @@ LANGUAGES = {
         "no_recent_news": "No recent news found for this ticker.",
         "already_in_portfolio": "{sym} already in portfolio. Remove it first to update.",
         "added_success": "✓ Added {sym} — live price ${price:.2f}",
-        "model_performance": "Model Performance", "actual_vs_pred": "Actual vs Predicted",
-        "feature_importance": "Feature Importance", "signal_intelligence": "Signal Intelligence",
-        "forecast_next": "Forecast — Next {n} Days", "backtest_engine": "Backtesting Engine",
-        "trade_log": "Trade Log", "forecast_ci": "Forecast with Confidence Intervals",
+        "model_performance": "Analysis Quality", "actual_vs_pred": "Actual vs Predicted",
+        "feature_importance": "Signal Drivers", "signal_intelligence": "Signal Intelligence",
+        "forecast_next": "Price Outlook — Next {n} Days", "backtest_engine": "Strategy Simulator",
+        "trade_log": "Trade Log", "forecast_ci": "Outlook with Confidence Intervals",
         "model_comparison": "Model Comparison — XGBoost vs Prophet vs Linear Regression",
         "sector_heatmap": "Sector Heat Map · Live", "fear_greed": "Fear & Greed Index · Live",
-        "days_loaded": "✓ {n} trading days loaded for {ticker}", "fetching": "Fetching {ticker} data...",
-        "engineering": "Engineering technical features...", "building": "Building feature matrix...",
-        "training": "Training XGBoost model (cached after first run)...",
-        "running_backtest": "Running backtest simulation...", "running_bootstrap": "Running {n} bootstrap samples...",
+        "days_loaded": "✓ {n} trading days loaded for {ticker}", "fetching": "Loading {ticker} data...",
+        "engineering": "Computing technical signals...", "building": "Building signal matrix...",
+        "training": "Training AI model (cached after first run)...",
+        "running_backtest": "Running strategy simulation...", "running_bootstrap": "Running {n} bootstrap samples...",
         "training_lr": "Training Linear Regression...", "fetching_market": "Loading live market data...",
         "fetching_financial": "Fetching financial data for {ticker}...",
-        "not_enough_data": "Not enough data to train. Try a longer date range or smaller lookback window.",
+        "not_enough_data": "Not enough data to analyse. Try a longer date range or smaller lookback window.",
         "enter_ticker": "Please enter a ticker symbol.", "max_holdings": "Maximum {n} holdings reached.",
         "loading_prices": "Fetching live price for {sym}...",
         "deep_analysis": "📈  Deep Analysis",
-        "model_conf_score": "MODEL CONFIDENCE SCORE",
+        "model_conf_score": "ASSISTANT CONFIDENCE SCORE",
         "high_confidence": "HIGH CONFIDENCE", "moderate_confidence": "MODERATE CONFIDENCE", "low_confidence": "LOW CONFIDENCE",
         "r2_fit": "R² fit", "mape_accuracy": "MAPE accuracy", "directional_acc": "Directional acc.", "data_volume": "Data volume",
-        "composite_signal": "Composite Signal", "forecast_lbl": "forecast",
+        "composite_signal": "Research Signal", "forecast_lbl": "outlook",
         "score_lbl": "Score",
         "take_profit_lbl": "Take Profit", "stop_loss_lbl": "Stop Loss", "risk_reward_lbl": "Risk / Reward",
         "rsi_lbl": "RSI (14)",
         "favorable": "✓ Favorable", "marginal": "⚠ Marginal", "unfavorable": "✗ Unfavorable",
         "oversold_zone": "Oversold zone", "overbought_zone": "Overbought zone", "neutral_zone": "Neutral zone",
         "factor_breakdown": "6-Factor Signal Breakdown",
-        "last_close_lbl": "Last Close", "model_confidence_lbl": "Model Confidence",
+        "last_close_lbl": "Last Close", "model_confidence_lbl": "Assistant Confidence",
         "high_lbl": "High", "moderate_lbl": "Moderate", "low_lbl": "Low",
         "at_above_target": "AT or ABOVE your target of",
         "below_target": "below target of",
@@ -516,7 +516,7 @@ LANGUAGES = {
         "known_noncompliant": "Known non-compliant ticker",
     },
     "Arabic": {
-        "run": "▶  تشغيل التنبؤ", "ticker": "الرمز", "from": "من", "to": "إلى",
+        "run": "▶  تشغيل التحليل", "ticker": "الرمز", "from": "من", "to": "إلى",
         "mode": "الوضع", "beginner": "🟢 مبتدئ", "pro": "🔴 محترف",
         "watchlist": "⭐ قائمة المراقبة", "alerts": "🔔 تنبيهات الإشارة",
         "forecast": "التوقعات", "days": "أيام", "add": "إضافة",
@@ -529,7 +529,7 @@ LANGUAGES = {
         "fast_mode": "⚡ الوضع السريع (بدون CI والاختبار)",
         "xgb_params": "معلمات XGBoost",
         "alert_target": "سعر التنبيه المستهدف ($)",
-        "backtesting": "الاختبار الخلفي", "enable_backtest": "تفعيل محرك الاختبار الخلفي",
+        "backtesting": "محاكاة الاستراتيجية", "enable_backtest": "تفعيل محاكي الاستراتيجية",
         "init_capital": "رأس المال الابتدائي ($)", "commission": "عمولة كل صفقة ($)",
         "signal_thresh": "حد الإشارة (%)", "extra_features": "ميزات إضافية",
         "model_compare": "مقارنة النماذج (XGB vs LR vs Prophet)",
@@ -560,8 +560,8 @@ LANGUAGES = {
         "news_sentiment": "تحليل مشاعر الأخبار", "screening_criteria": "معايير الفحص",
         "analysis_tab": "📊  التحليل", "methodology_tab": "📖  المنهجية",
         "dashboard_tab": "🖥  لوحة التحكم",
-        "reality_check_title": "⚠ التحقق من الواقع — اقرأ قبل التداول",
-        "reality_check_body": "يستخدم هذا النموذج <b style='color:#dae2fd;'>بيانات السعر والحجم فقط</b>. ليس لديه <b style='color:#ff6b6b;'>أي وعي</b> بـ: 📰 الأخبار العاجلة · 📊 إصدارات الأرباح · 🏦 أحداث الاقتصاد الكلي · 🧠 ترقيات المحللين · 🌍 الأحداث الجيوسياسية. <b style='color:#ffdd2d;'>استخدم الإشارات كمدخل واحد فقط.</b>",
+        "reality_check_title": "💡 كيفية استخدام هذا المساعد",
+        "reality_check_body": "مثل أي مساعد بحثي، يعمل Stockcast بشكل أفضل عند <b style='color:#e4eafd;'>دمجه مع حكمك الخاص</b> والسياق الحالي للسوق. يحلل المساعد <b style='color:#4d8eff;'>أنماط السعر والحجم</b> — أضف إليها: 📰 الأخبار الحديثة · 📊 إصدارات الأرباح · 🏦 الأحداث الاقتصادية · 🧠 تقارير المحللين · 🌍 السياق القطاعي. <b style='color:#ffd426;'>استخدم الإشارات كمدخل بحثي — وليس كأساس وحيد للتداول.</b>",
         "logout": "⏏  تسجيل الخروج",
         "verify_symbol": "استخدام: {ticker} — تحقق من الرمز",
         "active_ticker": "● نشط: {ticker}",
@@ -572,7 +572,7 @@ LANGUAGES = {
         "footer": "⚠ STOCKCAST · للأغراض التعليمية فقط · ليست نصيحة مالية · طوّره معاوية غني",
         "model_performance": "أداء النموذج", "actual_vs_pred": "الفعلي مقابل المتوقع",
         "feature_importance": "أهمية الميزات", "signal_intelligence": "ذكاء الإشارات",
-        "forecast_next": "التنبؤ — الـ {n} أيام القادمة", "backtest_engine": "محرك الاختبار الخلفي",
+        "forecast_next": "توقعات السعر — الـ {n} أيام القادمة", "backtest_engine": "محاكي الاستراتيجية",
         "trade_log": "سجل التداول", "forecast_ci": "التنبؤ مع فترات الثقة",
         "model_comparison": "مقارنة النماذج — XGBoost مقابل Prophet مقابل الانحدار الخطي",
         "sector_heatmap": "خريطة حرارة القطاعات · مباشر", "fear_greed": "مؤشر الخوف والجشع · مباشر",
@@ -585,17 +585,17 @@ LANGUAGES = {
         "enter_ticker": "الرجاء إدخال رمز السهم.", "max_holdings": "تم الوصول إلى الحد الأقصى {n} حيازة.",
         "loading_prices": "جارٍ جلب السعر المباشر لـ {sym}...",
         "deep_analysis": "📈  تحليل عميق",
-        "model_conf_score": "نقاط ثقة النموذج",
+        "model_conf_score": "نقاط ثقة المساعد",
         "high_confidence": "ثقة عالية", "moderate_confidence": "ثقة متوسطة", "low_confidence": "ثقة منخفضة",
         "r2_fit": "دقة R²", "mape_accuracy": "دقة MAPE", "directional_acc": "الدقة الاتجاهية", "data_volume": "حجم البيانات",
-        "composite_signal": "الإشارة المركبة", "forecast_lbl": "توقع",
+        "composite_signal": "إشارة البحث", "forecast_lbl": "توقع",
         "score_lbl": "النقاط",
         "take_profit_lbl": "جني الأرباح", "stop_loss_lbl": "وقف الخسارة", "risk_reward_lbl": "المخاطرة / العائد",
         "rsi_lbl": "RSI (14)",
         "favorable": "✓ مناسب", "marginal": "⚠ هامشي", "unfavorable": "✗ غير مناسب",
         "oversold_zone": "منطقة البيع الزائد", "overbought_zone": "منطقة الشراء الزائد", "neutral_zone": "المنطقة المحايدة",
         "factor_breakdown": "تحليل 6 عوامل للإشارة",
-        "last_close_lbl": "آخر إغلاق", "model_confidence_lbl": "ثقة النموذج",
+        "last_close_lbl": "آخر إغلاق", "model_confidence_lbl": "ثقة المساعد",
         "high_lbl": "عالية", "moderate_lbl": "متوسطة", "low_lbl": "منخفضة",
         "at_above_target": "عند الهدف أو أعلاه",
         "below_target": "تحت الهدف بـ",
@@ -605,7 +605,7 @@ LANGUAGES = {
         "known_noncompliant": "رمز غير متوافق معروف",
     },
     "Urdu": {
-        "run": "▶  پیشن گوئی چلائیں", "ticker": "ٹکر", "from": "سے", "to": "تک",
+        "run": "▶  تجزیہ چلائیں", "ticker": "ٹکر", "from": "سے", "to": "تک",
         "mode": "موڈ", "beginner": "🟢 ابتدائی", "pro": "🔴 پرو",
         "watchlist": "⭐ واچ لسٹ", "alerts": "🔔 سگنل الرٹس",
         "forecast": "پیشن گوئی", "days": "دن", "add": "شامل کریں",
@@ -618,7 +618,7 @@ LANGUAGES = {
         "fast_mode": "⚡ فاسٹ موڈ (CI اور بیک ٹیسٹ چھوڑیں)",
         "xgb_params": "XGBoost پیرامیٹرز",
         "alert_target": "قیمت الرٹ ہدف ($)",
-        "backtesting": "بیک ٹیسٹنگ", "enable_backtest": "بیک ٹیسٹنگ انجن فعال کریں",
+        "backtesting": "اسٹریٹجی سمیولیٹر", "enable_backtest": "اسٹریٹجی سمیولیٹر فعال کریں",
         "init_capital": "ابتدائی سرمایہ ($)", "commission": "فی ٹریڈ کمیشن ($)",
         "signal_thresh": "سگنل حد (%)", "extra_features": "اضافی خصوصیات",
         "model_compare": "ماڈل موازنہ (XGB vs LR vs Prophet)",
@@ -649,8 +649,8 @@ LANGUAGES = {
         "news_sentiment": "خبر جذباتی تجزیہ", "screening_criteria": "اسکریننگ کا معیار",
         "analysis_tab": "📊  تجزیہ", "methodology_tab": "📖  طریقہ کار",
         "dashboard_tab": "🖥  ڈیش بورڈ",
-        "reality_check_title": "⚠ ماڈل کی حقیقت — تجارت سے پہلے پڑھیں",
-        "reality_check_body": "یہ ماڈل صرف <b style='color:#dae2fd;'>قیمت اور حجم کا ڈیٹا</b> استعمال کرتا ہے۔ اسے <b style='color:#ff6b6b;'>کوئی آگاہی نہیں</b> 📰 خبروں · 📊 آمدنی کے اعلانات · 🏦 اقتصادی واقعات · 🧠 تجزیہ کاروں کی رائے · 🌍 جیوپولیٹیکل واقعات سے۔ <b style='color:#ffdd2d;'>سگنلز صرف ایک ان پٹ کے طور پر استعمال کریں۔</b>",
+        "reality_check_title": "💡 اس مساعد کو کیسے استعمال کریں",
+        "reality_check_body": "کسی بھی تحقیقی معاون کی طرح، Stockcast اس وقت بہترین کام کرتا ہے جب <b style='color:#e4eafd;'>آپ کے اپنے فیصلے</b> اور موجودہ مارکیٹ کے سیاق کے ساتھ استعمال ہو۔ مساعد <b style='color:#4d8eff;'>قیمت اور حجم کے نمونوں</b> کا تجزیہ کرتا ہے — اسے شامل کریں: 📰 حالیہ خبریں · 📊 آمدنی کے اعلانات · 🏦 معاشی واقعات · 🧠 تجزیہ کاروں کی رپورٹس · 🌍 شعبے کا سیاق. <b style='color:#ffd426;'>سگنلز کو تحقیقی ان پٹ کے طور پر استعمال کریں — تجارت کی واحد بنیاد نہیں۔</b>",
         "logout": "⏏  لاگ آؤٹ",
         "verify_symbol": "استعمال: {ticker} — علامت کی تصدیق کریں",
         "active_ticker": "● فعال: {ticker}",
@@ -661,7 +661,7 @@ LANGUAGES = {
         "footer": "⚠ STOCKCAST · صرف تعلیمی مقاصد کے لیے · مالی مشورہ نہیں · تیار کردہ معاویہ غنی",
         "model_performance": "ماڈل کی کارکردگی", "actual_vs_pred": "حقیقی بمقابلہ پیشین گوئی",
         "feature_importance": "فیچرز کی اہمیت", "signal_intelligence": "سگنل انٹیلی جنس",
-        "forecast_next": "پیشن گوئی — اگلے {n} دن", "backtest_engine": "بیک ٹیسٹ انجن",
+        "forecast_next": "قیمت کا رجحان — اگلے {n} دن", "backtest_engine": "اسٹریٹجی سمیولیٹر",
         "trade_log": "ٹریڈ لاگ", "forecast_ci": "اعتماد کے وقفوں کے ساتھ پیشن گوئی",
         "model_comparison": "ماڈل موازنہ — XGBoost بمقابلہ Prophet بمقابلہ لکیری رجعت",
         "sector_heatmap": "سیکٹر ہیٹ میپ · لائیو", "fear_greed": "خوف اور لالچ انڈیکس · لائیو",
@@ -674,17 +674,17 @@ LANGUAGES = {
         "enter_ticker": "براہ کرم ٹکر علامت درج کریں۔", "max_holdings": "زیادہ سے زیادہ {n} ہولڈنگز پہنچ گئی۔",
         "loading_prices": "{sym} کی لائیو قیمت لا رہے ہیں...",
         "deep_analysis": "📈  گہرا تجزیہ",
-        "model_conf_score": "ماڈل اعتماد اسکور",
+        "model_conf_score": "مساعد اعتماد اسکور",
         "high_confidence": "اعلی اعتماد", "moderate_confidence": "اوسط اعتماد", "low_confidence": "کم اعتماد",
         "r2_fit": "R² فٹ", "mape_accuracy": "MAPE درستگی", "directional_acc": "سمتی درستگی", "data_volume": "ڈیٹا حجم",
-        "composite_signal": "مرکب سگنل", "forecast_lbl": "پیشن گوئی",
+        "composite_signal": "تحقیقی سگنل", "forecast_lbl": "رجحان",
         "score_lbl": "اسکور",
         "take_profit_lbl": "منافع لیں", "stop_loss_lbl": "نقصان روکیں", "risk_reward_lbl": "خطرہ / انعام",
         "rsi_lbl": "RSI (14)",
         "favorable": "✓ موزوں", "marginal": "⚠ معمولی", "unfavorable": "✗ ناموزوں",
         "oversold_zone": "زیادہ فروخت زون", "overbought_zone": "زیادہ خریداری زون", "neutral_zone": "غیر جانبدار زون",
         "factor_breakdown": "6 عوامل سگنل تجزیہ",
-        "last_close_lbl": "آخری بندش", "model_confidence_lbl": "ماڈل اعتماد",
+        "last_close_lbl": "آخری بندش", "model_confidence_lbl": "مساعد اعتماد",
         "high_lbl": "اعلی", "moderate_lbl": "اوسط", "low_lbl": "کم",
         "at_above_target": "ہدف پر یا اوپر",
         "below_target": "ہدف سے نیچے",
@@ -694,7 +694,7 @@ LANGUAGES = {
         "known_noncompliant": "معروف غیر موافق ٹکر",
     },
     "Hindi": {
-        "run": "▶  पूर्वानुमान चलाएं", "ticker": "टिकर", "from": "से", "to": "तक",
+        "run": "▶  विश्लेषण चलाएं", "ticker": "टिकर", "from": "से", "to": "तक",
         "mode": "मोड", "beginner": "🟢 शुरुआती", "pro": "🔴 प्रो",
         "watchlist": "⭐ वॉचलिस्ट", "alerts": "🔔 सिग्नल अलर्ट",
         "forecast": "पूर्वानुमान", "days": "दिन", "add": "जोड़ें",
@@ -707,7 +707,7 @@ LANGUAGES = {
         "fast_mode": "⚡ फास्ट मोड (CI + बैकटेस्ट छोड़ें)",
         "xgb_params": "XGBoost हाइपरपैरामीटर",
         "alert_target": "मूल्य अलर्ट लक्ष्य ($)",
-        "backtesting": "बैकटेस्टिंग", "enable_backtest": "बैकटेस्टिंग इंजन सक्षम करें",
+        "backtesting": "स्ट्रैटेजी सिम्युलेटर", "enable_backtest": "स्ट्रैटेजी सिम्युलेटर सक्षम करें",
         "init_capital": "प्रारंभिक पूंजी ($)", "commission": "प्रति ट्रेड कमीशन ($)",
         "signal_thresh": "सिग्नल सीमा (%)", "extra_features": "अतिरिक्त सुविधाएं",
         "model_compare": "मॉडल तुलना (XGB vs LR vs Prophet)",
@@ -738,8 +738,8 @@ LANGUAGES = {
         "news_sentiment": "समाचार भावना NLP", "screening_criteria": "स्क्रीनिंग मानदंड",
         "analysis_tab": "📊  विश्लेषण", "methodology_tab": "📖  कार्यप्रणाली",
         "dashboard_tab": "🖥  डैशबोर्ड",
-        "reality_check_title": "⚠ मॉडल वास्तविकता जांच — ट्रेड से पहले पढ़ें",
-        "reality_check_body": "यह मॉडल केवल <b style='color:#dae2fd;'>मूल्य और वॉल्यूम डेटा</b> उपयोग करता है। इसे <b style='color:#ff6b6b;'>कोई जागरूकता नहीं</b> 📰 ताज़ा खबरें · 📊 आय रिलीज़ · 🏦 Fed/मैक्रो इवेंट · 🧠 विश्लेषक अपग्रेड · 🌍 भू-राजनीतिक घटनाओं की। <b style='color:#ffdd2d;'>सिग्नल को एक इनपुट के रूप में उपयोग करें।</b>",
+        "reality_check_title": "💡 इस असिस्टेंट का उपयोग कैसे करें",
+        "reality_check_body": "किसी भी शोध सहायक की तरह, Stockcast तब सबसे अच्छा काम करता है जब <b style='color:#e4eafd;'>आपके अपने निर्णय</b> और वर्तमान बाज़ार संदर्भ के साथ मिलाया जाए। असिस्टेंट <b style='color:#4d8eff;'>मूल्य और वॉल्यूम पैटर्न</b> का विश्लेषण करता है — इसे पूरक बनाएं: 📰 हालिया खबरें · 📊 आय रिलीज़ · 🏦 मैक्रो इवेंट · 🧠 विश्लेषक रिपोर्ट · 🌍 सेक्टर संदर्भ। <b style='color:#ffd426;'>सिग्नल को शोध इनपुट के रूप में उपयोग करें — ट्रेड का एकमात्र आधार नहीं।</b>",
         "logout": "⏏  लॉगआउट",
         "verify_symbol": "उपयोग: {ticker} — प्रतीक सत्यापित करें",
         "active_ticker": "● सक्रिय: {ticker}",
@@ -750,7 +750,7 @@ LANGUAGES = {
         "footer": "⚠ STOCKCAST · केवल शैक्षणिक उद्देश्यों के लिए · वित्तीय सलाह नहीं · निर्मित मुआवविज़ घनी द्वारा",
         "model_performance": "मॉडल प्रदर्शन", "actual_vs_pred": "वास्तविक बनाम पूर्वानुमान",
         "feature_importance": "फीचर महत्व", "signal_intelligence": "सिग्नल इंटेलिजेंस",
-        "forecast_next": "पूर्वानुमान — अगले {n} दिन", "backtest_engine": "बैकटेस्टिंग इंजन",
+        "forecast_next": "मूल्य रुझान — अगले {n} दिन", "backtest_engine": "स्ट्रैटेजी सिम्युलेटर",
         "trade_log": "ट्रेड लॉग", "forecast_ci": "विश्वास अंतराल के साथ पूर्वानुमान",
         "model_comparison": "मॉडल तुलना — XGBoost बनाम Prophet बनाम रैखिक प्रतिगमन",
         "sector_heatmap": "सेक्टर हीट मैप · लाइव", "fear_greed": "भय और लालच सूचकांक · लाइव",
@@ -763,17 +763,17 @@ LANGUAGES = {
         "enter_ticker": "कृपया टिकर प्रतीक दर्ज करें।", "max_holdings": "अधिकतम {n} होल्डिंग्स पहुंच गई।",
         "loading_prices": "{sym} की लाइव कीमत लाई जा रही है...",
         "deep_analysis": "📈  गहरा विश्लेषण",
-        "model_conf_score": "मॉडल विश्वास स्कोर",
+        "model_conf_score": "असिस्टेंट विश्वास स्कोर",
         "high_confidence": "उच्च विश्वास", "moderate_confidence": "मध्यम विश्वास", "low_confidence": "कम विश्वास",
         "r2_fit": "R² फिट", "mape_accuracy": "MAPE सटीकता", "directional_acc": "दिशात्मक सटीकता", "data_volume": "डेटा मात्रा",
-        "composite_signal": "समग्र सिग्नल", "forecast_lbl": "पूर्वानुमान",
+        "composite_signal": "शोध संकेत", "forecast_lbl": "रुझान",
         "score_lbl": "स्कोर",
         "take_profit_lbl": "लाभ लें", "stop_loss_lbl": "नुकसान रोकें", "risk_reward_lbl": "जोखिम / पुरस्कार",
         "rsi_lbl": "RSI (14)",
         "favorable": "✓ अनुकूल", "marginal": "⚠ सीमांत", "unfavorable": "✗ प्रतिकूल",
         "oversold_zone": "ओवरसोल्ड ज़ोन", "overbought_zone": "ओवरबॉट ज़ोन", "neutral_zone": "तटस्थ क्षेत्र",
         "factor_breakdown": "6-कारक सिग्नल विश्लेषण",
-        "last_close_lbl": "अंतिम बंद", "model_confidence_lbl": "मॉडल विश्वास",
+        "last_close_lbl": "अंतिम बंद", "model_confidence_lbl": "असिस्टेंट विश्वास",
         "high_lbl": "उच्च", "moderate_lbl": "मध्यम", "low_lbl": "कम",
         "at_above_target": "लक्ष्य पर या ऊपर",
         "below_target": "लक्ष्य से नीचे",
@@ -783,7 +783,7 @@ LANGUAGES = {
         "known_noncompliant": "ज्ञात गैर-अनुपालन टिकर",
     },
     "Chinese": {
-        "run": "▶  运行预测", "ticker": "股票代码", "from": "从", "to": "到",
+        "run": "▶  运行分析", "ticker": "股票代码", "from": "从", "to": "到",
         "mode": "模式", "beginner": "🟢 新手", "pro": "🔴 专业",
         "watchlist": "⭐ 关注列表", "alerts": "🔔 信号提醒",
         "forecast": "预测", "days": "天", "add": "添加",
@@ -796,7 +796,7 @@ LANGUAGES = {
         "fast_mode": "⚡ 快速模式（跳过CI和回测）",
         "xgb_params": "XGBoost 超参数",
         "alert_target": "价格提醒目标 ($)",
-        "backtesting": "回测", "enable_backtest": "启用回测引擎",
+        "backtesting": "策略模拟器", "enable_backtest": "启用策略模拟器",
         "init_capital": "初始资金 ($)", "commission": "每笔交易佣金 ($)",
         "signal_thresh": "信号阈值 (%)", "extra_features": "额外功能",
         "model_compare": "模型对比 (XGB vs LR vs Prophet)",
@@ -827,8 +827,8 @@ LANGUAGES = {
         "news_sentiment": "新闻情绪 NLP", "screening_criteria": "筛选标准",
         "analysis_tab": "📊  分析", "methodology_tab": "📖  方法论",
         "dashboard_tab": "🖥  仪表板",
-        "reality_check_title": "⚠ 模型现实检验 — 交易前请阅读",
-        "reality_check_body": "该模型仅使用<b style='color:#dae2fd;'>价格和成交量数据</b>，对以下内容<b style='color:#ff6b6b;'>毫无感知</b>：📰 突发新闻 · 📊 财报发布 · 🏦 美联储/宏观事件 · 🧠 分析师评级 · 🌍 地缘政治事件。<b style='color:#ffdd2d;'>仅将信号作为参考，切勿作为唯一依据。</b>",
+        "reality_check_title": "💡 如何使用此智能助手",
+        "reality_check_body": "像任何研究助手一样，Stockcast 与<b style='color:#e4eafd;'>您自己的判断</b>和当前市场背景结合使用时效果最佳。助手分析<b style='color:#4d8eff;'>价格与成交量模式</b>——请结合参考：📰 近期新闻 · 📊 财报发布 · 🏦 宏观事件 · 🧠 分析师报告 · 🌍 行业背景。<b style='color:#ffd426;'>将信号作为研究参考——而非交易的唯一依据。</b>",
         "logout": "⏏  退出登录",
         "verify_symbol": "使用中: {ticker} — 请验证代码",
         "active_ticker": "● 当前: {ticker}",
@@ -839,7 +839,7 @@ LANGUAGES = {
         "footer": "⚠ STOCKCAST · 仅供教育目的 · 非财务建议 · 由 MUAWWIZ GHANI 开发",
         "model_performance": "模型表现", "actual_vs_pred": "实际 vs 预测",
         "feature_importance": "特征重要性", "signal_intelligence": "信号分析",
-        "forecast_next": "预测 — 未来 {n} 天", "backtest_engine": "回测引擎",
+        "forecast_next": "价格走势 — 未来 {n} 天", "backtest_engine": "策略模拟器",
         "trade_log": "交易记录", "forecast_ci": "带置信区间的预测",
         "model_comparison": "模型对比 — XGBoost vs Prophet vs 线性回归",
         "sector_heatmap": "板块热力图 · 实时", "fear_greed": "恐贪指数 · 实时",
@@ -852,17 +852,17 @@ LANGUAGES = {
         "enter_ticker": "请输入股票代码。", "max_holdings": "已达到最大持仓数 {n}。",
         "loading_prices": "正在获取 {sym} 的实时价格...",
         "deep_analysis": "📈  深度分析",
-        "model_conf_score": "模型置信度评分",
+        "model_conf_score": "助手置信度评分",
         "high_confidence": "高置信度", "moderate_confidence": "中等置信度", "low_confidence": "低置信度",
         "r2_fit": "R² 拟合", "mape_accuracy": "MAPE 准确率", "directional_acc": "方向准确率", "data_volume": "数据量",
-        "composite_signal": "综合信号", "forecast_lbl": "预测",
+        "composite_signal": "研究信号", "forecast_lbl": "走势",
         "score_lbl": "评分",
         "take_profit_lbl": "止盈", "stop_loss_lbl": "止损", "risk_reward_lbl": "风险 / 收益",
         "rsi_lbl": "RSI (14)",
         "favorable": "✓ 有利", "marginal": "⚠ 边际", "unfavorable": "✗ 不利",
         "oversold_zone": "超卖区域", "overbought_zone": "超买区域", "neutral_zone": "中性区域",
         "factor_breakdown": "6因子信号分析",
-        "last_close_lbl": "最新收盘", "model_confidence_lbl": "模型置信度",
+        "last_close_lbl": "最新收盘", "model_confidence_lbl": "助手置信度",
         "high_lbl": "高", "moderate_lbl": "中", "low_lbl": "低",
         "at_above_target": "等于或高于目标",
         "below_target": "低于目标",
@@ -874,7 +874,7 @@ LANGUAGES = {
 }
 # ── Page config — MUST be first Streamlit call ────────────────────────────────
 st.set_page_config(
-    page_title="Stockcast · AI Stock Intelligence",
+    page_title="Stockcast · Your AI Stock Assistant",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1031,7 +1031,7 @@ html, body, [class*="css"], [data-testid="stApp"],
     box-shadow: 0 1px 6px rgba(77,142,255,0.3) !important;
 }
 
-/* Run Forecast button — bigger, more prominent */
+/* Run Analysis button — bigger, more prominent */
 [data-testid="stSidebar"] .stButton > button {
     padding: 0.75rem 1.5rem !important;
     font-size: 0.73rem !important;
@@ -1898,9 +1898,9 @@ def compute_composite_signal(df, last_close, forecast_price, preds, actual):
     atr   = float(df['ATR'].squeeze().iloc[-1])
     signals = {}
     xgb_pct = (forecast_price - last_close) / last_close * 100
-    if   xgb_pct >  1.5: signals['XGBoost Forecast'] = ('BUY',  min(35, abs(xgb_pct)*6), xgb_pct, 'positive')
-    elif xgb_pct < -1.5: signals['XGBoost Forecast'] = ('SELL', -min(35, abs(xgb_pct)*6), xgb_pct, 'negative')
-    else:                 signals['XGBoost Forecast'] = ('HOLD', 0, xgb_pct, 'neutral')
+    if   xgb_pct >  1.5: signals['AI Outlook'] = ('BUY',  min(35, abs(xgb_pct)*6), xgb_pct, 'positive')
+    elif xgb_pct < -1.5: signals['AI Outlook'] = ('SELL', -min(35, abs(xgb_pct)*6), xgb_pct, 'negative')
+    else:                 signals['AI Outlook'] = ('HOLD', 0, xgb_pct, 'neutral')
     if   rsi < 30: signals['RSI (14)'] = ('BUY',  20, rsi, 'positive')
     elif rsi > 70: signals['RSI (14)'] = ('SELL', -20, rsi, 'negative')
     elif rsi < 45: signals['RSI (14)'] = ('BUY',   8, rsi, 'positive')
@@ -1922,11 +1922,11 @@ def compute_composite_signal(df, last_close, forecast_price, preds, actual):
     elif vol_r > 1.5 and xgb_pct < 0: signals['Volume'] = ('SELL', -10, vol_r, 'negative')
     else:                              signals['Volume'] = ('HOLD',   0, vol_r, 'neutral')
     total_score = sum(s[1] for s in signals.values())
-    if   total_score >= 25: verdict = "⬆ STRONG BUY";  verdict_short = "BUY"
-    elif total_score >= 10: verdict = "↑ BUY";          verdict_short = "BUY"
-    elif total_score <= -25:verdict = "⬇ STRONG SELL"; verdict_short = "SELL"
-    elif total_score <= -10:verdict = "↓ SELL";         verdict_short = "SELL"
-    else:                   verdict = "◆ HOLD";         verdict_short = "HOLD"
+    if   total_score >= 25: verdict = "⬆ STRONG BUY";   verdict_short = "BUY"
+    elif total_score >= 10: verdict = "↑ BUY";           verdict_short = "BUY"
+    elif total_score <= -25:verdict = "⬇ STRONG SELL";  verdict_short = "SELL"
+    elif total_score <= -10:verdict = "↓ SELL";          verdict_short = "SELL"
+    else:                   verdict = "◆ HOLD";          verdict_short = "HOLD"
     stop_loss   = last_close - 2 * atr
     take_profit = last_close + 3 * atr
     risk_reward = (take_profit - last_close) / max(last_close - stop_loss, 0.01)
@@ -2079,10 +2079,10 @@ def check_shariah_compliance(ticker_sym, data, _L=None):
 def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
     st.markdown(f"""
     <div style="font-family:Manrope,sans-serif;font-size:0.6rem;letter-spacing:.18em;
-         text-transform:uppercase;color:#8c909f;margin-bottom:.3rem;font-weight:700;">Technical Documentation</div>
+         text-transform:uppercase;color:#8a8fa0;margin-bottom:.3rem;font-weight:700;">Technical Documentation</div>
     <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800;
-         color:#dae2fd;letter-spacing:-.01em;margin-bottom:1.4rem;">
-         Stockcast <span style="color:#4d8eff;">·</span> Methodology & Model Architecture
+         color:#e4eafd;letter-spacing:-.01em;margin-bottom:1.4rem;">
+         Stockcast <span style="color:#4d8eff;">·</span> How the AI Assistant Works
     </div>
     """, unsafe_allow_html=True)
     steps = [
@@ -2092,44 +2092,44 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
          f"Each trading day is described by 20 derived signals: MA5/10/20/50/200, EMA12/26, RSI(14), MACD(12/26/9) with histogram, Bollinger Band width & %B, ATR(14), Volume Ratio, Momentum, Returns(1d/5d), Volatility(20d), and High-Low%. Additionally, {seq_len_val} lag closes are appended as sequential memory."),
         ("03","#00e5b0","Train/Test Split","80% train · 20% test (chronological)",
          "Data is split strictly chronologically — no shuffling — to prevent look-ahead bias. The model never sees future data during training. Evaluation is performed exclusively on the held-out 20%."),
-        ("04","#4d8eff","XGBoost Regressor","Gradient-boosted decision trees",
-         "XGBoost is trained to predict the next day's closing price. Hyperparameters (n_estimators, max_depth, learning_rate) are configurable via the sidebar. Subsample=0.8 and colsample_bytree=0.8 provide regularisation."),
+        ("04","#4d8eff","XGBoost Engine","Gradient-boosted decision trees",
+         "The AI engine uses XGBoost trained to project the next day's closing price. Hyperparameters (n_estimators, max_depth, learning_rate) are configurable via the sidebar. Subsample=0.8 and colsample_bytree=0.8 provide regularisation."),
         ("05","#adc6ff","Bootstrap CI",f"{ci_n} resampling iterations" if show_ci else "Disabled",
          f"Confidence intervals are produced by running the model {ci_n} times on inputs perturbed with Gaussian noise (σ=1.5%). The 5th and 95th percentiles form the 95% CI ribbon. A wider band indicates higher forecast uncertainty."),
-        ("06","#00e5b0","Forward Forecast","Iterative multi-step prediction",
-         "Future prices are predicted by rolling: each day's predicted price feeds back as the next day's lag input. Error compounds over time — Days 1–3 are most reliable. Days 6+ are directional signals only."),
-        ("07","#ff6b6b","Signal Generation","BUY / SELL / HOLD",
-         "A composite 6-factor signal fires from XGBoost forecast, RSI, MACD crossover, Bollinger %B, MA Golden/Death cross, and Volume confirmation. Score >+25 = STRONG BUY, <-25 = STRONG SELL."),
-        ("08","#4d8eff","Backtesting Engine","Walk-forward simulation",
-         "The backtest replays XGBoost signals on test-set prices: BUY fires when predicted return exceeds threshold, SELL when below. KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, equity curve vs Buy-and-Hold."),
+        ("06","#00e5b0","Price Outlook","Iterative multi-step projection",
+         "Future prices are projected by rolling: each day's projected price feeds back as the next day's lag input. Uncertainty compounds over time — Days 1–3 are most reliable. Days 6+ are directional guidance only."),
+        ("07","#ff5f5f","Signal Generation","BUY / SELL / HOLD research signal",
+         "A composite 6-factor research signal fires from AI outlook, RSI, MACD crossover, Bollinger %B, MA Golden/Death cross, and Volume confirmation. Score >+25 = STRONG BUY, <-25 = STRONG SELL."),
+        ("08","#4d8eff","Strategy Simulator","Walk-forward simulation",
+         "The simulator replays AI signals on test-set prices: BUY fires when projected return exceeds threshold, SELL when below. KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, equity curve vs Buy-and-Hold."),
     ]
     for num, color, title, subtitle, body in steps:
         st.markdown(f"""
         <div style="display:flex;gap:1.2rem;margin-bottom:1rem;
-             background:#131b2e;border:1px solid #2d3449;border-left:3px solid {color};
+             background:#0f1727;border:1px solid #252f47;border-left:3px solid {color};
              padding:1.1rem 1.4rem;border-radius:0 0.5rem 0.5rem 0;">
           <div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;
                color:{color};opacity:.5;min-width:2.5rem;line-height:1.1;">{num}</div>
           <div>
             <div style="font-family:Manrope,sans-serif;font-size:0.7rem;font-weight:800;
-                 letter-spacing:.12em;text-transform:uppercase;color:#dae2fd;">{title}</div>
+                 letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;">{title}</div>
             <div style="font-family:IBM Plex Mono,monospace;font-size:0.6rem;letter-spacing:.1em;
                  color:{color};margin-bottom:.4rem;">{subtitle}</div>
             <div style="font-family:Manrope,sans-serif;font-size:0.82rem;
-                 color:#8c909f;line-height:1.6;">{body}</div>
+                 color:#8a8fa0;line-height:1.6;">{body}</div>
           </div>
         </div>
         """, unsafe_allow_html=True)
     st.markdown("""
     <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.2);
-         border-left:3px solid #ff6b6b;padding:1rem 1.5rem;margin-top:.5rem;border-radius:0 0.5rem 0.5rem 0;">
+         border-left:3px solid #ff5f5f;padding:1rem 1.5rem;margin-top:.5rem;border-radius:0 0.5rem 0.5rem 0;">
       <div style="font-family:Manrope,sans-serif;font-size:0.63rem;letter-spacing:.14em;
-           text-transform:uppercase;color:#ff6b6b;margin-bottom:.4rem;font-weight:700;">⚠ Key Limitations</div>
-      <div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8c909f;line-height:1.7;">
-        This model uses <b style="color:#dae2fd;">price and volume data only</b>. It has no awareness of
-        earnings releases, macroeconomic events, analyst upgrades, geopolitical news, or central bank decisions.
-        A single unexpected event can invalidate any technical forecast.
-        <b style="color:#ff6b6b;">This is a research and educational tool — not financial advice.</b>
+           text-transform:uppercase;color:#ff5f5f;margin-bottom:.4rem;font-weight:700;">⚠ Key Limitations</div>
+      <div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.7;">
+        This assistant analyses price and volume patterns. It works best when combined with your own
+        market knowledge, recent news, and broader context.
+        A single unexpected event can shift any technical outlook.
+        <b style="color:#ff5f5f;">This is a research and educational tool — not financial advice.</b>
         Always consult a licensed financial advisor before making investment decisions.
       </div>
     </div>
@@ -2163,7 +2163,7 @@ st.markdown(f"""
 <div class="wi-header">
   <div>
     <div class="wi-logo">Stock<span>cast</span></div>
-    <div class="wi-sub">XGBoost · 6-Factor Signals · Backtesting · Shariah Screening · News NLP</div>
+    <div class="wi-sub">AI Stock Assistant · 6-Factor Signals · Strategy Simulator · Shariah Screening · News NLP</div>
     <div class="trust-row">
       <span class="trust-item"><span class="trust-item-dot"></span>Data via Yahoo Finance</span>
       <span class="trust-item"><span class="trust-item-dot" style="background:#4d8eff;"></span>Supabase Auth</span>
@@ -2190,7 +2190,7 @@ st.markdown(f"""
 # Ticker tape — live prices
 _tape_items = get_live_ticker_tape()
 if _tape_items:
-    _dot = '<span style="color:#2d3449;">·</span>'
+    _dot = '<span style="color:#252f47;">·</span>'
     _tape_spans = f" {_dot} ".join(
         f'<span><span class="tape-sym">{sym}</span>'
         f'<span class="{css}">{arrow} {price} {pct}</span></span>'
@@ -2282,7 +2282,7 @@ with st.sidebar:
             st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.3);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#adc6ff;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">✓ {ticker}</div>', unsafe_allow_html=True)
         else:
             ticker = search_query.strip().upper()
-            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffdd2d;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#ffdd2d;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffd426;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#ffd426;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="stat-row">{_L["ticker"]}</div>', unsafe_allow_html=True)
         ticker = st.text_input("Ticker", value="AAPL", placeholder="AAPL, TSLA, MSFT…",
@@ -2304,7 +2304,7 @@ with st.sidebar:
     if is_beginner:
         st.markdown(f'<div style="background:rgba(0,229,176,0.06);border-left:3px solid #00e5b0;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#00e5b0;font-weight:700;">{_L["simple_view"]}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div style="background:rgba(255,107,107,0.06);border-left:3px solid #ff6b6b;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#ff6b6b;font-weight:700;">{_L["pro_view"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:rgba(255,107,107,0.06);border-left:3px solid #ff5f5f;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#ff5f5f;font-weight:700;">{_L["pro_view"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     fast_mode = st.checkbox(_L["fast_mode"], value=is_beginner)
@@ -2358,7 +2358,7 @@ with st.sidebar:
 
     # Watchlist
     st.markdown("---")
-    st.markdown(f"""<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;margin-bottom:.5rem;">{_L["watchlist"]}</div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">{_L["watchlist"]}</div>""", unsafe_allow_html=True)
     wl_c1, wl_c2 = st.columns([3,1])
     with wl_c1: add_ticker_input = st.text_input("Add", placeholder="e.g. AAPL", label_visibility="collapsed", key="wl_add").strip().upper()
     with wl_c2: add_clicked = st.button("＋", use_container_width=True, key="wl_add_btn")
@@ -2373,22 +2373,22 @@ with st.sidebar:
                     _qt   = av_get_quote(wl_sym)
                     _px   = _qt["price"]
                     _chg  = _qt["change_pct"]
-                    _col  = "#00e5b0" if _chg >= 0 else "#ff6b6b"
+                    _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
                     _sign = "▲" if _chg >= 0 else "▼"
-                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;padding:.2rem 0;"><span style="color:#424754;">{wl_sym}</span> <span style="color:{_col};">{_sign} ${_px:.2f}</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;padding:.2rem 0;"><span style="color:#3e4558;">{wl_sym}</span> <span style="color:{_col};">{_sign} ${_px:.2f}</span></div>', unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Sidebar watchlist: could not load quote for '%s': %s", wl_sym, e)
-                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;color:#424754;padding:.2rem 0;">{wl_sym}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;color:#3e4558;padding:.2rem 0;">{wl_sym}</div>', unsafe_allow_html=True)
             with wc2:
                 if st.button("✕", key=f"wl_del_{wl_sym}", use_container_width=True):
                     st.session_state.watchlist.remove(wl_sym)
                     if wl_sym in st.session_state.alert_signals: del st.session_state.alert_signals[wl_sym]
                     st.rerun()
     else:
-        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#2d3449;padding:.3rem 0;">{_L["no_stocks_saved"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#252f47;padding:.3rem 0;">{_L["no_stocks_saved"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;margin-bottom:.5rem;">{_L["alerts"]}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">{_L["alerts"]}</div>', unsafe_allow_html=True)
     alert_on_signal_change = st.checkbox(_L["alert_signal_change"], value=True)
 
 
@@ -2411,7 +2411,7 @@ if not run_btn:
     # Market summary cards — live data
     live_indices = get_live_market_indices()
     _idx_map = {name: (price, pct, col) for name, price, pct, col in live_indices}
-    _sp  = _idx_map.get("S&P 500",    ("—","—","#424754"))
+    _sp  = _idx_map.get("S&P 500",    ("—","—","#3e4558"))
     _nd  = _idx_map.get("NASDAQ 100", ("—","—","#adc6ff"))
     _vix = _idx_map.get("VIX",        ("—","—","#00e5b0"))
     _fg_data = get_fear_greed_index()
@@ -2419,7 +2419,7 @@ if not run_btn:
         _fg_score = _fg_data["score"]
         _fg_val = f"{_fg_score:.0f}"
         _fg_sub = _fg_data["rating"]
-        _fg_color = "#00e5b0" if _fg_score >= 55 else ("#ff6b6b" if _fg_score <= 45 else "#ffdd2d")
+        _fg_color = "#00e5b0" if _fg_score >= 55 else ("#ff5f5f" if _fg_score <= 45 else "#ffd426")
     else:
         # Fallback: estimate from VIX — VIX < 15 → greed, > 25 → fear
         try:
@@ -2430,11 +2430,11 @@ if not run_btn:
             if _vix_val < 15:
                 _fg_val, _fg_sub, _fg_color = "Greed", "Low VIX → Risk-on", "#00e5b0"
             elif _vix_val > 25:
-                _fg_val, _fg_sub, _fg_color = "Fear", "High VIX → Risk-off", "#ff6b6b"
+                _fg_val, _fg_sub, _fg_color = "Fear", "High VIX → Risk-off", "#ff5f5f"
             else:
-                _fg_val, _fg_sub, _fg_color = "Neutral", "Moderate VIX", "#ffdd2d"
+                _fg_val, _fg_sub, _fg_color = "Neutral", "Moderate VIX", "#ffd426"
         else:
-            _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#424754"
+            _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#3e4558"
 
     st.markdown(f"""
     <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:.5rem;">
@@ -2472,18 +2472,18 @@ if not run_btn:
                     _fi   = av_get_quote(wl_sym)
                     _px   = _fi["price"]
                     _chg  = _fi["change_pct"]
-                    _col  = "#00e5b0" if _chg >= 0 else "#ff6b6b"
+                    _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(f"""
-                    <div style="background:linear-gradient(145deg,#131b2e,#171f33);border:1px solid #2d3449;
+                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
                          border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.5rem;">
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#424754;text-transform:uppercase;">{wl_sym}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#dae2fd;margin:.3rem 0;">${_px:.2f}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;">{wl_sym}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;margin:.3rem 0;">${_px:.2f}</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_col};">{_sign} {_chg:+.2f}%</div>
                     </div>""", unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
-                    st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#424754;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
@@ -2492,28 +2492,28 @@ if not run_btn:
     for col, num, color, title_key, body_key in [
         (hw1,"01","#4d8eff","hw1_title","hw1_body"),
         (hw2,"02","#00e5b0","hw2_title","hw2_body"),
-        (hw3,"03","#ffdd2d","hw3_title","hw3_body"),
+        (hw3,"03","#ffd426","hw3_title","hw3_body"),
     ]:
         with col:
             st.markdown(f"""
-            <div style="background:linear-gradient(145deg,#131b2e,#171f33);border:1px solid #2d3449;
+            <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
                  border-top:2px solid {color};padding:1.4rem 1.5rem;height:100%;border-radius:.5rem;">
               <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:{color};margin-bottom:.5rem;">{num}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#dae2fd;font-weight:700;margin-bottom:.5rem;">{_L[title_key]}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8c909f;line-height:1.6;">{_L[body_key]}</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;font-weight:700;margin-bottom:.5rem;">{_L[title_key]}</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8a8fa0;line-height:1.6;">{_L[body_key]}</div>
             </div>""", unsafe_allow_html=True)
 
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
     feat_grid = [
-        ("#4d8eff","📈 XGBoost Forecast","ML trained on 20 technical features. N-day forecast with 95% bootstrap CI."),
-        ("#00e5b0","⚙ Explainable Signals","RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain English."),
-        ("#ffdd2d","📊 Backtesting Engine","Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold."),
-        ("#ff6b6b","⭐ Watchlist + 🔔 Alerts","Save stocks, see live prices on the dashboard, get banners when signals flip."),
+        ("#4d8eff","📈 AI Price Outlook","Your assistant projects price direction across 20 technical signals with 95% bootstrap confidence intervals."),
+        ("#00e5b0","⚙ Explainable Signals","RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain language."),
+        ("#ffd426","📊 Strategy Simulator","Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold."),
+        ("#ff5f5f","⭐ Watchlist + 🔔 Alerts","Save stocks, see live prices on the dashboard, get banners when signals flip."),
         ("#4d8eff","☪ Shariah Screening","AAOIFI Standard No.21 — screens business activity, debt & cash ratios automatically."),
         ("#adc6ff","🔬 Model Comparison","Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side."),
         ("#00e5b0","📰 News Sentiment NLP","Live Yahoo Finance headlines scored with TextBlob. Detects confluence with technical signals."),
-        ("#ffdd2d","🏦 Portfolio Tracker","Track holdings, P&L, sector allocation, and recent transaction history."),
+        ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&L, sector allocation, and recent transaction history."),
     ]
     cols4 = st.columns(4)
     for i, (color, title, body) in enumerate(feat_grid):
@@ -2524,7 +2524,7 @@ if not run_btn:
               <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#7c8191;line-height:1.5;">{body}</div>
             </div>""", unsafe_allow_html=True)
 
-    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#2d3449;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
 else:
     # ═══════════════════════════════════════════════════════════════
@@ -2572,11 +2572,11 @@ else:
 
     st.markdown(f"""
     <div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.3);
-         border-left:4px solid #ffdd2d;padding:.9rem 1.4rem;margin:.5rem 0 1rem;border-radius:0 .5rem .5rem 0;">
-      <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:#ffdd2d;margin-bottom:.3rem;font-weight:700;">
+         border-left:4px solid #ffd426;padding:.9rem 1.4rem;margin:.5rem 0 1rem;border-radius:0 .5rem .5rem 0;">
+      <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:#ffd426;margin-bottom:.3rem;font-weight:700;">
         {_L["reality_check_title"]}
       </div>
-      <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8c909f;line-height:1.6;">
+      <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8a8fa0;line-height:1.6;">
         {_L["reality_check_body"]}
       </div>
     </div>
@@ -2609,8 +2609,8 @@ else:
         fig_candle.update_layout(**candle_layout,
             title=dict(text=f"{ticker} · Candlestick · MA50/200 · Bollinger · Volume", font=dict(color=C_GREEN, size=13)),
             xaxis_rangeslider_visible=False, height=620)
-        fig_candle.update_xaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
-        fig_candle.update_yaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
+        fig_candle.update_xaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
+        fig_candle.update_yaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
         st.plotly_chart(fig_candle, use_container_width=True)
 
         # ── RSI + MACD ──────────────────────────────────────────────────────────
@@ -2629,22 +2629,22 @@ else:
         fig_tech.add_trace(go.Bar(x=df.index, y=macd_hist, name="Histogram", marker_color=hist_colors, opacity=0.65), row=2, col=1)
         subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis','yaxis')}
         fig_tech.update_layout(**subplot_layout, height=500)
-        fig_tech.update_xaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
-        fig_tech.update_yaxes(gridcolor="#2d3449", linecolor="#2d3449", tickfont=dict(color=C_GREY))
+        fig_tech.update_xaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
+        fig_tech.update_yaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
         fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
         st.plotly_chart(fig_tech, use_container_width=True)
 
         # ── XGBoost Model ──────────────────────────────────────────────────────
-        st.markdown('<div class="model-badge">🤖 MODEL: XGBoost Regressor · 20 Technical Features + Lag Window</div>', unsafe_allow_html=True)
+        st.markdown('<div class="model-badge">🤖 Powered by XGBoost · 20 Technical Signals + Lag Window</div>', unsafe_allow_html=True)
 
-        with st.expander("📖 How this model works — methodology & limitations", expanded=False):
-            st.markdown(f"""<div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8c909f;line-height:1.7;">
-            <b style="color:#dae2fd;font-family:IBM Plex Mono,monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;">Feature Engineering</b><br>
+        with st.expander("📖 How this assistant works — methodology & limitations", expanded=False):
+            st.markdown(f"""<div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.7;">
+            <b style="color:#e4eafd;font-family:IBM Plex Mono,monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;">Feature Engineering</b><br>
             Each trading day is represented by <b style="color:#4d8eff;">20 technical indicators</b> computed from raw OHLCV data — MAs (5–200), EMA12/26, RSI, MACD, Bollinger Bands, ATR, volume ratio, momentum — plus <b style="color:#4d8eff;">{seq_len} lag closes</b> as sequential context.<br><br>
-            <b style="color:#dae2fd;font-family:IBM Plex Mono,monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;">Training & Evaluation</b><br>
-            Data is split <b style="color:#4d8eff;">80% train / 20% test</b> chronologically (no data leakage). XGBoost predicts the next day's closing price. Quality is measured with RMSE, MAE, MAPE and R².<br><br>
-            <b style="color:#ff6b6b;font-family:IBM Plex Mono,monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;">⚠ Key Limitations</b><br>
-            This model uses price and volume data only. It has no awareness of earnings, macro events, or news. A single unexpected event can invalidate any technical forecast. <b style="color:#ff6b6b;">Not financial advice.</b>
+            <b style="color:#e4eafd;font-family:IBM Plex Mono,monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;">Training & Evaluation</b><br>
+            Data is split <b style="color:#4d8eff;">80% train / 20% test</b> chronologically (no data leakage). XGBoost projects the next day's closing price. Quality is measured with RMSE, MAE, MAPE and R².<br><br>
+            <b style="color:#ff5f5f;font-family:IBM Plex Mono,monospace;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;">⚠ Key Limitations</b><br>
+            This assistant analyses price and volume data only. It works best when combined with current news, earnings context, and your own market judgment. A single unexpected event can shift any technical outlook. <b style="color:#ff5f5f;">Not financial advice.</b>
             </div>""", unsafe_allow_html=True)
 
         with st.spinner("Building feature matrix..."):
@@ -2684,7 +2684,7 @@ else:
         last_close = float(df['Close'].squeeze().iloc[-1])
 
         # ── Model Performance ──────────────────────────────────────────────────
-        st.subheader("Model Performance")
+        st.subheader("Analysis Quality")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("RMSE",  f"${rmse:.2f}")
         c2.metric("MAE",   f"${mae:.2f}")
@@ -2692,7 +2692,7 @@ else:
         c4.metric("R²",    f"{r2:.4f}")
         mape_label = ("🟢 Excellent" if mape<2 else "🟡 Good" if mape<5 else "🟠 Fair" if mape<10 else "🔴 Poor")
         r2_label   = ("🟢 Excellent" if r2>0.95 else "🟡 Good" if r2>0.85 else "🟠 Fair" if r2>0.70 else "🔴 Poor")
-        st.markdown(f'<div style="background:#131b2e;border:1px solid #2d3449;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#424754;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
 
         # Tabs
         dash_tab, port_tab, mkt_tab, deep_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], _L["deep_analysis"]])
@@ -2704,7 +2704,7 @@ else:
             _dash_chg   = _dash_close - _dash_prev
             _dash_pct   = (_dash_chg / _dash_prev * 100) if _dash_prev != 0 else 0
             _dash_sign  = "+" if _dash_chg >= 0 else ""
-            _dash_color = "#00e5b0" if _dash_chg >= 0 else "#ff6b6b"
+            _dash_color = "#00e5b0" if _dash_chg >= 0 else "#ff5f5f"
             _dash_arrow = "▲" if _dash_chg >= 0 else "▼"
             _dash_name  = POPULAR_TICKERS.get(ticker, ticker)
 
@@ -2718,12 +2718,12 @@ else:
               </div>
               <div class="stat-card" style="border-top-color:#adc6ff;">
                 <div class="stat-label">{_L["model_confidence_lbl"]}</div>
-                <div class="stat-value" style="color:#adc6ff;">{confidence_score:.0f}<span style="font-size:.9rem;color:#8c909f;">/100</span></div>
+                <div class="stat-value" style="color:#adc6ff;">{confidence_score:.0f}<span style="font-size:.9rem;color:#8a8fa0;">/100</span></div>
                 <div class="stat-sub">{_L["high_lbl"] if confidence_score>=80 else _L["moderate_lbl"] if confidence_score>=60 else _L["low_lbl"]}</div>
               </div>
-              <div class="stat-card" style="border-top-color:#ffdd2d;">
+              <div class="stat-card" style="border-top-color:#ffd426;">
                 <div class="stat-label">MAPE</div>
-                <div class="stat-value" style="color:#ffdd2d;">{mape:.2f}%</div>
+                <div class="stat-value" style="color:#ffd426;">{mape:.2f}%</div>
                 <div class="stat-sub">{mape_label}</div>
               </div>
               <div class="stat-card" style="border-top-color:#00e5b0;">
@@ -2735,22 +2735,22 @@ else:
             """, unsafe_allow_html=True)
 
             # Actual vs Predicted chart
-            st.subheader("Actual vs Predicted")
+            st.subheader("Actual vs Projected")
             fig1 = go.Figure()
             fig1.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_ACCENT, width=1.5), fill='tozeroy', fillcolor='rgba(77,142,255,0.05)'))
-            fig1.add_trace(go.Scatter(y=preds, name="XGBoost Predicted", line=dict(color=C_EMERALD, width=1.5, dash='dot')))
-            fig1.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · XGBoost Model Fit (Test Set)", font=dict(color=C_GREEN, size=13)), height=400)
+            fig1.add_trace(go.Scatter(y=preds, name="AI Projection", line=dict(color=C_EMERALD, width=1.5, dash='dot')))
+            fig1.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · AI Model Fit (Test Set)", font=dict(color=C_GREEN, size=13)), height=400)
             st.plotly_chart(fig1, use_container_width=True)
 
             # Feature Importance
-            st.subheader("Feature Importance")
+            st.subheader("Signal Drivers")
             lag_names = [f'Lag_{i+1}' for i in range(seq_len)]
             all_feature_names = FEATURE_COLS + lag_names
             importances = model.feature_importances_
             imp_df = pd.DataFrame({'feature': all_feature_names, 'importance': importances}).sort_values('importance', ascending=True).tail(20)
             fig_imp = go.Figure(go.Bar(x=imp_df['importance'], y=imp_df['feature'], orientation='h',
-                marker=dict(color=imp_df['importance'], colorscale=[[0,"#131b2e"],[0.5,"#1a3050"],[1,C_ACCENT]], showscale=False)))
-            fig_imp.update_layout(**{k: v for k, v in PLOTLY_LAYOUT.items() if k != "xaxis"}, title=dict(text="Top 20 Feature Importances", font=dict(color=C_GREEN, size=13)), height=480, xaxis=dict(**PLOTLY_LAYOUT["xaxis"], title="Importance Score"))
+                marker=dict(color=imp_df['importance'], colorscale=[[0,"#0f1727"],[0.5,"#1a3050"],[1,C_ACCENT]], showscale=False)))
+            fig_imp.update_layout(**{k: v for k, v in PLOTLY_LAYOUT.items() if k != "xaxis"}, title=dict(text="Top 20 Signal Drivers", font=dict(color=C_GREEN, size=13)), height=480, xaxis=dict(**PLOTLY_LAYOUT["xaxis"], title="Importance Score"))
             st.plotly_chart(fig_imp, use_container_width=True)
 
         # ──────────────────────────────────────────────────────────────────────
@@ -2770,7 +2770,7 @@ else:
 
             with st.expander(_L["add_holding"], expanded=True):
                 st.markdown(
-                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#424754;margin-bottom:.6rem;">'
+                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#3e4558;margin-bottom:.6rem;">'
                     f'Holdings: {current_count} / {MAX_HOLDINGS}</div>',
                     unsafe_allow_html=True
                 )
@@ -2921,8 +2921,8 @@ else:
                       </div>
                       <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#dae2fd;">{_best["ticker"]}</div>
-                          <div style="font-size:.7rem;color:#8c909f;">{(_best.get("name") or _best["ticker"])[:30]}</div>
+                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#e4eafd;">{_best["ticker"]}</div>
+                          <div style="font-size:.7rem;color:#8a8fa0;">{(_best.get("name") or _best["ticker"])[:30]}</div>
                         </div>
                         <div style="text-align:right;">
                           <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#00e5b0;">+{_best["pl_pct"]:.2f}%</div>
@@ -2935,19 +2935,19 @@ else:
                     _ws = "+" if _worst["pl"] >= 0 else ""
                     st.markdown(f"""
                     <div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.2);
-                         border-left:4px solid #ff6b6b;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
+                         border-left:4px solid #ff5f5f;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
                       <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
-                           text-transform:uppercase;color:#ff6b6b;font-weight:700;margin-bottom:.3rem;">
+                           text-transform:uppercase;color:#ff5f5f;font-weight:700;margin-bottom:.3rem;">
                         📉 Worst Performer
                       </div>
                       <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#dae2fd;">{_worst["ticker"]}</div>
-                          <div style="font-size:.7rem;color:#8c909f;">{(_worst.get("name") or _worst["ticker"])[:30]}</div>
+                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#e4eafd;">{_worst["ticker"]}</div>
+                          <div style="font-size:.7rem;color:#8a8fa0;">{(_worst.get("name") or _worst["ticker"])[:30]}</div>
                         </div>
                         <div style="text-align:right;">
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#ff6b6b;">{_worst["pl_pct"]:+.2f}%</div>
-                          <div style="font-size:.7rem;color:#ff6b6b;">{_ws}${abs(_worst["pl"]):,.2f}</div>
+                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#ff5f5f;">{_worst["pl_pct"]:+.2f}%</div>
+                          <div style="font-size:.7rem;color:#ff5f5f;">{_ws}${abs(_worst["pl"]):,.2f}</div>
                         </div>
                       </div>
                     </div>""", unsafe_allow_html=True)
@@ -2986,7 +2986,7 @@ else:
                             fillcolor="rgba(77,142,255,0.08)",
                         ))
                         fig_pl.add_hline(y=0, line_dash="dash",
-                                         line_color="#424754", line_width=1)
+                                         line_color="#3e4558", line_width=1)
                         fig_pl.update_layout(
                             **PLOTLY_LAYOUT,
                             title=dict(text="Portfolio Unrealised P&L — Last 12 Months",
@@ -3028,13 +3028,13 @@ else:
                 # ── Holdings table ────────────────────────────────────────────
                 st.subheader(_L["holdings_label"])
                 for h in port:
-                    _pl_col  = "#00e5b0" if h["pl"] >= 0 else "#ff6b6b"
+                    _pl_col  = "#00e5b0" if h["pl"] >= 0 else "#ff5f5f"
                     _pl_sign = "+" if h["pl"] >= 0 else ""
                     hc1, hc2, hc3, hc4, hc5, hc6 = st.columns([1.2, 2, 1, 1, 1.5, 0.7])
                     hc1.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;font-weight:700;color:#4d8eff;padding:.4rem 0;">{h["ticker"]}</div>', unsafe_allow_html=True)
-                    hc2.markdown(f'<div style="font-size:.75rem;color:#8c909f;padding:.4rem 0;">{(h["name"] or h["ticker"])[:28]}</div>', unsafe_allow_html=True)
-                    hc3.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#dae2fd;padding:.4rem 0;">{h["qty"]:.2f} sh</div>', unsafe_allow_html=True)
-                    hc4.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#dae2fd;padding:.4rem 0;">${h["current_price"]:.2f}</div>', unsafe_allow_html=True)
+                    hc2.markdown(f'<div style="font-size:.75rem;color:#8a8fa0;padding:.4rem 0;">{(h["name"] or h["ticker"])[:28]}</div>', unsafe_allow_html=True)
+                    hc3.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#e4eafd;padding:.4rem 0;">{h["qty"]:.2f} sh</div>', unsafe_allow_html=True)
+                    hc4.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#e4eafd;padding:.4rem 0;">${h["current_price"]:.2f}</div>', unsafe_allow_html=True)
                     hc5.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{_pl_col};font-weight:700;padding:.4rem 0;">{_pl_sign}${abs(h["pl"]):,.2f} ({_pl_sign}{h["pl_pct"]:.1f}%)</div>', unsafe_allow_html=True)
                     if hc6.button("✕", key=f"pt_del_{h['ticker']}", use_container_width=True):
                         _del_ticker = h["ticker"]
@@ -3051,7 +3051,7 @@ else:
                     marker_color=_bar_cols,
                     text=[f'${h["qty"]*h["current_price"]:,.0f}' for h in port],
                     textposition="outside",
-                    textfont=dict(color="#8c909f", size=9, family="IBM Plex Mono"),
+                    textfont=dict(color="#8a8fa0", size=9, family="IBM Plex Mono"),
                 ))
                 fig_bar.update_layout(
                     **PLOTLY_LAYOUT,
@@ -3073,46 +3073,46 @@ else:
                         sec = (h["sector"] or "Unknown").split(" •")[0].strip()
                         sector_map[sec] = sector_map.get(sec, 0) + h["qty"] * h["current_price"]
                     sec_colors = {
-                        "Technology": "#4d8eff", "Consumer Cyclical": "#ffdd2d",
+                        "Technology": "#4d8eff", "Consumer Cyclical": "#ffd426",
                         "Financials": "#adc6ff", "Energy": "#ff9f40",
-                        "Healthcare": "#00e5b0", "Unknown": "#8c909f",
+                        "Healthcare": "#00e5b0", "Unknown": "#8a8fa0",
                     }
                     fig_sector = go.Figure(go.Pie(
                         labels=list(sector_map.keys()),
                         values=list(sector_map.values()),
                         hole=0.6,
-                        marker_colors=[sec_colors.get(s, "#8c909f") for s in sector_map.keys()],
-                        textfont_size=10, textfont_color="#dae2fd",
+                        marker_colors=[sec_colors.get(s, "#8a8fa0") for s in sector_map.keys()],
+                        textfont_size=10, textfont_color="#e4eafd",
                     ))
                     fig_sector.update_layout(
                         **PLOTLY_LAYOUT, height=260, showlegend=True,
                         annotations=[dict(
                             text=f"{len(sector_map)}<br><span style='font-size:10px'>Sectors</span>",
                             x=0.5, y=0.5, font_size=20, showarrow=False,
-                            font_color="#dae2fd")])
+                            font_color="#e4eafd")])
                     st.plotly_chart(fig_sector, use_container_width=True)
 
                 with sc2:
                     st.subheader(_L["recent_activity"])
                     hist = st.session_state.portfolio_history
                     if not hist:
-                        st.markdown(f'<div style="font-size:.78rem;color:#424754;padding:.5rem 0;">{_L["no_transactions"]}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="font-size:.78rem;color:#3e4558;padding:.5rem 0;">{_L["no_transactions"]}</div>', unsafe_allow_html=True)
                     for a in hist[:10]:
-                        type_color = {"BUY": "#4d8eff", "SELL": "#00e5b0", "DIVIDEND": "#ffdd2d"}.get(a["type"], "#8c909f")
+                        type_color = {"BUY": "#4d8eff", "SELL": "#00e5b0", "DIVIDEND": "#ffd426"}.get(a["type"], "#8a8fa0")
                         amt_str    = f'+${a["amount"]:,.2f}' if a["amount"] >= 0 else f'-${abs(a["amount"]):,.2f}'
                         desc       = f'{a["shares"]} shares @ ${a["price"]:.2f}' if a.get("shares") and a.get("price") else a["ticker"]
                         st.markdown(f"""
-                        <div style="display:flex;gap:.8rem;padding:.7rem 0;border-bottom:1px solid #2d3449;align-items:center;">
+                        <div style="display:flex;gap:.8rem;padding:.7rem 0;border-bottom:1px solid #252f47;align-items:center;">
                           <div style="width:2rem;height:2rem;border-radius:50%;background:rgba({','.join(str(int(type_color.lstrip('#')[i:i+2],16)) for i in (0,2,4))},0.15);
                                color:{type_color};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.8rem;font-weight:700;">
                             {"B" if a["type"]=="BUY" else "S" if a["type"]=="SELL" else "D"}
                           </div>
                           <div style="flex:1;">
                             <div style="display:flex;justify-content:space-between;">
-                              <span style="font-size:.8rem;font-weight:700;color:#dae2fd;font-family:Manrope,sans-serif;">{a["type"]} {a["ticker"]}</span>
-                              <span style="font-size:.65rem;color:#8c909f;font-family:IBM Plex Mono,monospace;">{a["date"].upper()}</span>
+                              <span style="font-size:.8rem;font-weight:700;color:#e4eafd;font-family:Manrope,sans-serif;">{a["type"]} {a["ticker"]}</span>
+                              <span style="font-size:.65rem;color:#8a8fa0;font-family:IBM Plex Mono,monospace;">{a["date"].upper()}</span>
                             </div>
-                            <div style="font-size:.7rem;color:#8c909f;margin-top:.1rem;">{desc}</div>
+                            <div style="font-size:.7rem;color:#8a8fa0;margin-top:.1rem;">{desc}</div>
                             <div style="font-size:.7rem;font-weight:700;color:{type_color};margin-top:.1rem;font-family:IBM Plex Mono,monospace;">{amt_str}</div>
                           </div>
                         </div>""", unsafe_allow_html=True)
@@ -3121,8 +3121,8 @@ else:
         with mkt_tab:
             st.markdown(f"""
             <div style="margin-bottom:1.2rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#dae2fd;">Market <span style="color:#4d8eff;">Intelligence</span></div>
-              <div style="font-size:.78rem;color:#8c909f;margin-top:.2rem;">Live global performance and institutional sentiment analysis.</div>
+              <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#e4eafd;">Market <span style="color:#4d8eff;">Intelligence</span></div>
+              <div style="font-size:.82rem;color:#8a8fa0;margin-top:.3rem;line-height:1.6;">Live global performance, sector heatmap, and institutional sentiment — updated every 2 minutes.</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -3133,10 +3133,10 @@ else:
             for i, (name, price, chg, col) in enumerate(mkt_data):
                 with mkt_cols[i]:
                     st.markdown(f"""
-                    <div style="background:linear-gradient(145deg,#131b2e,#171f33);border:1px solid #2d3449;border-top:2px solid {col};
+                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;border-top:2px solid {col};
                          padding:1.2rem;border-radius:.5rem;">
-                      <div style="font-size:.6rem;font-weight:700;color:#8c909f;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">{name}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#dae2fd;">{price}</div>
+                      <div style="font-size:.6rem;font-weight:700;color:#8a8fa0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">{name}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#e4eafd;">{price}</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:{col};font-weight:700;margin-top:.3rem;">{chg}</div>
                     </div>""", unsafe_allow_html=True)
 
@@ -3149,9 +3149,9 @@ else:
                 for i, (name, chg, col) in enumerate(sectors):
                     with cols5[i % 5]:
                         st.markdown(f"""
-                        <div style="background:#131b2e;border:1px solid #2d3449;border-left:2px solid {col};
+                        <div style="background:#0f1727;border:1px solid #252f47;border-left:2px solid {col};
                              padding:.75rem .9rem;margin-bottom:.5rem;border-radius:0 .5rem .5rem 0;">
-                          <div style="font-size:.6rem;font-weight:700;color:#8c909f;text-transform:uppercase;margin-bottom:.25rem;">{name}</div>
+                          <div style="font-size:.6rem;font-weight:700;color:#8a8fa0;text-transform:uppercase;margin-bottom:.25rem;">{name}</div>
                           <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:{col};">{chg}</div>
                         </div>""", unsafe_allow_html=True)
 
@@ -3163,21 +3163,21 @@ else:
                     _fg_label = _fg["rating"]
                 else:
                     _fg_score = 50; _fg_label = "Neutral"
-                _fg_color = "#ff6b6b" if _fg_score < 30 else "#ffdd2d" if _fg_score < 55 else "#00e5b0"
+                _fg_color = "#ff5f5f" if _fg_score < 30 else "#ffd426" if _fg_score < 55 else "#00e5b0"
                 _fg_pct   = f"{max(2, min(98, _fg_score)):.0f}%"
                 st.markdown(f"""
-                <div style="background:linear-gradient(145deg,#131b2e,#171f33);border:1px solid #2d3449;
+                <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
                      padding:1.4rem;text-align:center;border-radius:.5rem;">
                   <div style="font-family:IBM Plex Mono,monospace;font-size:2.8rem;font-weight:800;color:{_fg_color};">{_fg_score:.0f}</div>
                   <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:{_fg_color};margin-bottom:.8rem;">{_fg_label}</div>
-                  <div style="height:6px;background:linear-gradient(90deg,#ff6b6b,#ff9f40,#ffdd2d,#00e5b0);border-radius:3px;position:relative;">
-                    <div style="position:absolute;top:-10px;left:{_fg_pct};transform:translateX(-50%);width:2px;height:26px;background:#dae2fd;border-radius:1px;"></div>
+                  <div style="height:6px;background:linear-gradient(90deg,#ff5f5f,#ff9f40,#ffd426,#00e5b0);border-radius:3px;position:relative;">
+                    <div style="position:absolute;top:-10px;left:{_fg_pct};transform:translateX(-50%);width:2px;height:26px;background:#e4eafd;border-radius:1px;"></div>
                   </div>
-                  <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.58rem;color:#424754;font-weight:700;text-transform:uppercase;">
+                  <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.58rem;color:#3e4558;font-weight:700;text-transform:uppercase;">
                     <span>Fear</span><span>Neutral</span><span>Greed</span>
                   </div>
                   <div style="margin-top:1rem;padding:.75rem;background:rgba(77,142,255,0.06);border-radius:.5rem;">
-                    <div style="font-size:.7rem;color:#8c909f;line-height:1.5;">{"Live CNN Fear & Greed data." if _fg else "Could not fetch live data."} Score: <b style="color:{_fg_color};">{_fg_score:.0f}/100</b> — <b style="color:{_fg_color};">{_fg_label}</b>.</div>
+                    <div style="font-size:.7rem;color:#8a8fa0;line-height:1.5;">{"Live CNN Fear & Greed data." if _fg else "Could not fetch live data."} Score: <b style="color:{_fg_color};">{_fg_score:.0f}/100</b> — <b style="color:{_fg_color};">{_fg_label}</b>.</div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -3193,26 +3193,26 @@ else:
                     st.markdown(f'<div class="alert-box">🔔 {ticker} at ${last_close:.2f} — ${diff:.2f} {_L["below_target"]} ${alert_price:.2f}</div>', unsafe_allow_html=True)
 
             # Confidence score bar
-            conf_color = "#00e5b0" if confidence_score>=80 else "#ffdd2d" if confidence_score>=60 else "#ff6b6b"
+            conf_color = "#00e5b0" if confidence_score>=80 else "#ffd426" if confidence_score>=60 else "#ff5f5f"
             conf_label = _L["high_confidence"] if confidence_score>=80 else _L["moderate_confidence"] if confidence_score>=60 else _L["low_confidence"]
             filled = int(confidence_score / 5)
             bar_html = "".join(f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;background:{conf_color};opacity:{1.0 if i<filled else 0.1};border-radius:1px;"></span>' for i in range(20))
             st.markdown(f"""
-            <div style="background:#131b2e;border:1px solid #2d3449;border-left:3px solid {conf_color};
+            <div style="background:#0f1727;border:1px solid #252f47;border-left:3px solid {conf_color};
                  padding:1.2rem 1.6rem;margin:1rem 0;border-radius:0 .5rem .5rem 0;">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
                 <div>
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#424754;margin-bottom:.3rem;font-weight:700;">{_L["model_conf_score"]}</div>
-                  <div style="font-family:IBM Plex Mono,monospace;font-size:2.2rem;font-weight:700;color:{conf_color};">{confidence_score:.0f}<span style="font-size:1rem;color:#8c909f;">/100</span></div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;font-weight:700;">{_L["model_conf_score"]}</div>
+                  <div style="font-family:IBM Plex Mono,monospace;font-size:2.2rem;font-weight:700;color:{conf_color};">{confidence_score:.0f}<span style="font-size:1rem;color:#8a8fa0;">/100</span></div>
                   <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.14em;color:{conf_color};margin-top:.3rem;font-weight:700;">{conf_label}</div>
                 </div>
                 <div style="flex:1;min-width:220px;">
                   <div style="margin-bottom:.6rem;">{bar_html}</div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#424754;">
-                    <span>{_L["r2_fit"]} <b style="color:#8c909f;">{r2_norm:.0f}/100</b> <span style="color:#2d3449;">(×0.40)</span></span>
-                    <span>{_L["mape_accuracy"]} <b style="color:#8c909f;">{mape_norm:.0f}/100</b> <span style="color:#2d3449;">(×0.30)</span></span>
-                    <span>{_L["directional_acc"]} <b style="color:#8c909f;">{dir_acc:.0f}/100</b> <span style="color:#2d3449;">(×0.20)</span></span>
-                    <span>{_L["data_volume"]} <b style="color:#8c909f;">{data_score:.0f}/100</b> <span style="color:#2d3449;">(×0.10)</span></span>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#3e4558;">
+                    <span>{_L["r2_fit"]} <b style="color:#8a8fa0;">{r2_norm:.0f}/100</b> <span style="color:#252f47;">(×0.40)</span></span>
+                    <span>{_L["mape_accuracy"]} <b style="color:#8a8fa0;">{mape_norm:.0f}/100</b> <span style="color:#252f47;">(×0.30)</span></span>
+                    <span>{_L["directional_acc"]} <b style="color:#8a8fa0;">{dir_acc:.0f}/100</b> <span style="color:#252f47;">(×0.20)</span></span>
+                    <span>{_L["data_volume"]} <b style="color:#8a8fa0;">{data_score:.0f}/100</b> <span style="color:#252f47;">(×0.10)</span></span>
                   </div>
                 </div>
               </div>
@@ -3237,13 +3237,13 @@ else:
             if alert_on_signal_change:
                 prev_verdict = st.session_state.alert_signals.get(ticker)
                 if prev_verdict is not None and prev_verdict != verdict_short:
-                    _ac = {"BUY":"#00e5b0","SELL":"#ff6b6b"}.get(verdict_short,"#ffdd2d")
-                    st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid {_ac};border-left:4px solid {_ac};padding:.8rem 1.4rem;margin-bottom:1rem;font-family:Manrope,sans-serif;font-size:.78rem;color:{_ac};font-weight:700;border-radius:0 .5rem .5rem 0;">🔔 SIGNAL ALERT — {ticker} &nbsp;|&nbsp; {prev_verdict} → {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}</div>', unsafe_allow_html=True)
+                    _ac = {"BUY":"#00e5b0","SELL":"#ff5f5f"}.get(verdict_short,"#ffd426")
+                    st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid {_ac};border-left:4px solid {_ac};padding:.8rem 1.4rem;margin-bottom:1rem;font-family:Manrope,sans-serif;font-size:.78rem;color:{_ac};font-weight:700;border-radius:0 .5rem .5rem 0;">🔔 SIGNAL CHANGE — {ticker} &nbsp;|&nbsp; {prev_verdict} → {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}</div>', unsafe_allow_html=True)
                 st.session_state.alert_signals[ticker] = verdict_short
 
             verdict_css = 'sell' if verdict_short=='SELL' else 'hold' if verdict_short=='HOLD' else ''
             sign = '+' if xgb_pct>=0 else ''
-            score_color = '#00e5b0' if total_score>0 else '#ff6b6b' if total_score<0 else '#ffdd2d'
+            score_color = '#00e5b0' if total_score>0 else '#ff5f5f' if total_score<0 else '#ffd426'
             rr_color = 'positive' if risk_reward>=1.5 else 'negative' if risk_reward<1 else 'neutral'
 
             st.markdown(f"""
@@ -3313,30 +3313,30 @@ else:
             fig3.add_hline(y=last_close, line_dash="dash", line_color=C_GREY, annotation_text=f"Last close ${last_close:.2f}", annotation_font_color=C_GREY)
             if alert_price > 0:
                 fig3.add_hline(y=alert_price, line_dash="dash", line_color=C_YELLOW, annotation_text=f"Target ${alert_price:.2f}", annotation_font_color=C_YELLOW)
-            fig3.add_trace(go.Scatter(x=list(range(future_days)), y=future_prices, mode='lines+markers', name='XGBoost Forecast',
-                line=dict(color=trend_color, width=2), marker=dict(size=7, color=trend_color, line=dict(width=1, color="#0b1326"))))
+            fig3.add_trace(go.Scatter(x=list(range(future_days)), y=future_prices, mode='lines+markers', name='AI Price Outlook',
+                line=dict(color=trend_color, width=2), marker=dict(size=7, color=trend_color, line=dict(width=1, color="#080e1c"))))
             if future_days > 5:
-                fig3.add_vline(x=4.5, line_dash="dot", line_color="#2d3449", annotation_text="↑ Higher confidence | Lower confidence ↓",
-                               annotation_font=dict(color="#424754", size=9), annotation_position="top")
+                fig3.add_vline(x=4.5, line_dash="dot", line_color="#252f47", annotation_text="↑ Higher confidence | Lower confidence ↓",
+                               annotation_font=dict(color="#3e4558", size=9), annotation_position="top")
             fig3.update_layout(**PLOTLY_LAYOUT,
-                title=dict(text=f"{ticker} · {future_days}-Day Price Forecast · Band shows ±1.5σ uncertainty growth", font=dict(color=C_GREEN, size=13)),
+                title=dict(text=f"{ticker} · {future_days}-Day Price Outlook · Band shows ±1.5σ uncertainty growth", font=dict(color=C_GREEN, size=13)),
                 xaxis_title="Days from today", yaxis_title="Price (USD)", height=420)
             st.plotly_chart(fig3, use_container_width=True)
 
             if future_days > 5:
-                st.markdown('<div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.2);border-left:3px solid #ffdd2d;padding:.6rem 1.2rem;font-family:Manrope,sans-serif;font-size:.7rem;color:#ffdd2d;font-weight:600;border-radius:0 .5rem .5rem 0;">⚠ Forecast reliability decreases significantly beyond Day 5. Use Days 6+ as directional signals only.</div>', unsafe_allow_html=True)
+                st.markdown('<div style="background:rgba(255,212,38,0.04);border:1px solid rgba(255,212,38,0.2);border-left:3px solid #ffd426;padding:.6rem 1.2rem;font-family:Manrope,sans-serif;font-size:.7rem;color:#ffd426;font-weight:600;border-radius:0 .5rem .5rem 0;">💡 Outlook confidence is highest for Days 1–3. Days 6+ should be read as directional guidance only.</div>', unsafe_allow_html=True)
 
             future_df = pd.DataFrame({
                 "Day": [f"+{i+1}" for i in range(future_days)],
-                "Predicted Price ($)": [f"${p:.2f}" for p in future_prices],
+                "AI Outlook ($)": [f"${p:.2f}" for p in future_prices],
                 "vs Last Close": [f"{'▲' if p>last_close else '▼'} {abs(p-last_close):.2f} ({(p-last_close)/last_close*100:+.2f}%)" for p in future_prices]
             })
             st.dataframe(future_df, use_container_width=True, hide_index=True)
 
             # ── Backtesting ────────────────────────────────────────────────────
             if run_backtest and not fast_mode:
-                st.subheader("Backtesting Engine")
-                st.markdown(f'<div class="model-badge">STRATEGY: XGBoost Signal ±{bt_signal_threshold}% | Capital: ${bt_initial_capital:,.0f} | Commission: ${bt_commission}/trade</div>', unsafe_allow_html=True)
+                st.subheader("Strategy Simulator")
+                st.markdown(f'<div class="model-badge">STRATEGY: AI Signal ±{bt_signal_threshold}% | Capital: ${bt_initial_capital:,.0f} | Commission: ${bt_commission}/trade</div>', unsafe_allow_html=True)
                 with st.spinner("Running backtest simulation..."):
                     bt = run_backtest_engine(actual, preds, bt_initial_capital, bt_commission, bt_signal_threshold)
 
@@ -3360,10 +3360,10 @@ else:
                     st.warning(f"⚠ No trades executed — {ticker} (${last_close:.2f}/share) exceeds the initial capital of ${bt_initial_capital:,.0f}. Increase the capital in the sidebar to enable backtesting for this stock.")
 
                 fig_eq = go.Figure()
-                fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="XGBoost Strategy", line=dict(color=C_EMERALD, width=2), fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
+                fig_eq.add_trace(go.Scatter(y=bt["equity_curve"], name="AI Strategy", line=dict(color=C_EMERALD, width=2), fill="tozeroy", fillcolor="rgba(0,229,176,0.05)"))
                 fig_eq.add_trace(go.Scatter(y=bt["bh_equity"], name="Buy & Hold", line=dict(color=C_ACCENT, width=1.5, dash="dot")))
                 fig_eq.add_hline(y=bt_initial_capital, line_dash="dash", line_color=C_GREY, annotation_text=f"Start ${bt_initial_capital:,}", annotation_font_color=C_GREY)
-                fig_eq.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · Strategy Equity Curve vs Buy & Hold", font=dict(color=C_GREEN, size=13)), height=420)
+                fig_eq.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · AI Strategy Equity Curve vs Buy & Hold", font=dict(color=C_GREEN, size=13)), height=420)
                 st.plotly_chart(fig_eq, use_container_width=True)
 
                 if not bt["trades_df"].empty:
@@ -3378,7 +3378,7 @@ else:
 
             # ── Confidence Intervals ───────────────────────────────────────────
             if show_conf_interval:
-                st.subheader("Forecast with Confidence Intervals")
+                st.subheader("Outlook with Confidence Intervals")
                 st.markdown('<div class="model-badge">95% CI — Bootstrap Resampling</div>', unsafe_allow_html=True)
                 with st.spinner(f"Running {ci_bootstrap_n} bootstrap samples..."):
                     ci_lower, ci_median, ci_upper = bootstrap_confidence_intervals(model, X_test, n_bootstrap=ci_bootstrap_n, noise_std=0.015)
@@ -3386,8 +3386,8 @@ else:
                 fig_ci.add_trace(go.Scatter(y=ci_upper, line=dict(color="rgba(0,0,0,0)"), showlegend=False))
                 fig_ci.add_trace(go.Scatter(y=ci_lower, name="95% CI Band", fill="tonexty", fillcolor="rgba(77,142,255,0.10)", line=dict(color="rgba(0,0,0,0)")))
                 fig_ci.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_ACCENT, width=1.5)))
-                fig_ci.add_trace(go.Scatter(y=ci_median, name="XGBoost Median", line=dict(color=C_EMERALD, width=1.8, dash="dot")))
-                fig_ci.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · Predictions with 95% CI", font=dict(color=C_GREEN, size=12)), height=380)
+                fig_ci.add_trace(go.Scatter(y=ci_median, name="AI Projection Median", line=dict(color=C_EMERALD, width=1.8, dash="dot")))
+                fig_ci.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · AI Projection with 95% CI", font=dict(color=C_GREEN, size=13)), height=380)
                 st.plotly_chart(fig_ci, use_container_width=True)
 
             # ── Model Comparison ───────────────────────────────────────────────
@@ -3430,7 +3430,7 @@ else:
                 fig_cmp.add_trace(go.Scatter(y=actual, name="Actual", line=dict(color=C_ACCENT, width=2)))
                 for n, r in cmp.items():
                     fig_cmp.add_trace(go.Scatter(y=r["preds"], name=n, line=dict(color=r["color"], width=1.5, dash="dot")))
-                fig_cmp.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · Model Comparison", font=dict(color=C_GREEN, size=12)), height=380)
+                fig_cmp.update_layout(**PLOTLY_LAYOUT, title=dict(text=f"{ticker} · Model Comparison", font=dict(color=C_GREEN, size=13)), height=420)
                 st.plotly_chart(fig_cmp, use_container_width=True)
 
             # ── Halal / Shariah ────────────────────────────────────────────────
@@ -3441,7 +3441,7 @@ else:
                   <div style="font-size:1.4rem;">☪</div>
                   <div>
                     <div style="font-family:Manrope,sans-serif;font-size:.63rem;letter-spacing:.15em;text-transform:uppercase;color:#00e5b0;font-weight:700;">Halal / Shariah Compliance Screen</div>
-                    <div style="font-family:Manrope,sans-serif;font-size:.76rem;color:#424754;margin-top:2px;">Automated screening based on AAOIFI Standard No.21</div>
+                    <div style="font-family:Manrope,sans-serif;font-size:.76rem;color:#3e4558;margin-top:2px;">Automated screening based on AAOIFI Standard No.21</div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -3458,7 +3458,7 @@ else:
                     v_color = {"COMPLIANT":C_EMERALD,"NON-COMPLIANT":C_RED,"QUESTIONABLE":C_YELLOW}[sh_verdict]
                     v_bg    = {"COMPLIANT":"rgba(0,229,176,0.05)","NON-COMPLIANT":"rgba(255,107,107,0.05)","QUESTIONABLE":"rgba(255,221,45,0.05)"}[sh_verdict]
                     v_icon  = {"COMPLIANT":"✅","NON-COMPLIANT":"❌","QUESTIONABLE":"⚠️"}[sh_verdict]
-                    st.markdown(f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};padding:1.2rem 2rem;margin:1rem 0;text-align:center;border-radius:0 .5rem .5rem 0;"><div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#424754;letter-spacing:.14em;text-transform:uppercase;font-weight:700;">{sd["company_name"]} ({ticker})</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{sh_verdict}</div><div style="font-size:.76rem;color:#8c909f;margin-top:.3rem;">Sector: {sd["sector"]} | Industry: {sd["industry"]}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:{v_bg};border:1px solid {v_color};border-left:3px solid {v_color};padding:1.2rem 2rem;margin:1rem 0;text-align:center;border-radius:0 .5rem .5rem 0;"><div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;letter-spacing:.14em;text-transform:uppercase;font-weight:700;">{sd["company_name"]} ({ticker})</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;color:{v_color};margin-top:.4rem;">{v_icon}&nbsp;{sh_verdict}</div><div style="font-size:.76rem;color:#8a8fa0;margin-top:.3rem;">Sector: {sd["sector"]} | Industry: {sd["industry"]}</div></div>', unsafe_allow_html=True)
 
                     st.subheader(_L["screening_criteria"])
                     col_left, col_right = st.columns(2)
@@ -3467,9 +3467,9 @@ else:
                         if bs["haram_hit"]:
                             st.markdown(f'<div class="halal-card-fail"><b>❌ Business Activity</b><br>Non-compliant: <b>{bs["haram_hit"]}</b></div>', unsafe_allow_html=True)
                         elif bs["questionable"]:
-                            st.markdown('<div class="halal-card" style="border-left-color:#ffdd2d;"><b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>', unsafe_allow_html=True)
+                            st.markdown('<div class="halal-card" style="border-left-color:#ffd426;"><b>⚠️ Business Activity</b><br>Questionable sector — consult a scholar</div>', unsafe_allow_html=True)
                         else:
-                            st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>No Haram core business detected<br><small style="color:#424754;">Sector: {sd["sector"]}</small></div>', unsafe_allow_html=True)
+                            st.markdown(f'<div class="halal-card"><b>✅ Business Activity</b><br>No Haram core business detected<br><small style="color:#3e4558;">Sector: {sd["sector"]}</small></div>', unsafe_allow_html=True)
                         dm = compliance_result["debt_mktcap"]
                         cls = "halal-card" if dm["pass"] else "halal-card-fail"
                         icon = "✅" if dm["pass"] else "❌"
@@ -3503,18 +3503,18 @@ else:
                             avg_polarity = sc_df["polarity"].mean()
                             sent_color   = C_EMERALD if avg_polarity>0.05 else C_RED if avg_polarity<-0.05 else C_YELLOW
                             sent_label   = "POSITIVE" if avg_polarity>0.05 else "NEGATIVE" if avg_polarity<-0.05 else "NEUTRAL"
-                            st.markdown(f'<div style="background:rgba(77,142,255,0.06);border:1px solid rgba(77,142,255,0.2);border-left:3px solid {sent_color};padding:.7rem 1.2rem;font-family:Manrope,sans-serif;font-size:.72rem;color:#dae2fd;font-weight:700;border-radius:0 .5rem .5rem 0;">Avg Sentiment: <span style="color:{sent_color};">{sent_label}</span> &nbsp;({avg_polarity:+.3f}) &nbsp;·&nbsp; {len(scored)} recent headlines</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div style="background:rgba(77,142,255,0.06);border:1px solid rgba(77,142,255,0.2);border-left:3px solid {sent_color};padding:.7rem 1.2rem;font-family:Manrope,sans-serif;font-size:.72rem;color:#e4eafd;font-weight:700;border-radius:0 .5rem .5rem 0;">Avg Sentiment: <span style="color:{sent_color};">{sent_label}</span> &nbsp;({avg_polarity:+.3f}) &nbsp;·&nbsp; {len(scored)} recent headlines</div>', unsafe_allow_html=True)
                             fig_sent = go.Figure(go.Bar(x=sc_df["polarity"], y=[h[:55]+"…" if len(h)>55 else h for h in sc_df["headline"]], orientation='h',
                                 marker_color=[C_EMERALD if p>0 else C_RED for p in sc_df["polarity"]]))
                             fig_sent.add_vline(x=0, line_color=C_GREY)
                             fig_sent.add_vline(x=avg_polarity, line_dash="dot", line_color=sent_color, line_width=1.5)
                             _sent_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k != "xaxis"}
                             fig_sent.update_layout(**_sent_layout,
-                                title=dict(text=f"{ticker} · Headline Sentiment (Yahoo Finance + TextBlob)", font=dict(color=C_GREEN, size=11)),
+                                title=dict(text=f"{ticker} · News Sentiment Analysis (Yahoo Finance + TextBlob)", font=dict(color=C_GREEN, size=13)),
                                 height=max(220, len(scored)*32),
-                                xaxis=dict(title="Polarity (negative ← 0 → positive)", range=[-1,1], gridcolor="#2d3449", linecolor="#2d3449", zeroline=False, tickfont=dict(color="#424754",size=9)))
+                                xaxis=dict(title="Polarity (negative ← 0 → positive)", range=[-1,1], gridcolor="#1e2740", linecolor="#1e2740", zeroline=False, tickfont=dict(color="#8a8fa0",size=9)))
                             st.plotly_chart(fig_sent, use_container_width=True)
-                            st.caption("⚠ Sentiment is based on headline text only. Powered by Yahoo Finance News + TextBlob.")
+                            st.caption("💡 Sentiment is derived from headline text only. Combine with your own reading of the news for best results.")
                     else:
                         st.info(_L["no_recent_news"])
                 except ImportError:
@@ -3530,7 +3530,7 @@ st.markdown(f"""
     <span style="color:#1e2740;">·</span>
     <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#4d8eff;"></span>Auth by Supabase</span>
     <span style="color:#1e2740;">·</span>
-    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#ffd426;"></span>XGBoost Forecasting</span>
+    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#ffd426;"></span>AI-Powered Analysis</span>
     <span style="color:#1e2740;">·</span>
     <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#00e5b0;"></span>Shariah Screening</span>
   </div>
