@@ -568,6 +568,29 @@ def _sb_set_plan(user_id: str, plan: str):
     except Exception as e:
         logger.error("_sb_set_plan failed for user '%s': %s", user_id, e)
 
+def _sb_get_email_alerts(user_id: str) -> bool:
+    """Returns True if user has email alerts enabled."""
+    try:
+        res = supabase.table("user_usage").select("email_alerts_enabled") \
+                  .eq("user_id", user_id).execute()
+        row = (res.data or [None])[0]
+        return bool((row or {}).get("email_alerts_enabled", False))
+    except Exception as e:
+        logger.error("_sb_get_email_alerts failed for user '%s': %s", user_id, e)
+        return False
+
+def _sb_set_email_alerts(user_id: str, enabled: bool):
+    """Toggle email alerts on or off for the user."""
+    try:
+        supabase.table("user_usage").upsert(
+            {"user_id": user_id, "email_alerts_enabled": enabled},
+            on_conflict="user_id"
+        ).execute()
+        st.session_state.email_alerts_enabled = enabled
+        logger.info("Email alerts set to %s for user '%s'", enabled, user_id)
+    except Exception as e:
+        logger.error("_sb_set_email_alerts failed for user '%s': %s", user_id, e)
+
 # ── Multi-language support ─────────────────────────────────────────────────────
 LANGUAGES = {
     "English": {
@@ -1055,6 +1078,8 @@ if "load_ticker_from_watchlist" not in st.session_state:
     st.session_state.load_ticker_from_watchlist = None
 if "show_upgrade_modal" not in st.session_state:
     st.session_state.show_upgrade_modal = False
+if "email_alerts_enabled" not in st.session_state:
+    st.session_state.email_alerts_enabled = False
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -2323,6 +2348,7 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
     st.session_state.usage_count = _usage.get("usage_count", 0)
     st.session_state.analyses_today = _usage.get("usage_count", 0)
     st.session_state.user_plan = _usage.get("plan", "free")
+    st.session_state.email_alerts_enabled = bool(_usage.get("email_alerts_enabled", False))
     # Show onboarding only for brand-new users (empty watchlist + no usage)
     st.session_state.show_onboarding = (len(_wl) == 0 and st.session_state.usage_count == 0)
     st.session_state._portfolio_loaded_for = _current_uid
@@ -2845,8 +2871,48 @@ with st.sidebar:
         st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#252f47;padding:.3rem 0;">{_L["no_stocks_saved"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">{_L["alerts"]}</div>', unsafe_allow_html=True)
-    alert_on_signal_change = st.checkbox(_L["alert_signal_change"], value=True)
+    # ── Alerts section ──────────────────────────────────────────────────────
+    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.6rem;">🔔 Alerts</div>', unsafe_allow_html=True)
+
+    # In-session signal change alert (existing)
+    alert_on_signal_change = st.checkbox(_L["alert_signal_change"], value=True, key="signal_alert_chk")
+
+    # Daily email digest toggle
+    _email_on = st.session_state.get("email_alerts_enabled", False)
+    st.markdown(f"""
+    <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.15);
+         border-radius:.6rem;padding:.8rem 1rem;margin:.4rem 0;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;">
+        <div>
+          <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;
+               color:#e4eafd;margin-bottom:.2rem;">📧 Daily Email Digest</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#8a8fa0;
+               line-height:1.5;">
+            Get your watchlist signals in your inbox every morning.
+            {"<br><span style='color:#ffd426;'>✦ Pro: delivered 6AM daily</span>" if _is_pro() else ""}
+          </div>
+        </div>
+        <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;
+             color:{'#00e5b0' if _email_on else '#3e4558'};font-weight:700;
+             flex-shrink:0;margin-top:2px;">
+          {'ON' if _email_on else 'OFF'}
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    _toggle_label = "Turn Off Email Alerts" if _email_on else "Enable Daily Email Digest"
+    if st.button(_toggle_label, use_container_width=True, key="email_alert_toggle"):
+        new_val = not _email_on
+        _sb_set_email_alerts(st.session_state.user.id, new_val)
+        if new_val:
+            st.success(f"✓ Daily digest enabled — sent to {st.session_state.user.email}")
+        else:
+            st.info("Email alerts turned off.")
+        st.rerun()
+
+    if not _email_on:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;line-height:1.5;margin-top:.2rem;">Sent to: {st.session_state.user.email}<br>Weekdays at 7:00 AM UTC (12:30 PM IST)</div>', unsafe_allow_html=True)
 
     # Plan management — upgrade / downgrade
     st.markdown("---")
