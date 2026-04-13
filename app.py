@@ -2359,113 +2359,137 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Upgrade Modal ─────────────────────────────────────────────────────────────
+# ── Upgrade Page (replaces broken overlay modal) ──────────────────────────────
 if st.session_state.get("show_upgrade_modal"):
+    # Full-page upgrade screen — stop rendering rest of app while shown
     st.markdown("""
     <style>
-    .upgrade-overlay {
-        position:fixed;inset:0;background:rgba(4,8,18,0.85);z-index:9998;
-        backdrop-filter:blur(8px);
-    }
-    .upgrade-modal {
-        position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-        z-index:9999;width:min(520px,90vw);
-        background:linear-gradient(145deg,#0f1727,#080e1c);
-        border:1px solid rgba(255,212,38,0.3);border-radius:1.2rem;
-        padding:2.5rem 2.2rem;box-shadow:0 24px 80px rgba(0,0,0,0.7);
-    }
+    /* Hide sidebar while on upgrade page */
+    [data-testid="stSidebar"] { display: none !important; }
+    .block-container { max-width: 680px !important; }
     </style>
-    <div class="upgrade-overlay"></div>
     """, unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown(f"""
-        <div style="text-align:center;margin-bottom:1.6rem;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;letter-spacing:.18em;
-               text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Upgrade to Pro</div>
-          <div style="font-family:Manrope,sans-serif;font-size:1.6rem;font-weight:800;
-               color:#e4eafd;letter-spacing:-.02em;line-height:1.2;">
-            Unlock the full<br>AI Stock Assistant
-          </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.85rem;color:#8a8fa0;
-               margin-top:.6rem;line-height:1.6;">
-            Everything in Free, plus the features serious investors need.
-          </div>
-        </div>
+    # Back button
+    if st.button("← Back", key="upgrade_back"):
+        st.session_state.show_upgrade_modal = False
+        st.rerun()
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.6rem;">
-          <div style="background:rgba(8,14,28,0.7);border:1px solid #252f47;
-               border-radius:.75rem;padding:1rem 1.1rem;">
-            <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
-                 letter-spacing:.12em;text-transform:uppercase;color:#8a8fa0;margin-bottom:.8rem;">
-              Free
-            </div>
-            <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8a8fa0;line-height:1.9;">
-              ✓ 3 analyses / day<br>
-              ✓ 5 watchlist stocks<br>
-              ✓ 7-day outlook<br>
-              ✓ Basic signals<br>
-              ✗ Prophet comparison<br>
-              ✗ Bootstrap CI<br>
-              ✗ Multi-stock view<br>
-              ✗ Priority speed
-            </div>
-          </div>
-          <div style="background:linear-gradient(145deg,rgba(255,212,38,0.07),rgba(8,14,28,0.9));
-               border:1px solid rgba(255,212,38,0.3);border-radius:.75rem;padding:1rem 1.1rem;
-               position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;right:0;background:#ffd426;color:#080e1c;
-                 font-family:Manrope,sans-serif;font-size:.5rem;font-weight:800;
-                 letter-spacing:.08em;text-transform:uppercase;padding:.25rem .7rem;
-                 border-radius:0 .75rem 0 .5rem;">BEST VALUE</div>
-            <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
-                 letter-spacing:.12em;text-transform:uppercase;color:#ffd426;margin-bottom:.8rem;">
-              Pro
-            </div>
-            <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#e4eafd;line-height:1.9;">
-              ✦ Unlimited analyses<br>
-              ✦ 50 watchlist stocks<br>
-              ✦ 30-day outlook<br>
-              ✦ All signal types<br>
-              ✦ Prophet + XGBoost<br>
-              ✦ Bootstrap CI bands<br>
-              ✦ Multi-stock compare<br>
-              ✦ Priority speed
-            </div>
-          </div>
-        </div>
+    # Header
+    st.markdown("""
+    <div style="text-align:center;padding:2rem 0 1.5rem;">
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.2em;
+           text-transform:uppercase;color:#ffd426;margin-bottom:.6rem;">Stockcast Pro</div>
+      <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;
+           color:#e4eafd;letter-spacing:-.03em;line-height:1.2;margin-bottom:.5rem;">
+        Unlock the full<br>AI Stock Assistant
+      </div>
+      <div style="font-family:Manrope,sans-serif;font-size:.9rem;color:#8a8fa0;line-height:1.6;">
+        Everything in Free, plus the features serious investors need.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        <div style="text-align:center;margin-bottom:.6rem;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;font-weight:700;
-               color:#ffd426;">$9<span style="font-size:1rem;color:#8a8fa0;">/month</span>
+    # Free vs Pro comparison columns
+    col_free, col_pro = st.columns(2)
+
+    with col_free:
+        st.markdown("""
+        <div style="background:#0f1727;border:1px solid #252f47;border-radius:1rem;
+             padding:1.4rem 1.5rem;height:100%;">
+          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
+               letter-spacing:.14em;text-transform:uppercase;color:#8a8fa0;margin-bottom:1rem;">
+            Free — $0
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#3e4558;margin-top:.2rem;">
-            Cancel anytime · Payments via Razorpay (coming soon)
+          <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;line-height:2;">
+            ✓ &nbsp;3 analyses / day<br>
+            ✓ &nbsp;5 watchlist stocks<br>
+            ✓ &nbsp;7-day price outlook<br>
+            ✓ &nbsp;6-factor signals<br>
+            ✓ &nbsp;Shariah screening<br>
+            ✗ &nbsp;Prophet comparison<br>
+            ✗ &nbsp;Confidence intervals<br>
+            ✗ &nbsp;Multi-stock compare<br>
+            ✗ &nbsp;30-day outlook
           </div>
         </div>
         """, unsafe_allow_html=True)
 
-        _uc1, _uc2, _uc3 = st.columns([1, 2, 1])
-        with _uc2:
-            # Simulate upgrade for now — flips plan to pro in DB + session
-            if st.button("✦ Activate Pro — $9/mo", use_container_width=True, key="upgrade_confirm"):
-                _sb_set_plan(st.session_state.user.id, "pro")
-                st.session_state.show_upgrade_modal = False
-                st.session_state._portfolio_loaded_for = None  # force reload
-                st.success("🎉 Welcome to Pro! Enjoy unlimited access.")
-                st.rerun()
-        with _uc3:
-            if st.button("✕ Close", use_container_width=True, key="upgrade_close"):
-                st.session_state.show_upgrade_modal = False
-                st.rerun()
-
-        st.markdown(f"""
-        <div style="text-align:center;margin-top:.6rem;font-family:Manrope,sans-serif;
-             font-size:.6rem;color:#3e4558;line-height:1.6;">
-          Payments not yet active — clicking Activate Pro will grant access immediately<br>
-          for testing. Razorpay / Stripe integration coming soon.
+    with col_pro:
+        st.markdown("""
+        <div style="background:linear-gradient(145deg,rgba(255,212,38,0.08),#0a0f1e);
+             border:2px solid rgba(255,212,38,0.4);border-radius:1rem;
+             padding:1.4rem 1.5rem;height:100%;position:relative;">
+          <div style="position:absolute;top:-1px;right:1.2rem;background:#ffd426;
+               color:#080e1c;font-family:Manrope,sans-serif;font-size:.52rem;
+               font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+               padding:.22rem .75rem;border-radius:0 0 .5rem .5rem;">BEST VALUE</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
+               letter-spacing:.14em;text-transform:uppercase;color:#ffd426;margin-bottom:1rem;">
+            Pro — $9/mo
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#e4eafd;line-height:2;">
+            ✦ &nbsp;Unlimited analyses<br>
+            ✦ &nbsp;50 watchlist stocks<br>
+            ✦ &nbsp;30-day price outlook<br>
+            ✦ &nbsp;All signal types<br>
+            ✦ &nbsp;Shariah screening<br>
+            ✦ &nbsp;Prophet + XGBoost<br>
+            ✦ &nbsp;Bootstrap CI bands<br>
+            ✦ &nbsp;Multi-stock compare<br>
+            ✦ &nbsp;Priority speed
+          </div>
         </div>
         """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Price + CTA
+    st.markdown("""
+    <div style="text-align:center;margin-bottom:1rem;">
+      <div style="font-family:IBM Plex Mono,monospace;font-size:2.8rem;font-weight:700;color:#ffd426;">
+        $9<span style="font-size:1.1rem;color:#8a8fa0;font-weight:400;">/month</span>
+      </div>
+      <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#3e4558;margin-top:.3rem;">
+        Cancel anytime · No contracts · Payments via Razorpay (coming soon)
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    btn_l, btn_c, btn_r = st.columns([1, 2, 1])
+    with btn_c:
+        if st.button("✦ Activate Pro — $9/mo", use_container_width=True, key="upgrade_confirm"):
+            _sb_set_plan(st.session_state.user.id, "pro")
+            st.session_state.show_upgrade_modal = False
+            st.session_state._portfolio_loaded_for = None  # force plan reload
+            st.rerun()
+
+    st.markdown("""
+    <div style="text-align:center;margin-top:1rem;font-family:Manrope,sans-serif;
+         font-size:.65rem;color:#3e4558;line-height:1.7;">
+      Payments not yet live — clicking Activate Pro grants access immediately for testing.<br>
+      Razorpay &amp; Stripe integration coming in the next release.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # FAQ
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("Frequently asked questions"):
+        st.markdown("""
+        **What happens when I upgrade?**
+        Your plan switches to Pro immediately. All limits are removed and Pro features unlock without restarting.
+
+        **Is payment active?**
+        Not yet — this is a simulated upgrade for testing. Real payments via Razorpay/Stripe are coming soon.
+
+        **Can I go back to Free?**
+        Yes — use the "Switch to Free (testing)" button at the bottom of the sidebar.
+
+        **Does my data carry over?**
+        Yes. Watchlist, portfolio, and history are all stored in Supabase and persist across plan changes.
+        """)
+
+    st.stop()  # Don't render the rest of the app while upgrade page is shown
 
 # Ticker tape — live prices
 _tape_items = get_live_ticker_tape()
