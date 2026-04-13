@@ -470,27 +470,27 @@ def _sb_remove_watchlist(user_id: str, symbol: str):
 FREE_PLAN_DAILY_LIMIT = 3
 
 def _sb_get_usage(user_id: str) -> dict:
-    """Returns {usage_count, last_used_date}. Resets count if date has changed."""
+    """Returns {usage_count, last_used_date, plan}. Resets count if date has changed."""
     today = pd.Timestamp.now().date().isoformat()
     try:
         res = supabase.table("user_usage").select("*").eq("user_id", user_id).execute()
         row = (res.data or [None])[0]
         if not row:
-            # First time — insert a fresh row
             supabase.table("user_usage").insert(
-                {"user_id": user_id, "usage_count": 0, "last_used_date": today}
+                {"user_id": user_id, "usage_count": 0, "last_used_date": today, "plan": "free"}
             ).execute()
-            return {"usage_count": 0, "last_used_date": today}
-        if row["last_used_date"] != today:
-            # New day — reset
+            return {"usage_count": 0, "last_used_date": today, "plan": "free"}
+        if row.get("last_used_date") != today:
             supabase.table("user_usage").update(
                 {"usage_count": 0, "last_used_date": today}
             ).eq("user_id", user_id).execute()
-            return {"usage_count": 0, "last_used_date": today}
+            row["usage_count"] = 0
+            row["last_used_date"] = today
+        row.setdefault("plan", "free")
         return row
     except Exception as e:
         logger.error("_sb_get_usage failed for user '%s': %s", user_id, e)
-        return {"usage_count": 0, "last_used_date": today}
+        return {"usage_count": 0, "last_used_date": today, "plan": "free"}
 
 def _sb_increment_usage(user_id: str):
     today = pd.Timestamp.now().date().isoformat()
@@ -502,6 +502,71 @@ def _sb_increment_usage(user_id: str):
         ).execute()
     except Exception as e:
         logger.error("_sb_increment_usage failed for user '%s': %s", user_id, e)
+
+# ── Plan definitions ──────────────────────────────────────────────────────────
+# Plan limits — change here to update everywhere in the app
+PLAN_LIMITS = {
+    "free": {
+        "daily_analyses":  3,
+        "watchlist_stocks": 5,
+        "forecast_horizon": 7,       # max days free users can forecast
+        "model_compare":   False,    # Prophet comparison locked
+        "conf_interval":   False,    # Bootstrap CI locked
+        "multi_stock":     False,    # Multi-ticker comparison locked
+        "data_years":      3,        # years of history
+    },
+    "pro": {
+        "daily_analyses":  999,      # effectively unlimited
+        "watchlist_stocks": 50,
+        "forecast_horizon": 30,
+        "model_compare":   True,
+        "conf_interval":   True,
+        "multi_stock":     True,
+        "data_years":      10,
+    },
+}
+
+def _get_limit(key: str) -> object:
+    """Return the limit value for the current user's plan."""
+    plan = st.session_state.get("user_plan", "free")
+    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"]).get(key)
+
+def _is_pro() -> bool:
+    return st.session_state.get("user_plan", "free") == "pro"
+
+# ── Plan Supabase helpers ─────────────────────────────────────────────────────
+# Required column on user_usage table (add if not present):
+#   ALTER TABLE user_usage ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free';
+#
+# Or create fresh:
+#   CREATE TABLE IF NOT EXISTS user_usage (
+#     user_id       UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+#     usage_count   INT  NOT NULL DEFAULT 0,
+#     last_used_date DATE NOT NULL DEFAULT CURRENT_DATE,
+#     plan          TEXT NOT NULL DEFAULT 'free'
+#   );
+
+def _sb_get_plan(user_id: str) -> str:
+    """Returns 'free' or 'pro' for the given user."""
+    try:
+        res = supabase.table("user_usage").select("plan").eq("user_id", user_id).execute()
+        row = (res.data or [None])[0]
+        return (row or {}).get("plan", "free")
+    except Exception as e:
+        logger.error("_sb_get_plan failed for user '%s': %s", user_id, e)
+        return "free"
+
+def _sb_set_plan(user_id: str, plan: str):
+    """Set user plan to 'free' or 'pro'. Used for manual upgrade / admin."""
+    try:
+        supabase.table("user_usage").upsert(
+            {"user_id": user_id, "plan": plan},
+            on_conflict="user_id"
+        ).execute()
+        st.session_state.user_plan = plan
+        logger.info("Plan updated to '%s' for user '%s'", plan, user_id)
+    except Exception as e:
+        logger.error("_sb_set_plan failed for user '%s': %s", user_id, e)
 
 # ── Multi-language support ─────────────────────────────────────────────────────
 LANGUAGES = {
@@ -982,10 +1047,14 @@ if "usage_count" not in st.session_state:
     st.session_state.usage_count = 0
 if "analyses_today" not in st.session_state:
     st.session_state.analyses_today = 0
+if "user_plan" not in st.session_state:
+    st.session_state.user_plan = "free"
 if "show_onboarding" not in st.session_state:
     st.session_state.show_onboarding = True
 if "load_ticker_from_watchlist" not in st.session_state:
     st.session_state.load_ticker_from_watchlist = None
+if "show_upgrade_modal" not in st.session_state:
+    st.session_state.show_upgrade_modal = False
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -2249,10 +2318,11 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
     # Load watchlist from Supabase
     _wl = _sb_load_watchlist(_current_uid)
     st.session_state.watchlist = _wl
-    # Load usage count
+    # Load usage count + plan
     _usage = _sb_get_usage(_current_uid)
     st.session_state.usage_count = _usage.get("usage_count", 0)
     st.session_state.analyses_today = _usage.get("usage_count", 0)
+    st.session_state.user_plan = _usage.get("plan", "free")
     # Show onboarding only for brand-new users (empty watchlist + no usage)
     st.session_state.show_onboarding = (len(_wl) == 0 and st.session_state.usage_count == 0)
     st.session_state._portfolio_loaded_for = _current_uid
@@ -2264,7 +2334,7 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
 st.markdown(f"""
 <div class="wi-header">
   <div>
-    <div class="wi-logo">Stock<span>cast</span></div>
+    <div class="wi-logo">Stock<span>cast</span>{"<span style='font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;background:linear-gradient(90deg,#ffd426,#ffb300);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:.06em;margin-left:.5rem;vertical-align:middle;'>PRO</span>" if _is_pro() else ""}</div>
     <div class="wi-sub">AI Stock Assistant · 6-Factor Signals · Strategy Simulator · Shariah Screening · News NLP</div>
     <div class="trust-row">
       <span class="trust-item"><span class="trust-item-dot"></span>Data via Yahoo Finance</span>
@@ -2288,6 +2358,114 @@ st.markdown(f"""
   </div>
 </div>
 """, unsafe_allow_html=True)
+
+# ── Upgrade Modal ─────────────────────────────────────────────────────────────
+if st.session_state.get("show_upgrade_modal"):
+    st.markdown("""
+    <style>
+    .upgrade-overlay {
+        position:fixed;inset:0;background:rgba(4,8,18,0.85);z-index:9998;
+        backdrop-filter:blur(8px);
+    }
+    .upgrade-modal {
+        position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+        z-index:9999;width:min(520px,90vw);
+        background:linear-gradient(145deg,#0f1727,#080e1c);
+        border:1px solid rgba(255,212,38,0.3);border-radius:1.2rem;
+        padding:2.5rem 2.2rem;box-shadow:0 24px 80px rgba(0,0,0,0.7);
+    }
+    </style>
+    <div class="upgrade-overlay"></div>
+    """, unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown(f"""
+        <div style="text-align:center;margin-bottom:1.6rem;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;letter-spacing:.18em;
+               text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Upgrade to Pro</div>
+          <div style="font-family:Manrope,sans-serif;font-size:1.6rem;font-weight:800;
+               color:#e4eafd;letter-spacing:-.02em;line-height:1.2;">
+            Unlock the full<br>AI Stock Assistant
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.85rem;color:#8a8fa0;
+               margin-top:.6rem;line-height:1.6;">
+            Everything in Free, plus the features serious investors need.
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.6rem;">
+          <div style="background:rgba(8,14,28,0.7);border:1px solid #252f47;
+               border-radius:.75rem;padding:1rem 1.1rem;">
+            <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
+                 letter-spacing:.12em;text-transform:uppercase;color:#8a8fa0;margin-bottom:.8rem;">
+              Free
+            </div>
+            <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8a8fa0;line-height:1.9;">
+              ✓ 3 analyses / day<br>
+              ✓ 5 watchlist stocks<br>
+              ✓ 7-day outlook<br>
+              ✓ Basic signals<br>
+              ✗ Prophet comparison<br>
+              ✗ Bootstrap CI<br>
+              ✗ Multi-stock view<br>
+              ✗ Priority speed
+            </div>
+          </div>
+          <div style="background:linear-gradient(145deg,rgba(255,212,38,0.07),rgba(8,14,28,0.9));
+               border:1px solid rgba(255,212,38,0.3);border-radius:.75rem;padding:1rem 1.1rem;
+               position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;right:0;background:#ffd426;color:#080e1c;
+                 font-family:Manrope,sans-serif;font-size:.5rem;font-weight:800;
+                 letter-spacing:.08em;text-transform:uppercase;padding:.25rem .7rem;
+                 border-radius:0 .75rem 0 .5rem;">BEST VALUE</div>
+            <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
+                 letter-spacing:.12em;text-transform:uppercase;color:#ffd426;margin-bottom:.8rem;">
+              Pro
+            </div>
+            <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#e4eafd;line-height:1.9;">
+              ✦ Unlimited analyses<br>
+              ✦ 50 watchlist stocks<br>
+              ✦ 30-day outlook<br>
+              ✦ All signal types<br>
+              ✦ Prophet + XGBoost<br>
+              ✦ Bootstrap CI bands<br>
+              ✦ Multi-stock compare<br>
+              ✦ Priority speed
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin-bottom:.6rem;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;font-weight:700;
+               color:#ffd426;">$9<span style="font-size:1rem;color:#8a8fa0;">/month</span>
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#3e4558;margin-top:.2rem;">
+            Cancel anytime · Payments via Razorpay (coming soon)
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        _uc1, _uc2, _uc3 = st.columns([1, 2, 1])
+        with _uc2:
+            # Simulate upgrade for now — flips plan to pro in DB + session
+            if st.button("✦ Activate Pro — $9/mo", use_container_width=True, key="upgrade_confirm"):
+                _sb_set_plan(st.session_state.user.id, "pro")
+                st.session_state.show_upgrade_modal = False
+                st.session_state._portfolio_loaded_for = None  # force reload
+                st.success("🎉 Welcome to Pro! Enjoy unlimited access.")
+                st.rerun()
+        with _uc3:
+            if st.button("✕ Close", use_container_width=True, key="upgrade_close"):
+                st.session_state.show_upgrade_modal = False
+                st.rerun()
+
+        st.markdown(f"""
+        <div style="text-align:center;margin-top:.6rem;font-family:Manrope,sans-serif;
+             font-size:.6rem;color:#3e4558;line-height:1.6;">
+          Payments not yet active — clicking Activate Pro will grant access immediately<br>
+          for testing. Razorpay / Stripe integration coming soon.
+        </div>
+        """, unsafe_allow_html=True)
 
 # Ticker tape — live prices
 _tape_items = get_live_ticker_tape()
@@ -2330,52 +2508,85 @@ with st.sidebar:
     _L = LANGUAGES[st.session_state.lang]
 
     # Logo + User
-    _usage_count = st.session_state.get("usage_count", 0)
-    _plan_pct = min(100, int(_usage_count / FREE_PLAN_DAILY_LIMIT * 100))
-    _usage_color = "#ff5f5f" if _usage_count >= FREE_PLAN_DAILY_LIMIT else "#4d8eff" if _usage_count >= 2 else "#00e5b0"
+    _usage_count  = st.session_state.get("usage_count", 0)
+    _is_pro_user  = _is_pro()
+    _daily_limit  = _get_limit("daily_analyses")
+    _wl_limit     = _get_limit("watchlist_stocks")
+    _usage_pct    = 0 if _is_pro_user else min(100, int(_usage_count / _daily_limit * 100))
+    _usage_color  = "#ffd426" if _is_pro_user else (
+        "#ff5f5f" if _usage_count >= _daily_limit else
+        "#4d8eff" if _usage_count >= 2 else "#00e5b0"
+    )
+
     st.markdown(f"""
     <div style="padding:1.5rem 1rem 0.9rem;">
-      <div style="font-family:Manrope,sans-serif;font-size:1.45rem;font-weight:800;color:#e4eafd;letter-spacing:-.02em;line-height:1;">
+      <div style="font-family:Manrope,sans-serif;font-size:1.45rem;font-weight:800;
+           color:#e4eafd;letter-spacing:-.02em;line-height:1;">
         Stock<span style="color:#4d8eff;">cast</span>
       </div>
-      <div style="font-size:.52rem;color:#3e4558;letter-spacing:.1em;text-transform:uppercase;font-weight:700;margin-top:3px;">
-        by Muawwiz Ghani
-      </div>
+      <div style="font-size:.52rem;color:#3e4558;letter-spacing:.1em;text-transform:uppercase;
+           font-weight:700;margin-top:3px;">by Muawwiz Ghani</div>
     </div>
     <div style="background:rgba(77,142,255,0.07);border:1px solid rgba(77,142,255,0.18);
          border-left:3px solid #4d8eff;padding:.55rem 1rem;margin:.3rem 0 .5rem;
          font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#adc6ff;letter-spacing:.04em;
          border-radius:0 .5rem .5rem 0;display:flex;align-items:center;gap:.5rem;">
       <span style="color:#3e4558;">👤</span>
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{st.session_state.user.email}</span>
-    </div>
-    <div class="plan-badge">
-      <div style="flex:1;">
-        <div class="plan-badge-label">Free Plan · Daily Analyses</div>
-        <div class="usage-bar-bg"><div class="usage-bar-fill" style="width:{_plan_pct}%;background:linear-gradient(90deg,{_usage_color},{_usage_color});"></div></div>
-      </div>
-      <div class="plan-badge-value" style="color:{_usage_color};">{_usage_count} / {FREE_PLAN_DAILY_LIMIT}</div>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        {st.session_state.user.email}
+      </span>
     </div>
     """, unsafe_allow_html=True)
 
-    if _usage_count >= FREE_PLAN_DAILY_LIMIT:
+    if _is_pro_user:
+        # Pro badge
         st.markdown(f"""
-        <div style="background:rgba(255,95,95,0.08);border:1px solid rgba(255,95,95,0.25);
-             border-left:3px solid #ff5f5f;padding:.7rem 1rem;margin:.3rem 0 .6rem;
-             border-radius:0 .5rem .5rem 0;">
-          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-               letter-spacing:.1em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.3rem;">
-            Daily Limit Reached
+        <div style="background:linear-gradient(135deg,rgba(255,212,38,0.12),rgba(255,160,0,0.08));
+             border:1px solid rgba(255,212,38,0.35);border-radius:.6rem;padding:.65rem 1rem;
+             margin:.2rem 0 .5rem;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:Manrope,sans-serif;font-size:.56rem;font-weight:800;
+                 letter-spacing:.12em;text-transform:uppercase;color:#ffd426;">✦ Pro Plan</div>
+            <div style="font-family:Manrope,sans-serif;font-size:.68rem;color:#8a8fa0;margin-top:1px;">
+              Unlimited analyses · {_wl_limit} watchlist stocks
+            </div>
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.72rem;color:#8a8fa0;line-height:1.5;">
-            You've used all {FREE_PLAN_DAILY_LIMIT} free analyses today. Resets at midnight.
-          </div>
-          <div style="margin-top:.5rem;font-family:Manrope,sans-serif;font-size:.65rem;
-               color:#4d8eff;font-weight:700;cursor:pointer;">
-            ✦ Upgrade to Pro — Unlimited analyses →
+          <div style="font-family:IBM Plex Mono,monospace;font-size:1rem;color:#ffd426;">∞</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Free plan bar
+        st.markdown(f"""
+        <div class="plan-badge">
+          <div style="flex:1;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <div class="plan-badge-label">Free Plan</div>
+              <div class="plan-badge-value" style="color:{_usage_color};">
+                {_usage_count} / {_daily_limit} today
+              </div>
+            </div>
+            <div class="usage-bar-bg">
+              <div class="usage-bar-fill"
+                   style="width:{_usage_pct}%;background:linear-gradient(90deg,{_usage_color},{_usage_color});">
+              </div>
+            </div>
           </div>
         </div>
         """, unsafe_allow_html=True)
+        if _usage_count >= _daily_limit:
+            st.markdown(f"""
+            <div style="background:rgba(255,95,95,0.07);border:1px solid rgba(255,95,95,0.2);
+                 border-left:3px solid #ff5f5f;padding:.65rem 1rem;margin:.2rem 0 .5rem;
+                 border-radius:0 .5rem .5rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
+                   letter-spacing:.1em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.25rem;">
+                🔒 Daily limit reached
+              </div>
+              <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;line-height:1.5;">
+                Resets at midnight. Upgrade for unlimited analyses.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
 
     if st.button(_L.get("logout", "⏏  Logout"), use_container_width=True, key="logout_btn"):
         try:
@@ -2419,7 +2630,7 @@ with st.sidebar:
 
     # ⭐ Add to Watchlist inline button
     _in_wl = ticker in st.session_state.watchlist
-    _wl_full = len(st.session_state.watchlist) >= FREE_PLAN_WATCHLIST_LIMIT
+    _wl_full = len(st.session_state.watchlist) >= _get_limit("watchlist_stocks")
     if _in_wl:
         st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#00e5b0;padding:.2rem 0;">⭐ {ticker} is in your watchlist</div>', unsafe_allow_html=True)
     elif _wl_full:
@@ -2438,7 +2649,10 @@ with st.sidebar:
     st.markdown(f'<div class="stat-row">{_L["lookback"]}</div>', unsafe_allow_html=True)
     seq_len     = st.slider("Lookback window", 10, 60, 30, label_visibility="collapsed")
     st.markdown(f'<div class="stat-row">{_L["horizon"]}</div>', unsafe_allow_html=True)
-    future_days = st.slider("Forecast horizon", 1, 30, 7, label_visibility="collapsed")
+    _max_horizon = _get_limit("forecast_horizon")
+    future_days  = st.slider("Outlook horizon", 1, _max_horizon, min(7, _max_horizon), label_visibility="collapsed")
+    if not _is_pro() and _max_horizon < 30:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;">🔒 Pro unlocks 30-day outlook</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     ui_mode    = st.radio("Mode", [_L["beginner"], _L["pro"]], index=1, horizontal=True, label_visibility="collapsed")
@@ -2476,58 +2690,89 @@ with st.sidebar:
     if not is_beginner:
         st.markdown("---")
         st.markdown(f'<div class="stat-row">{_L["extra_features"]}</div>', unsafe_allow_html=True)
-        run_model_compare  = st.checkbox(_L["model_compare"], value=False)
-        run_halal_check    = st.checkbox(_L["halal_check"], value=True)
-        show_conf_interval = st.checkbox(_L["conf_interval"], value=True) and not fast_mode
-        ci_bootstrap_n     = st.slider(_L["bootstrap_samples"], 50, 300, 100, step=50) if show_conf_interval else 100
+        if _is_pro():
+            run_model_compare  = st.checkbox(_L["model_compare"], value=False)
+            show_conf_interval = st.checkbox(_L["conf_interval"], value=True) and not fast_mode
+            ci_bootstrap_n     = st.slider(_L["bootstrap_samples"], 50, 300, 100, step=50) if show_conf_interval else 100
+        else:
+            run_model_compare  = False
+            show_conf_interval = False
+            ci_bootstrap_n     = 100
+            st.markdown(f"""
+            <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.18);
+                 border-radius:.5rem;padding:.7rem .9rem;margin:.3rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
+                   letter-spacing:.1em;text-transform:uppercase;color:#ffd426;margin-bottom:.25rem;">
+                🔒 Pro Features
+              </div>
+              <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;line-height:1.5;">
+                Model Comparison · Bootstrap CI
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("✦ Upgrade to unlock", use_container_width=True, key="upgrade_cta_features"):
+                st.session_state.show_upgrade_modal = True
+                st.rerun()
+        run_halal_check = st.checkbox(_L["halal_check"], value=True)
     else:
         run_model_compare = False; run_halal_check = True; show_conf_interval = False; ci_bootstrap_n = 100
 
     if not is_beginner:
         st.markdown("---")
         st.markdown(f'<div class="stat-row">{_L["multi_stock"]}</div>', unsafe_allow_html=True)
-        compare_tickers_raw = st.text_input(_L["compare_tickers"], value="", placeholder="e.g. AAPL,TSLA,NVDA",
-                                            label_visibility="collapsed", key="compare_input")
-        compare_tickers = [t.strip().upper() for t in compare_tickers_raw.split(",") if t.strip()] if compare_tickers_raw.strip() else []
+        if _is_pro():
+            compare_tickers_raw = st.text_input(_L["compare_tickers"], value="", placeholder="e.g. AAPL,TSLA,NVDA",
+                                                label_visibility="collapsed", key="compare_input")
+            compare_tickers = [t.strip().upper() for t in compare_tickers_raw.split(",") if t.strip()] if compare_tickers_raw.strip() else []
+        else:
+            compare_tickers = []
+            st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.68rem;color:#3e4558;">🔒 Pro feature — compare up to 5 tickers side by side</div>', unsafe_allow_html=True)
     else:
         compare_tickers = []
 
     st.markdown("---")
-    _at_limit = st.session_state.get("usage_count", 0) >= FREE_PLAN_DAILY_LIMIT
+    _at_limit = (not _is_pro_user) and (st.session_state.get("usage_count", 0) >= _get_limit("daily_analyses"))
     if _at_limit:
         st.markdown(f"""
         <div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);
-             padding:.75rem 1rem;border-radius:.5rem;text-align:center;">
+             padding:.75rem 1rem;border-radius:.5rem;text-align:center;margin-bottom:.4rem;">
           <div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#ff5f5f;
                font-weight:700;letter-spacing:.08em;text-transform:uppercase;">
             🔒 Daily limit reached
           </div>
           <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;margin-top:.3rem;">
-            {FREE_PLAN_DAILY_LIMIT}/{FREE_PLAN_DAILY_LIMIT} analyses used today
+            {_get_limit("daily_analyses")}/{_get_limit("daily_analyses")} analyses used today
           </div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button("✦ Upgrade to Pro", use_container_width=True, key="upgrade_cta_run"):
+            st.session_state.show_upgrade_modal = True
+            st.rerun()
     else:
-        _remaining = FREE_PLAN_DAILY_LIMIT - st.session_state.get("usage_count", 0)
-        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#8a8fa0;text-align:center;margin-bottom:.3rem;">{_remaining} analysis remaining today</div>', unsafe_allow_html=True)
-        if st.button(_L["run"], use_container_width=True, disabled=_at_limit):
+        if not _is_pro_user:
+            _rem = _get_limit("daily_analyses") - st.session_state.get("usage_count", 0)
+            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#8a8fa0;text-align:center;margin-bottom:.3rem;">{_rem} {"analysis" if _rem == 1 else "analyses"} remaining today</div>', unsafe_allow_html=True)
+        if st.button(_L["run"], use_container_width=True):
             st.session_state.run_pressed = True
-            new_count = st.session_state.get("usage_count", 0) + 1
-            st.session_state.usage_count = new_count
-            st.session_state.analyses_today = new_count
-            _sb_increment_usage(st.session_state.user.id)
+            if not _is_pro_user:
+                new_count = st.session_state.get("usage_count", 0) + 1
+                st.session_state.usage_count = new_count
+                st.session_state.analyses_today = new_count
+                _sb_increment_usage(st.session_state.user.id)
     run_btn = st.session_state.get("run_pressed", False) and not _at_limit
 
     # Watchlist
     st.markdown("---")
-    _wl_count = len(st.session_state.watchlist)
-    _wl_at_limit = _wl_count >= FREE_PLAN_WATCHLIST_LIMIT
-    st.markdown(f"""
+    _wl_count    = len(st.session_state.watchlist)
+    _wl_plan_lim = _get_limit("watchlist_stocks")
+    _wl_at_limit = _wl_count >= _wl_plan_lim
+    _wl_ct_color = '#ffd426' if _is_pro_user else ('#ff5f5f' if _wl_at_limit else '#3e4558')
+    st.markdown(f'''
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
       <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;">{_L["watchlist"]}</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:{'#ff5f5f' if _wl_at_limit else '#3e4558'};">{_wl_count}/{FREE_PLAN_WATCHLIST_LIMIT}</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:{_wl_ct_color};">{_wl_count}/{_wl_plan_lim}</div>
     </div>
-    """, unsafe_allow_html=True)
+    ''', unsafe_allow_html=True)
 
     if not _wl_at_limit:
         wl_c1, wl_c2 = st.columns([3, 1])
@@ -2541,7 +2786,10 @@ with st.sidebar:
                     st.session_state.watchlist.append(add_ticker_input)
                     st.rerun()
     else:
-        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;margin-bottom:.4rem;">Max {FREE_PLAN_WATCHLIST_LIMIT} stocks on Free Plan</div>', unsafe_allow_html=True)
+        if _is_pro_user:
+            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#8a8fa0;margin-bottom:.4rem;">Pro limit: {_wl_plan_lim} stocks</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;margin-bottom:.4rem;">Free limit reached · <span style="color:#4d8eff;">Upgrade for {PLAN_LIMITS["pro"]["watchlist_stocks"]} stocks</span></div>', unsafe_allow_html=True)
 
     if st.session_state.watchlist:
         for wl_sym in list(st.session_state.watchlist):
@@ -2575,6 +2823,19 @@ with st.sidebar:
     st.markdown("---")
     st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">{_L["alerts"]}</div>', unsafe_allow_html=True)
     alert_on_signal_change = st.checkbox(_L["alert_signal_change"], value=True)
+
+    # Plan management — upgrade / downgrade
+    st.markdown("---")
+    if _is_pro():
+        st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;text-align:center;margin-bottom:.3rem;">✦ Active: Pro Plan</div>', unsafe_allow_html=True)
+        if st.button("Switch to Free (testing)", use_container_width=True, key="downgrade_btn"):
+            _sb_set_plan(st.session_state.user.id, "free")
+            st.session_state._portfolio_loaded_for = None
+            st.rerun()
+    else:
+        if st.button("✦ Upgrade to Pro", use_container_width=True, key="upgrade_cta_sidebar_bottom"):
+            st.session_state.show_upgrade_modal = True
+            st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -2655,7 +2916,8 @@ if not run_btn:
           </div>
           <div style="margin-top:1rem;font-family:Manrope,sans-serif;font-size:.65rem;
                color:#3e4558;letter-spacing:.04em;">
-            Free Plan · {FREE_PLAN_DAILY_LIMIT} analyses per day · {FREE_PLAN_WATCHLIST_LIMIT} watchlist stocks
+            Free Plan · {PLAN_LIMITS["free"]["daily_analyses"]} analyses per day · {PLAN_LIMITS["free"]["watchlist_stocks"]} watchlist stocks ·
+            <span style="color:#4d8eff;cursor:pointer;" onclick="">Upgrade to Pro for unlimited access</span>
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2781,6 +3043,32 @@ if not run_btn:
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
+    # Upgrade CTA — only for free users
+    if not _is_pro():
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07) 0%,rgba(77,142,255,0.05) 100%);
+             border:1px solid rgba(255,212,38,0.2);border-radius:1rem;
+             padding:1.6rem 2rem;margin-top:1.5rem;text-align:center;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;letter-spacing:.16em;
+               text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Stockcast Pro</div>
+          <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;
+               color:#e4eafd;letter-spacing:-.01em;margin-bottom:.4rem;">
+            Unlock unlimited analyses &amp; advanced signals
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;
+               margin-bottom:1.2rem;line-height:1.6;">
+            Prophet + XGBoost combo · Bootstrap CI · Multi-stock · 50 watchlist stocks
+          </div>
+          <div style="display:inline-flex;gap:.6rem;align-items:center;
+               font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#ffd426;">
+            $9<span style="font-size:.8rem;color:#8a8fa0;font-weight:400;">/month</span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("✦ Upgrade to Pro — Unlock Everything", use_container_width=True, key="upgrade_cta_dashboard"):
+            st.session_state.show_upgrade_modal = True
+            st.rerun()
+
 else:
     # ═══════════════════════════════════════════════════════════════
     # ANALYSIS ENGINE
@@ -2841,7 +3129,7 @@ else:
 
     # ⭐ Add to Watchlist — prominent action on results page
     _in_wl_main = ticker in st.session_state.watchlist
-    _wl_full_main = len(st.session_state.watchlist) >= FREE_PLAN_WATCHLIST_LIMIT
+    _wl_full_main = len(st.session_state.watchlist) >= _get_limit("watchlist_stocks")
     _wl_col1, _wl_col2 = st.columns([3, 1])
     with _wl_col2:
         if _in_wl_main:
