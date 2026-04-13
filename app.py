@@ -1544,18 +1544,43 @@ label, [data-testid="stSelectbox"] label,
     margin: 1.2rem 0;
 }
 @media (max-width: 768px) {
-    .stat-grid { grid-template-columns: repeat(2, 1fr); }
-    .block-container { padding: 1rem 1rem 3rem 1rem !important; }
-    .wi-header { padding: .9rem 1rem !important; margin: 0 0 1rem 0 !important; }
-    .ticker-tape-wrap { margin: 0 -1rem 1rem -1rem !important; }
-}
-@media (max-width: 768px) {
-    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
-    .block-container { padding: 1rem 1rem 3rem 1rem !important; }
-    .wi-header { padding: .9rem 1rem !important; margin: 1rem -1rem 1rem -1rem !important; }
+    .stat-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: .6rem !important;
+    }
+    .block-container {
+        padding: .75rem .75rem 3rem .75rem !important;
+    }
+    .wi-header {
+        padding: .8rem 1rem !important;
+        margin: 0 -0.75rem 1rem -0.75rem !important;
+        flex-wrap: wrap;
+        gap: .5rem;
+    }
     .wi-sub { display: none !important; }
     .trust-row { display: none !important; }
-    .ticker-tape-wrap { margin: 0 -1rem 1rem -1rem !important; }
+    .ticker-tape-wrap { margin: 0 -.75rem 1rem -.75rem !important; }
+    .signal-panel { flex-direction: column !important; }
+    .signal-main { flex: none !important; width: 100% !important; }
+    .signal-details { grid-template-columns: 1fr 1fr !important; width: 100% !important; }
+    .stat-value { font-size: 1.3rem !important; }
+    .wi-logo { font-size: 1.3rem !important; }
+    h2, h3 { margin-top: 1.2rem !important; }
+    /* 3-col grids → 1-col on mobile */
+    div[style*="grid-template-columns:repeat(3,1fr)"] {
+        grid-template-columns: 1fr !important;
+    }
+    /* 4-col grids → 2-col on mobile */
+    div[style*="grid-template-columns:repeat(4,1fr)"] {
+        grid-template-columns: repeat(2,1fr) !important;
+    }
+}
+@media (max-width: 480px) {
+    .stat-grid { grid-template-columns: 1fr 1fr !important; }
+    .stat-value { font-size: 1.1rem !important; }
+    div[style*="grid-template-columns:repeat(2,1fr)"] {
+        grid-template-columns: 1fr !important;
+    }
 }
 .stat-card {
     background: linear-gradient(145deg, var(--bg2), #0a1020);
@@ -2986,7 +3011,7 @@ if not run_btn:
                margin-bottom:1.2rem;line-height:1.6;max-width:560px;">
             AI-powered stock insights for smarter decisions. Here's how to get started:
           </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.2rem;">
             <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(77,142,255,0.2);
                  border-radius:.75rem;padding:1rem 1.1rem;">
               <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;
@@ -3115,20 +3140,28 @@ if not run_btn:
     # How it works
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["how_it_works"])
-    hw1, hw2, hw3 = st.columns(3)
-    for col, num, color, title_key, body_key in [
-        (hw1,"01","#4d8eff","hw1_title","hw1_body"),
-        (hw2,"02","#00e5b0","hw2_title","hw2_body"),
-        (hw3,"03","#ffd426","hw3_title","hw3_body"),
-    ]:
-        with col:
-            st.markdown(f"""
-            <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
-                 border-top:2px solid {color};padding:1.4rem 1.5rem;height:100%;border-radius:.5rem;">
-              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:{color};margin-bottom:.5rem;">{num}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;font-weight:700;margin-bottom:.5rem;">{_L[title_key]}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8a8fa0;line-height:1.6;">{_L[body_key]}</div>
-            </div>""", unsafe_allow_html=True)
+    _hw_items = [
+        ("01","#4d8eff","hw1_title","hw1_body"),
+        ("02","#00e5b0","hw2_title","hw2_body"),
+        ("03","#ffd426","hw3_title","hw3_body"),
+    ]
+    _hw_cards = "".join(f"""
+        <div style="background:linear-gradient(145deg,#0f1727,#141d30);
+             border:1px solid #252f47;border-top:2px solid {color};
+             padding:1.3rem 1.4rem;border-radius:.6rem;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;
+               font-weight:700;color:{color};margin-bottom:.5rem;">{num}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.68rem;
+               letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;
+               font-weight:700;margin-bottom:.4rem;">{_L[tk]}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.8rem;
+               color:#8a8fa0;line-height:1.6;">{_L[bk]}</div>
+        </div>"""
+        for num, color, tk, bk in _hw_items)
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:.5rem 0;">
+      {_hw_cards}
+    </div>""", unsafe_allow_html=True)
 
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
@@ -3142,14 +3175,20 @@ if not run_btn:
         ("#00e5b0","📰 News Sentiment NLP","Live Yahoo Finance headlines scored with TextBlob. Detects confluence with technical signals."),
         ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&L, sector allocation, and recent transaction history."),
     ]
-    cols4 = st.columns(4)
-    for i, (color, title, body) in enumerate(feat_grid):
-        with cols4[i % 4]:
-            st.markdown(f"""
-            <div class="metric-card" style="border-top:2px solid {color};margin-bottom:.6rem;">
-              <div class="section-title" style="color:{color};">{title}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#7c8191;line-height:1.5;">{body}</div>
-            </div>""", unsafe_allow_html=True)
+    _feat_cards = "".join(f"""
+        <div style="background:linear-gradient(145deg,#0f1727,#080e1c);
+             border:1px solid rgba(255,255,255,0.05);border-top:2px solid {color};
+             border-radius:.75rem;padding:1.1rem 1.2rem;">
+          <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;
+               color:{color};margin-bottom:.4rem;font-weight:700;">{title}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.78rem;
+               color:#7c8191;line-height:1.5;">{body}</div>
+        </div>"""
+        for color, title, body in feat_grid)
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin:.5rem 0;">
+      {_feat_cards}
+    </div>""", unsafe_allow_html=True)
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
@@ -3794,34 +3833,52 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # Market index cards — LIVE
-            mkt_cols = st.columns(4)
+            # Market index cards — responsive HTML grid (2×2 on mobile, 4×1 on desktop)
             with st.spinner("Loading live market data..."):
                 mkt_data = get_live_market_indices()
-            for i, (name, price, chg, col) in enumerate(mkt_data):
-                with mkt_cols[i]:
-                    st.markdown(f"""
-                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;border-top:2px solid {col};
-                         padding:1.2rem;border-radius:.5rem;">
-                      <div style="font-size:.6rem;font-weight:700;color:#8a8fa0;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">{name}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#e4eafd;">{price}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:{col};font-weight:700;margin-top:.3rem;">{chg}</div>
-                    </div>""", unsafe_allow_html=True)
+            _mkt_cards = "".join(f"""
+                <div style="background:linear-gradient(145deg,#0f1727,#141d30);
+                     border:1px solid #252f47;border-top:2px solid {col};
+                     padding:1.1rem 1.2rem;border-radius:.6rem;">
+                  <div style="font-size:.58rem;font-weight:700;color:#8a8fa0;
+                       letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">{name}</div>
+                  <div style="font-family:IBM Plex Mono,monospace;font-size:1.35rem;
+                       font-weight:700;color:#e4eafd;line-height:1.1;">{price}</div>
+                  <div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;
+                       color:{col};font-weight:700;margin-top:.3rem;">{chg}</div>
+                </div>"""
+                for name, price, chg, col in mkt_data)
+            st.markdown(f"""
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;
+                 margin-bottom:1.2rem;">
+              <style>
+                @media(max-width:700px){{
+                  .mkt-grid{{grid-template-columns:repeat(2,1fr)!important;}}
+                }}
+              </style>
+              {_mkt_cards}
+            </div>""", unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            ms1, ms2 = st.columns([2,1])
+            ms1, ms2 = st.columns([2, 1])
             with ms1:
                 st.subheader("Sector Heat Map · Live")
                 sectors = get_live_sector_heatmap()
-                cols5 = st.columns(5)
-                for i, (name, chg, col) in enumerate(sectors):
-                    with cols5[i % 5]:
-                        st.markdown(f"""
-                        <div style="background:#0f1727;border:1px solid #252f47;border-left:2px solid {col};
-                             padding:.75rem .9rem;margin-bottom:.5rem;border-radius:0 .5rem .5rem 0;">
-                          <div style="font-size:.6rem;font-weight:700;color:#8a8fa0;text-transform:uppercase;margin-bottom:.25rem;">{name}</div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:{col};">{chg}</div>
-                        </div>""", unsafe_allow_html=True)
+                # Responsive 2-col HTML grid instead of st.columns(5)
+                _sector_cards = "".join(f"""
+                    <div style="background:#0f1727;border:1px solid #252f47;
+                         border-left:2px solid {col};padding:.7rem .9rem;
+                         border-radius:0 .5rem .5rem 0;">
+                      <div style="font-size:.58rem;font-weight:700;color:#8a8fa0;
+                           text-transform:uppercase;margin-bottom:.2rem;">{name}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.88rem;
+                           font-weight:700;color:{col};">{chg}</div>
+                    </div>"""
+                    for name, chg, col in sectors)
+                st.markdown(f"""
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);
+                     gap:.5rem;margin-bottom:.8rem;">
+                  {_sector_cards}
+                </div>""", unsafe_allow_html=True)
 
             with ms2:
                 st.subheader("Fear & Greed Index · Live")
