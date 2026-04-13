@@ -1,1 +1,42 @@
 
+name: Stockcast Daily Email Alerts
+
+on:
+  # Runs at 07:00 UTC every weekday (Mon–Fri)
+  # Adjust timezone: 07:00 UTC = 12:30 IST
+  schedule:
+    - cron: '0 7 * * 1-5'
+
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  send-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install supabase yfinance pandas numpy requests python-dotenv
+
+      - name: Run daily alerts
+        env:
+          SUPABASE_URL:     ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:     ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY:   ${{ secrets.RESEND_API_KEY }}
+          ALERT_FROM_EMAIL: ${{ secrets.ALERT_FROM_EMAIL }}
+          ALERT_FROM_NAME:  Stockcast
+          APP_URL:          ${{ secrets.APP_URL }}
+        run: python send_alerts.py
+
