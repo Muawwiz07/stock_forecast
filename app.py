@@ -3138,57 +3138,66 @@ if not run_btn:
                     st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
-    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-    st.subheader(_L["how_it_works"])
     _hw_items = [
         ("01","#4d8eff","hw1_title","hw1_body"),
         ("02","#00e5b0","hw2_title","hw2_body"),
         ("03","#ffd426","hw3_title","hw3_body"),
     ]
-    _hw_cards = "".join(f"""
-        <div style="background:linear-gradient(145deg,#0f1727,#141d30);
-             border:1px solid #252f47;border-top:2px solid {color};
-             padding:1.3rem 1.4rem;border-radius:.6rem;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;
-               font-weight:700;color:{color};margin-bottom:.5rem;">{num}</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.68rem;
-               letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;
-               font-weight:700;margin-bottom:.4rem;">{_L[tk]}</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.8rem;
-               color:#8a8fa0;line-height:1.6;">{_L[bk]}</div>
-        </div>"""
+    _hw_cards = "".join(
+        '<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
+        'border:1px solid #252f47;border-top:2px solid ' + color + ';'
+        'padding:1.3rem 1.4rem;border-radius:.6rem;">'
+        '<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
+        'font-weight:700;color:' + color + ';margin-bottom:.5rem;">' + num + '</div>'
+        '<div style="font-family:Manrope,sans-serif;font-size:.68rem;'
+        'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;'
+        'font-weight:700;margin-bottom:.4rem;">' + _L[tk] + '</div>'
+        '<div style="font-family:Manrope,sans-serif;font-size:.8rem;'
+        'color:#8a8fa0;line-height:1.6;">' + _L[bk] + '</div>'
+        '</div>'
         for num, color, tk, bk in _hw_items)
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:.5rem 0;">
-      {_hw_cards}
-    </div>""", unsafe_allow_html=True)
 
-    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-    st.subheader(_L["platform_features"])
     feat_grid = [
         ("#4d8eff","📈 AI Price Outlook","Your assistant projects price direction across 20 technical signals with 95% bootstrap confidence intervals."),
         ("#00e5b0","⚙ Explainable Signals","RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain language."),
         ("#ffd426","📊 Strategy Simulator","Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold."),
         ("#ff5f5f","⭐ Watchlist + 🔔 Alerts","Save stocks, see live prices on the dashboard, get banners when signals flip."),
-        ("#4d8eff","☪ Shariah Screening","AAOIFI Standard No.21 — screens business activity, debt & cash ratios automatically."),
+        ("#4d8eff","☪ Shariah Screening","AAOIFI Standard No.21 — screens business activity, debt &amp; cash ratios automatically."),
         ("#adc6ff","🔬 Model Comparison","Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side."),
         ("#00e5b0","📰 News Sentiment NLP","Live Yahoo Finance headlines scored with TextBlob. Detects confluence with technical signals."),
-        ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&L, sector allocation, and recent transaction history."),
+        ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&amp;L, sector allocation, and recent transaction history."),
     ]
-    _feat_cards = "".join(f"""
-        <div style="background:linear-gradient(145deg,#0f1727,#080e1c);
-             border:1px solid rgba(255,255,255,0.05);border-top:2px solid {color};
-             border-radius:.75rem;padding:1.1rem 1.2rem;">
-          <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;
-               color:{color};margin-bottom:.4rem;font-weight:700;">{title}</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.78rem;
-               color:#7c8191;line-height:1.5;">{body}</div>
-        </div>"""
+    _feat_cards = "".join(
+        '<div style="background:linear-gradient(145deg,#0f1727,#080e1c);'
+        'border:1px solid rgba(255,255,255,0.05);border-top:2px solid ' + color + ';'
+        'border-radius:.75rem;padding:1.1rem 1.2rem;">'
+        '<div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;'
+        'color:' + color + ';margin-bottom:.4rem;font-weight:700;">' + title + '</div>'
+        '<div style="font-family:Manrope,sans-serif;font-size:.78rem;'
+        'color:#7c8191;line-height:1.5;">' + body + '</div>'
+        '</div>'
         for color, title, body in feat_grid)
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin:.5rem 0;">
-      {_feat_cards}
-    </div>""", unsafe_allow_html=True)
+
+    st.markdown(
+        "<hr style='margin:.8rem 0;'>"
+        "<div style='font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;"
+        "letter-spacing:.16em;text-transform:uppercase;color:#e4eafd;"
+        "border-bottom:1px solid #1e2740;padding-bottom:.55rem;margin-bottom:1rem;'>"
+        + _L["how_it_works"] +
+        "</div>"
+        "<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:.5rem 0;'>"
+        + _hw_cards +
+        "</div>"
+        "<hr style='margin:.8rem 0;'>"
+        "<div style='font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;"
+        "letter-spacing:.16em;text-transform:uppercase;color:#e4eafd;"
+        "border-bottom:1px solid #1e2740;padding-bottom:.55rem;margin-bottom:1rem;'>"
+        + _L["platform_features"] +
+        "</div>"
+        "<div style='display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin:.5rem 0;'>"
+        + _feat_cards +
+        "</div>",
+        unsafe_allow_html=True)
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
