@@ -1543,6 +1543,20 @@ label, [data-testid="stSelectbox"] label,
     gap: 0.85rem;
     margin: 1.2rem 0;
 }
+@media (max-width: 768px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .block-container { padding: 1rem 1rem 3rem 1rem !important; }
+    .wi-header { padding: .9rem 1rem !important; margin: 0 0 1rem 0 !important; }
+    .ticker-tape-wrap { margin: 0 -1rem 1rem -1rem !important; }
+}
+@media (max-width: 768px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .block-container { padding: 1rem 1rem 3rem 1rem !important; }
+    .wi-header { padding: .9rem 1rem !important; margin: 1rem -1rem 1rem -1rem !important; }
+    .wi-sub { display: none !important; }
+    .trust-row { display: none !important; }
+    .ticker-tape-wrap { margin: 0 -1rem 1rem -1rem !important; }
+}
 .stat-card {
     background: linear-gradient(145deg, var(--bg2), #0a1020);
     border: 1px solid var(--border);
@@ -1649,6 +1663,11 @@ label, [data-testid="stSelectbox"] label,
     grid-template-columns: 1fr 1fr;
     gap: 0.7rem;
     min-width: 220px;
+}
+@media (max-width: 600px) {
+    .signal-panel { flex-direction: column; }
+    .signal-main  { flex: none; width: 100%; }
+    .signal-details { min-width: 0; width: 100%; }
 }
 .sig-card {
     background: linear-gradient(145deg, var(--bg2), var(--bg3));
@@ -2340,15 +2359,16 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
     st.session_state.portfolio = _loaded
     _loaded_hist = _sb_load_history(_current_uid)
     st.session_state.portfolio_history = _loaded_hist
-    # Load watchlist from Supabase
-    _wl = _sb_load_watchlist(_current_uid)
-    st.session_state.watchlist = _wl
+    # Load watchlist from Supabase — deduplicate just in case
+    _wl_raw = _sb_load_watchlist(_current_uid)
+    st.session_state.watchlist = list(dict.fromkeys(_wl_raw))  # preserves order, removes dupes
     # Load usage count + plan
     _usage = _sb_get_usage(_current_uid)
     st.session_state.usage_count = _usage.get("usage_count", 0)
     st.session_state.analyses_today = _usage.get("usage_count", 0)
     st.session_state.user_plan = _usage.get("plan", "free")
     st.session_state.email_alerts_enabled = bool(_usage.get("email_alerts_enabled", False))
+    _wl = st.session_state.watchlist
     # Show onboarding only for brand-new users (empty watchlist + no usage)
     st.session_state.show_onboarding = (len(_wl) == 0 and st.session_state.usage_count == 0)
     st.session_state._portfolio_loaded_for = _current_uid
@@ -2357,30 +2377,31 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
 # ═══════════════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════════════
+_pro_badge_html = (
+    "<span style='font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;"
+    "background:linear-gradient(90deg,#ffd426,#ffb300);-webkit-background-clip:text;"
+    "-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:.08em;"
+    "margin-left:.5rem;vertical-align:middle;'>PRO</span>"
+) if _is_pro() else ""
+
 st.markdown(f"""
 <div class="wi-header">
-  <div>
-    <div class="wi-logo">Stock<span>cast</span>{"<span style='font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;background:linear-gradient(90deg,#ffd426,#ffb300);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:.06em;margin-left:.5rem;vertical-align:middle;'>PRO</span>" if _is_pro() else ""}</div>
-    <div class="wi-sub">AI Stock Assistant · 6-Factor Signals · Strategy Simulator · Shariah Screening · News NLP</div>
-    <div class="trust-row">
-      <span class="trust-item"><span class="trust-item-dot"></span>Data via Yahoo Finance</span>
+  <div style="min-width:0;flex:1;">
+    <div class="wi-logo">Stock<span>cast</span>{_pro_badge_html}</div>
+    <div class="wi-sub" style="white-space:normal;">AI Stock Assistant · Signals · Simulator · Shariah · NLP</div>
+    <div class="trust-row" style="flex-wrap:wrap;gap:.4rem .8rem;margin-top:.4rem;">
+      <span class="trust-item"><span class="trust-item-dot"></span>Yahoo Finance</span>
       <span class="trust-item"><span class="trust-item-dot" style="background:#4d8eff;"></span>Supabase Auth</span>
-      <span class="trust-item"><span class="trust-item-dot" style="background:#ffd426;"></span>For Educational Use Only</span>
+      <span class="trust-item"><span class="trust-item-dot" style="background:#ffd426;"></span>Educational Only</span>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:1.5rem;">
-    <div style="text-align:right;">
-      <div style="font-size:.52rem;color:#3e4558;letter-spacing:.14em;text-transform:uppercase;font-weight:700;font-family:Manrope,sans-serif;">Developed by</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#8a8fa0;margin-top:1px;">Muawwiz Ghani</div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;margin-left:1rem;">
+    <div>
+      <span class="live-dot"></span>
+      <span class="live-label">LIVE</span>
     </div>
-    <div style="width:1px;height:32px;background:#252f47;"></div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-      <div>
-        <span class="live-dot"></span>
-        <span class="live-label">LIVE · NYSE/NASDAQ</span>
-      </div>
-      <span class="disclaimer-pill">⚠ Not Financial Advice</span>
-    </div>
+    <span class="disclaimer-pill" style="font-size:.5rem;">⚠ Not Advice</span>
+    <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#8a8fa0;">Muawwiz Ghani</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -2832,9 +2853,13 @@ with st.sidebar:
             add_clicked = st.button("＋", use_container_width=True, key="wl_add_btn")
         if add_clicked and add_ticker_input:
             if add_ticker_input not in st.session_state.watchlist:
-                if _sb_add_watchlist(st.session_state.user.id, add_ticker_input):
-                    st.session_state.watchlist.append(add_ticker_input)
-                    st.rerun()
+                # Re-check limit at add time (prevents race condition)
+                if len(st.session_state.watchlist) < _wl_plan_lim:
+                    if _sb_add_watchlist(st.session_state.user.id, add_ticker_input):
+                        st.session_state.watchlist.append(add_ticker_input)
+                        st.rerun()
+                else:
+                    st.warning(f"Watchlist limit reached ({_wl_plan_lim} stocks on your plan).")
     else:
         if _is_pro_user:
             st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#8a8fa0;margin-bottom:.4rem;">Pro limit: {_wl_plan_lim} stocks</div>', unsafe_allow_html=True)
@@ -2872,34 +2897,32 @@ with st.sidebar:
 
     st.markdown("---")
     # ── Alerts section ──────────────────────────────────────────────────────
-    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.6rem;">🔔 Alerts</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.6rem;">🔔 Alerts</div>', unsafe_allow_html=True)
 
-    # In-session signal change alert (existing)
+    # In-session signal change alert
     alert_on_signal_change = st.checkbox(_L["alert_signal_change"], value=True, key="signal_alert_chk")
 
-    # Daily email digest toggle
-    _email_on = st.session_state.get("email_alerts_enabled", False)
-    st.markdown(f"""
-    <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.15);
-         border-radius:.6rem;padding:.8rem 1rem;margin:.4rem 0;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;">
-        <div>
-          <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;
-               color:#e4eafd;margin-bottom:.2rem;">📧 Daily Email Digest</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#8a8fa0;
-               line-height:1.5;">
-            Get your watchlist signals in your inbox every morning.
-            {"<br><span style='color:#ffd426;'>✦ Pro: delivered 6AM daily</span>" if _is_pro() else ""}
-          </div>
-        </div>
-        <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;
-             color:{'#00e5b0' if _email_on else '#3e4558'};font-weight:700;
-             flex-shrink:0;margin-top:2px;">
-          {'ON' if _email_on else 'OFF'}
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Daily email digest toggle — pre-compute ALL variables before markdown
+    _email_on     = st.session_state.get("email_alerts_enabled", False)
+    _email_status = "ON" if _email_on else "OFF"
+    _email_color  = "#00e5b0" if _email_on else "#3e4558"
+    _email_bg     = "rgba(0,229,176,0.06)" if _email_on else "rgba(77,142,255,0.05)"
+    _email_border = "rgba(0,229,176,0.2)" if _email_on else "rgba(77,142,255,0.15)"
+    _pro_badge    = "✦ Pro · delivered 6AM daily" if _is_pro() else "Free · weekdays 7AM UTC"
+
+    st.markdown(
+        f'<div style="background:{_email_bg};border:1px solid {_email_border};'
+        f'border-radius:.6rem;padding:.8rem 1rem;margin:.4rem 0;">'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;">'
+        f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;color:#e4eafd;">📧 Daily Email Digest</div>'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:{_email_color};font-weight:700;">{_email_status}</div>'
+        f'</div>'
+        f'<div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#8a8fa0;margin-top:.3rem;line-height:1.5;">'
+        f'Get watchlist signals in your inbox every morning.<br>'
+        f'<span style="color:#3e4558;">{_pro_badge} · {st.session_state.user.email}</span>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
 
     _toggle_label = "Turn Off Email Alerts" if _email_on else "Enable Daily Email Digest"
     if st.button(_toggle_label, use_container_width=True, key="email_alert_toggle"):
@@ -2910,9 +2933,6 @@ with st.sidebar:
         else:
             st.info("Email alerts turned off.")
         st.rerun()
-
-    if not _email_on:
-        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;line-height:1.5;margin-top:.2rem;">Sent to: {st.session_state.user.email}<br>Weekdays at 7:00 AM UTC (12:30 PM IST)</div>', unsafe_allow_html=True)
 
     # Plan management — upgrade / downgrade
     st.markdown("---")
@@ -3044,7 +3064,7 @@ if not run_btn:
             _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#3e4558"
 
     st.markdown(f"""
-    <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:.5rem;">
+    <div class="stat-grid" style="margin-bottom:.5rem;">
       <div class="stat-card">
         <div class="stat-label">S&amp;P 500 · Market Pulse</div>
         <div class="stat-value">{_sp[0]}</div>
