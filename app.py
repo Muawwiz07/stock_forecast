@@ -584,7 +584,7 @@ def _sb_get_email_alerts(user_id: str) -> bool:
         return False
 
 def _sb_set_email_alerts(user_id: str, enabled: bool):
-    """Toggle email alerts on or off for the user."""
+    """Toggle email alerts on or off for the user. Gracefully handles missing column."""
     try:
         supabase.table("user_usage").upsert(
             {"user_id": user_id, "email_alerts_enabled": enabled},
@@ -592,8 +592,12 @@ def _sb_set_email_alerts(user_id: str, enabled: bool):
         ).execute()
         st.session_state.email_alerts_enabled = enabled
         logger.info("Email alerts set to %s for user '%s'", enabled, user_id)
+        return True
     except Exception as e:
         logger.error("_sb_set_email_alerts failed for user '%s': %s", user_id, e)
+        # Still update session state so UI reflects the toggle
+        st.session_state.email_alerts_enabled = enabled
+        return False
 
 
 def _send_email(to_address: str, subject: str, html_body: str) -> bool:
@@ -3107,32 +3111,19 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-    _toggle_label = "Turn Off Email Alerts" if _email_on else "Enable Daily Email Digest"
+    _toggle_label = "🔕 Turn Off Email Alerts" if _email_on else "📧 Enable Daily Email Digest"
     if st.button(_toggle_label, use_container_width=True, key="email_alert_toggle"):
         new_val = not _email_on
-        _sb_set_email_alerts(st.session_state.user.id, new_val)
+        _ok = _sb_set_email_alerts(st.session_state.user.id, new_val)
         if new_val:
-            # Send a welcome/confirmation email immediately
-            _wl_now = st.session_state.get("watchlist", [])
             _user_email = st.session_state.user.email
-            if _wl_now:
-                _digest_html = _build_digest_html(_user_email, _wl_now)
-                _sent = _send_email(
-                    _user_email,
-                    "✅ Stockcast Daily Digest — Activated",
-                    _digest_html,
-                )
-                if _sent:
-                    st.success(f"✓ Daily digest enabled — first digest sent to {_user_email}")
-                else:
-                    st.warning(
-                        f"✓ Digest enabled for {_user_email}, but email could not be sent. "
-                        "Check SMTP_HOST / SMTP_USER / SMTP_PASS in your Streamlit secrets."
-                    )
+            if _ok:
+                st.success(f"✓ Daily digest enabled — emails will be sent to {_user_email} on weekdays.")
             else:
-                st.success(
-                    f"✓ Daily digest enabled for {_user_email}. "
-                    "Add stocks to your watchlist — they will appear in tomorrow's digest."
+                st.warning(
+                    f"⚠ Preference saved locally for this session. "
+                    "Run the Supabase SQL setup script to persist across logins. "
+                    "(ALTER TABLE user_usage ADD COLUMN IF NOT EXISTS email_alerts_enabled BOOLEAN NOT NULL DEFAULT FALSE;)"
                 )
         else:
             st.info("Email alerts turned off.")
@@ -3326,23 +3317,32 @@ if not run_btn:
         ("02","#00e5b0","hw2_title","hw2_body"),
         ("03","#ffd426","hw3_title","hw3_body"),
     ]
-    _hw_cards = "".join(f"""
-        <div style="background:linear-gradient(145deg,#0f1727,#141d30);
-             border:1px solid #252f47;border-top:2px solid {color};
-             padding:1.3rem 1.4rem;border-radius:.6rem;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;
-               font-weight:700;color:{color};margin-bottom:.5rem;">{num}</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.68rem;
-               letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;
-               font-weight:700;margin-bottom:.4rem;">{_L[tk]}</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.8rem;
-               color:#8a8fa0;line-height:1.6;">{_L[bk]}</div>
-        </div>"""
-        for num, color, tk, bk in _hw_items)
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:.5rem 0;">
-      {_hw_cards}
-    </div>""", unsafe_allow_html=True)
+    # How it works — st.columns (reliable on all devices)
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+    st.subheader(_L["how_it_works"])
+    hw1, hw2, hw3 = st.columns(3)
+    for _col, _num, _color, _tk, _bk in [
+        (hw1, "01", "#4d8eff", "hw1_title", "hw1_body"),
+        (hw2, "02", "#00e5b0", "hw2_title", "hw2_body"),
+        (hw3, "03", "#ffd426", "hw3_title", "hw3_body"),
+    ]:
+        _t = _L[_tk].replace("'", "&#39;")
+        _b = _L[_bk].replace("'", "&#39;")
+        with _col:
+            st.markdown(
+                f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
+                f'border:1px solid #252f47;border-top:2px solid {_color};'
+                f'padding:1.3rem 1.4rem;border-radius:.6rem;min-height:140px;">'
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
+                f'font-weight:700;color:{_color};margin-bottom:.5rem;">{_num}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.68rem;'
+                f'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;'
+                f'font-weight:700;margin-bottom:.4rem;">{_t}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.78rem;'
+                f'color:#8a8fa0;line-height:1.6;">{_b}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
@@ -3350,26 +3350,30 @@ if not run_btn:
         ("#4d8eff","📈 AI Price Outlook","Your assistant projects price direction across 20 technical signals with 95% bootstrap confidence intervals."),
         ("#00e5b0","⚙ Explainable Signals","RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain language."),
         ("#ffd426","📊 Strategy Simulator","Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold."),
-        ("#ff5f5f","⭐ Watchlist + 🔔 Alerts","Save stocks, see live prices on the dashboard, get banners when signals flip."),
+        ("#ff5f5f","⭐ Watchlist + Alerts","Save stocks, see live prices on the dashboard, get banners when signals flip."),
         ("#4d8eff","☪ Shariah Screening","AAOIFI Standard No.21 — screens business activity, debt & cash ratios automatically."),
-        ("#adc6ff","🔬 Model Comparison","Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side."),
+        ("#adc6ff","🔬 Model Comparison","Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R2 side-by-side."),
         ("#00e5b0","📰 News Sentiment NLP","Live Yahoo Finance headlines scored with TextBlob. Detects confluence with technical signals."),
         ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&L, sector allocation, and recent transaction history."),
     ]
-    _feat_cards = "".join(f"""
-        <div style="background:linear-gradient(145deg,#0f1727,#080e1c);
-             border:1px solid rgba(255,255,255,0.05);border-top:2px solid {color};
-             border-radius:.75rem;padding:1.1rem 1.2rem;">
-          <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;
-               color:{color};margin-bottom:.4rem;font-weight:700;">{title}</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.78rem;
-               color:#7c8191;line-height:1.5;">{body}</div>
-        </div>"""
-        for color, title, body in feat_grid)
-    st.markdown(f"""
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin:.5rem 0;">
-      {_feat_cards}
-    </div>""", unsafe_allow_html=True)
+    # Render as 2-column pairs using st.columns
+    for i in range(0, len(feat_grid), 2):
+        _fc1, _fc2 = st.columns(2)
+        for _fcol, _fi in [(_fc1, i), (_fc2, i+1)]:
+            if _fi < len(feat_grid):
+                _color, _title, _body = feat_grid[_fi]
+                with _fcol:
+                    st.markdown(
+                        f'<div style="background:linear-gradient(145deg,#0f1727,#080e1c);'
+                        f'border:1px solid rgba(255,255,255,0.05);border-top:2px solid {_color};'
+                        f'border-radius:.75rem;padding:1rem 1.1rem;margin-bottom:.6rem;">'
+                        f'<div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.12em;'
+                        f'color:{_color};margin-bottom:.4rem;font-weight:700;">{_title}</div>'
+                        f'<div style="font-family:Manrope,sans-serif;font-size:.76rem;'
+                        f'color:#7c8191;line-height:1.5;">{_body}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
@@ -4017,52 +4021,49 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # Market index cards — responsive HTML grid (2×2 on mobile, 4×1 on desktop)
+            # Market index cards — st.columns (2×2 reliable layout)
             with st.spinner("Loading live market data..."):
                 mkt_data = get_live_market_indices()
-            _mkt_cards = "".join(f"""
-                <div style="background:linear-gradient(145deg,#0f1727,#141d30);
-                     border:1px solid #252f47;border-top:2px solid {col};
-                     padding:1.1rem 1.2rem;border-radius:.6rem;">
-                  <div style="font-size:.58rem;font-weight:700;color:#8a8fa0;
-                       letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;">{name}</div>
-                  <div style="font-family:IBM Plex Mono,monospace;font-size:1.35rem;
-                       font-weight:700;color:#e4eafd;line-height:1.1;">{price}</div>
-                  <div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;
-                       color:{col};font-weight:700;margin-top:.3rem;">{chg}</div>
-                </div>"""
-                for name, price, chg, col in mkt_data)
-            st.markdown(f"""
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;
-                 margin-bottom:1.2rem;">
-              <style>
-                @media(max-width:700px){{
-                  .mkt-grid{{grid-template-columns:repeat(2,1fr)!important;}}
-                }}
-              </style>
-              {_mkt_cards}
-            </div>""", unsafe_allow_html=True)
+            _mc1, _mc2 = st.columns(2)
+            _mc3, _mc4 = st.columns(2)
+            for _mcol, (name, price, chg, col) in zip([_mc1, _mc2, _mc3, _mc4], mkt_data):
+                with _mcol:
+                    st.markdown(
+                        f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
+                        f'border:1px solid #252f47;border-top:2px solid {col};'
+                        f'padding:1rem 1.1rem;border-radius:.6rem;margin-bottom:.5rem;">'
+                        f'<div style="font-size:.55rem;font-weight:700;color:#8a8fa0;'
+                        f'letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem;">{name}</div>'
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
+                        f'font-weight:700;color:#e4eafd;line-height:1.1;">{price}</div>'
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;'
+                        f'color:{col};font-weight:700;margin-top:.25rem;">{chg}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
 
             ms1, ms2 = st.columns([2, 1])
             with ms1:
                 st.subheader("Sector Heat Map · Live")
                 sectors = get_live_sector_heatmap()
-                # Responsive 2-col HTML grid instead of st.columns(5)
-                _sector_cards = "".join(f"""
-                    <div style="background:#0f1727;border:1px solid #252f47;
-                         border-left:2px solid {col};padding:.7rem .9rem;
-                         border-radius:0 .5rem .5rem 0;">
-                      <div style="font-size:.58rem;font-weight:700;color:#8a8fa0;
-                           text-transform:uppercase;margin-bottom:.2rem;">{name}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.88rem;
-                           font-weight:700;color:{col};">{chg}</div>
-                    </div>"""
-                    for name, chg, col in sectors)
-                st.markdown(f"""
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);
-                     gap:.5rem;margin-bottom:.8rem;">
-                  {_sector_cards}
-                </div>""", unsafe_allow_html=True)
+                # Render sectors as 2-column pairs
+                for i in range(0, len(sectors), 2):
+                    _sc1, _sc2 = st.columns(2)
+                    for _scol, _si in [(_sc1, i), (_sc2, i+1)]:
+                        if _si < len(sectors):
+                            _sname, _schg, _scol_color = sectors[_si]
+                            with _scol:
+                                st.markdown(
+                                    f'<div style="background:#0f1727;border:1px solid #252f47;'
+                                    f'border-left:2px solid {_scol_color};padding:.6rem .8rem;'
+                                    f'border-radius:0 .5rem .5rem 0;margin-bottom:.4rem;">'
+                                    f'<div style="font-size:.55rem;font-weight:700;color:#8a8fa0;'
+                                    f'text-transform:uppercase;margin-bottom:.2rem;">{_sname}</div>'
+                                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.85rem;'
+                                    f'font-weight:700;color:{_scol_color};">{_schg}</div>'
+                                    f'</div>',
+                                    unsafe_allow_html=True
+                                )
 
             with ms2:
                 st.subheader("Fear & Greed Index · Live")
