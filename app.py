@@ -26,6 +26,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from supabase import create_client
 import warnings
+import smtplib
+import html as _html_mod
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import os
 import time
 import logging
@@ -590,6 +594,121 @@ def _sb_set_email_alerts(user_id: str, enabled: bool):
         logger.info("Email alerts set to %s for user '%s'", enabled, user_id)
     except Exception as e:
         logger.error("_sb_set_email_alerts failed for user '%s': %s", user_id, e)
+
+
+def _send_email(to_address: str, subject: str, html_body: str) -> bool:
+    """Send an email via SMTP using credentials from Streamlit secrets.
+
+    Required secrets (add to .streamlit/secrets.toml):
+        SMTP_HOST  = "smtp.gmail.com"        # or your provider
+        SMTP_PORT  = 587
+        SMTP_USER  = "you@yourdomain.com"
+        SMTP_PASS  = "your-app-password"
+        SMTP_FROM  = "Stockcast <you@yourdomain.com>"   # optional display name
+    """
+    try:
+        smtp_host = st.secrets.get("SMTP_HOST", os.environ.get("SMTP_HOST", ""))
+        smtp_port = int(st.secrets.get("SMTP_PORT", os.environ.get("SMTP_PORT", 587)))
+        smtp_user = st.secrets.get("SMTP_USER", os.environ.get("SMTP_USER", ""))
+        smtp_pass = st.secrets.get("SMTP_PASS", os.environ.get("SMTP_PASS", ""))
+        smtp_from = st.secrets.get("SMTP_FROM", os.environ.get("SMTP_FROM", smtp_user))
+
+        if not smtp_host or not smtp_user or not smtp_pass:
+            logger.warning("_send_email: SMTP credentials not configured — email skipped.")
+            return False
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = smtp_from
+        msg["To"]      = to_address
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, to_address, msg.as_string())
+
+        logger.info("_send_email: sent '%s' to %s", subject, to_address)
+        return True
+    except Exception as e:
+        logger.error("_send_email failed for %s: %s", to_address, e)
+        return False
+
+
+def _build_digest_html(user_email: str, watchlist: list) -> str:
+    """Build the HTML body for the daily watchlist digest email."""
+    rows_html = ""
+    for sym in watchlist:
+        try:
+            q = av_get_quote(sym)
+            price  = q["price"]
+            chg    = q["change_pct"]
+            color  = "#00e5b0" if chg >= 0 else "#ff5f5f"
+            arrow  = "▲" if chg >= 0 else "▼"
+            sign   = "+" if chg >= 0 else ""
+            rows_html += (
+                f'<tr>'
+                f'<td style="padding:10px 14px;font-family:monospace;font-weight:700;color:#4d8eff;">{_html_mod.escape(sym)}</td>'
+                f'<td style="padding:10px 14px;font-family:monospace;color:#e4eafd;">${price:,.2f}</td>'
+                f'<td style="padding:10px 14px;font-family:monospace;color:{color};font-weight:700;">{arrow} {sign}{chg:.2f}%</td>'
+                f'</tr>'
+            )
+        except Exception:
+            rows_html += (
+                f'<tr>'
+                f'<td style="padding:10px 14px;font-family:monospace;color:#4d8eff;">{_html_mod.escape(sym)}</td>'
+                f'<td colspan="2" style="padding:10px 14px;color:#8a8fa0;">Price unavailable</td>'
+                f'</tr>'
+            )
+
+    date_str = pd.Timestamp.now().strftime("%B %d, %Y")
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <body style="margin:0;padding:0;background:#080e1c;font-family:Manrope,sans-serif;">
+      <div style="max-width:560px;margin:32px auto;background:#0f1727;border-radius:12px;
+                  border:1px solid #252f47;overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#0f1727,#141d30);padding:28px 32px;
+                    border-bottom:2px solid #4d8eff;">
+          <div style="font-family:monospace;font-size:11px;letter-spacing:2px;
+                      text-transform:uppercase;color:#4d8eff;margin-bottom:6px;">Stockcast · Daily Digest</div>
+          <div style="font-size:22px;font-weight:800;color:#e4eafd;">Good morning ☀</div>
+          <div style="font-size:13px;color:#8a8fa0;margin-top:4px;">{date_str} · Your watchlist summary</div>
+        </div>
+        <div style="padding:24px 32px;">
+          <table style="width:100%;border-collapse:collapse;background:#080e1c;
+                        border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background:#141d30;">
+                <th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1.5px;
+                           text-transform:uppercase;color:#3e4558;">Ticker</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1.5px;
+                           text-transform:uppercase;color:#3e4558;">Price</th>
+                <th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1.5px;
+                           text-transform:uppercase;color:#3e4558;">Change</th>
+              </tr>
+            </thead>
+            <tbody>{rows_html}</tbody>
+          </table>
+          <div style="margin-top:20px;padding:14px 18px;background:rgba(255,212,38,0.05);
+                      border:1px solid rgba(255,212,38,0.2);border-radius:8px;
+                      font-size:11px;color:#8a8fa0;line-height:1.6;">
+            ⚠ This digest is for educational and research purposes only. Not financial advice.
+          </div>
+        </div>
+        <div style="padding:18px 32px;border-top:1px solid #252f47;text-align:center;">
+          <div style="font-size:11px;color:#3e4558;">
+            Sent to {_html_mod.escape(user_email)} · 
+            <a href="https://muawwizghani-stock-forecast.streamlit.app" 
+               style="color:#4d8eff;text-decoration:none;">Open Stockcast</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
 
 # ── Multi-language support ─────────────────────────────────────────────────────
 LANGUAGES = {
@@ -2019,14 +2138,26 @@ POPULAR_TICKERS = {
 
 @st.cache_data(ttl=3600)
 def search_tickers(query):
+    """Search local POPULAR_TICKERS dict first, then fall back to yfinance Ticker info."""
     q = query.strip().upper()
     results = []
+    # 1. Exact match first
     if q in POPULAR_TICKERS:
         results.append(f"{q} — {POPULAR_TICKERS[q]}")
+    # 2. Partial match in local dict
     ql = query.strip().lower()
     for sym, name in POPULAR_TICKERS.items():
         if sym != q and (ql in name.lower() or ql in sym.lower()):
             results.append(f"{sym} — {name}")
+    # 3. If nothing found locally AND query looks like a ticker, probe yfinance
+    if not results and len(q) >= 1:
+        try:
+            info = yf.Ticker(q).get_info() or {}
+            long_name = info.get("longName") or info.get("shortName")
+            if long_name:
+                results.append(f"{q} — {long_name}")
+        except Exception:
+            pass
     return results[:10]
 
 @st.cache_data(ttl=300)
@@ -2398,6 +2529,28 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
     st.session_state.show_onboarding = (len(_wl) == 0 and st.session_state.usage_count == 0)
     st.session_state._portfolio_loaded_for = _current_uid
 
+    # ── Daily email digest — send once per calendar day on first login ─────────
+    _today_str = pd.Timestamp.now().date().isoformat()
+    _digest_sent_key = f"_digest_sent_{_current_uid}_{_today_str}"
+    if (
+        st.session_state.get("email_alerts_enabled", False)
+        and not st.session_state.get(_digest_sent_key, False)
+        and st.session_state.watchlist
+    ):
+        try:
+            _d_html = _build_digest_html(st.session_state.user.email, st.session_state.watchlist)
+            _d_sent = _send_email(
+                st.session_state.user.email,
+                f"📈 Stockcast Daily Digest — {pd.Timestamp.now().strftime('%b %d, %Y')}",
+                _d_html,
+            )
+            if _d_sent:
+                logger.info("Daily digest sent to %s", st.session_state.user.email)
+        except Exception as _de:
+            logger.error("Daily digest send failed: %s", _de)
+        finally:
+            st.session_state[_digest_sent_key] = True  # mark as attempted regardless
+
 
 # ═══════════════════════════════════════════════════════════════════
 # HEADER
@@ -2531,16 +2684,21 @@ if st.session_state.get("show_upgrade_modal"):
     btn_l, btn_c, btn_r = st.columns([1, 2, 1])
     with btn_c:
         if st.button("✦ Activate Pro — $9/mo", use_container_width=True, key="upgrade_confirm"):
+            # ── Payment gate ─────────────────────────────────────────────────
+            # TODO: Replace this block with your Razorpay/Stripe payment flow.
+            # Once payment is confirmed by the provider webhook, call:
+            #   _sb_set_plan(user_id, "pro")
+            # For now, grant access immediately (testing only — remove before launch).
             _sb_set_plan(st.session_state.user.id, "pro")
             st.session_state.show_upgrade_modal = False
-            st.session_state._portfolio_loaded_for = None  # force plan reload
+            st.session_state._portfolio_loaded_for = None
             st.rerun()
 
     st.markdown("""
     <div style="text-align:center;margin-top:1rem;font-family:Manrope,sans-serif;
          font-size:.65rem;color:#3e4558;line-height:1.7;">
-      Payments not yet live — clicking Activate Pro grants access immediately for testing.<br>
-      Razorpay &amp; Stripe integration coming in the next release.
+      ⚠ Payments not yet live — Razorpay / Stripe integration coming soon.<br>
+      Upgrade grants immediate access for testing purposes only.
     </div>
     """, unsafe_allow_html=True)
 
@@ -2555,7 +2713,7 @@ if st.session_state.get("show_upgrade_modal"):
         Not yet — this is a simulated upgrade for testing. Real payments via Razorpay/Stripe are coming soon.
 
         **Can I go back to Free?**
-        Yes — use the "Switch to Free (testing)" button at the bottom of the sidebar.
+        Yes — contact support and we will process your cancellation. Your data (watchlist, portfolio, history) is always preserved.
 
         **Does my data carry over?**
         Yes. Watchlist, portfolio, and history are all stored in Supabase and persist across plan changes.
@@ -2954,19 +3112,42 @@ with st.sidebar:
         new_val = not _email_on
         _sb_set_email_alerts(st.session_state.user.id, new_val)
         if new_val:
-            st.success(f"✓ Daily digest enabled — sent to {st.session_state.user.email}")
+            # Send a welcome/confirmation email immediately
+            _wl_now = st.session_state.get("watchlist", [])
+            _user_email = st.session_state.user.email
+            if _wl_now:
+                _digest_html = _build_digest_html(_user_email, _wl_now)
+                _sent = _send_email(
+                    _user_email,
+                    "✅ Stockcast Daily Digest — Activated",
+                    _digest_html,
+                )
+                if _sent:
+                    st.success(f"✓ Daily digest enabled — first digest sent to {_user_email}")
+                else:
+                    st.warning(
+                        f"✓ Digest enabled for {_user_email}, but email could not be sent. "
+                        "Check SMTP_HOST / SMTP_USER / SMTP_PASS in your Streamlit secrets."
+                    )
+            else:
+                st.success(
+                    f"✓ Daily digest enabled for {_user_email}. "
+                    "Add stocks to your watchlist — they will appear in tomorrow's digest."
+                )
         else:
             st.info("Email alerts turned off.")
         st.rerun()
 
-    # Plan management — upgrade / downgrade
+    # Plan management
     st.markdown("---")
     if _is_pro():
-        st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;text-align:center;margin-bottom:.3rem;">✦ Active: Pro Plan</div>', unsafe_allow_html=True)
-        if st.button("Switch to Free (testing)", use_container_width=True, key="downgrade_btn"):
-            _sb_set_plan(st.session_state.user.id, "free")
-            st.session_state._portfolio_loaded_for = None
-            st.rerun()
+        st.markdown(
+            '<div style="background:linear-gradient(90deg,rgba(255,212,38,0.08),rgba(77,142,255,0.05));'
+            'border:1px solid rgba(255,212,38,0.25);border-radius:.5rem;padding:.55rem .9rem;'
+            'font-family:Manrope,sans-serif;font-size:.63rem;font-weight:700;color:#ffd426;'
+            'text-align:center;letter-spacing:.04em;">✦ Pro Plan Active</div>',
+            unsafe_allow_html=True
+        )
     else:
         if st.button("✦ Upgrade to Pro", use_container_width=True, key="upgrade_cta_sidebar_bottom"):
             st.session_state.show_upgrade_modal = True
@@ -3138,66 +3319,57 @@ if not run_btn:
                     st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+    st.subheader(_L["how_it_works"])
     _hw_items = [
         ("01","#4d8eff","hw1_title","hw1_body"),
         ("02","#00e5b0","hw2_title","hw2_body"),
         ("03","#ffd426","hw3_title","hw3_body"),
     ]
-    _hw_cards = "".join(
-        '<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
-        'border:1px solid #252f47;border-top:2px solid ' + color + ';'
-        'padding:1.3rem 1.4rem;border-radius:.6rem;">'
-        '<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
-        'font-weight:700;color:' + color + ';margin-bottom:.5rem;">' + num + '</div>'
-        '<div style="font-family:Manrope,sans-serif;font-size:.68rem;'
-        'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;'
-        'font-weight:700;margin-bottom:.4rem;">' + _L[tk] + '</div>'
-        '<div style="font-family:Manrope,sans-serif;font-size:.8rem;'
-        'color:#8a8fa0;line-height:1.6;">' + _L[bk] + '</div>'
-        '</div>'
+    _hw_cards = "".join(f"""
+        <div style="background:linear-gradient(145deg,#0f1727,#141d30);
+             border:1px solid #252f47;border-top:2px solid {color};
+             padding:1.3rem 1.4rem;border-radius:.6rem;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;
+               font-weight:700;color:{color};margin-bottom:.5rem;">{num}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.68rem;
+               letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;
+               font-weight:700;margin-bottom:.4rem;">{_L[tk]}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.8rem;
+               color:#8a8fa0;line-height:1.6;">{_L[bk]}</div>
+        </div>"""
         for num, color, tk, bk in _hw_items)
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:.5rem 0;">
+      {_hw_cards}
+    </div>""", unsafe_allow_html=True)
 
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+    st.subheader(_L["platform_features"])
     feat_grid = [
         ("#4d8eff","📈 AI Price Outlook","Your assistant projects price direction across 20 technical signals with 95% bootstrap confidence intervals."),
         ("#00e5b0","⚙ Explainable Signals","RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain language."),
         ("#ffd426","📊 Strategy Simulator","Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold."),
         ("#ff5f5f","⭐ Watchlist + 🔔 Alerts","Save stocks, see live prices on the dashboard, get banners when signals flip."),
-        ("#4d8eff","☪ Shariah Screening","AAOIFI Standard No.21 — screens business activity, debt &amp; cash ratios automatically."),
+        ("#4d8eff","☪ Shariah Screening","AAOIFI Standard No.21 — screens business activity, debt & cash ratios automatically."),
         ("#adc6ff","🔬 Model Comparison","Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side."),
         ("#00e5b0","📰 News Sentiment NLP","Live Yahoo Finance headlines scored with TextBlob. Detects confluence with technical signals."),
-        ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&amp;L, sector allocation, and recent transaction history."),
+        ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&L, sector allocation, and recent transaction history."),
     ]
-    _feat_cards = "".join(
-        '<div style="background:linear-gradient(145deg,#0f1727,#080e1c);'
-        'border:1px solid rgba(255,255,255,0.05);border-top:2px solid ' + color + ';'
-        'border-radius:.75rem;padding:1.1rem 1.2rem;">'
-        '<div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;'
-        'color:' + color + ';margin-bottom:.4rem;font-weight:700;">' + title + '</div>'
-        '<div style="font-family:Manrope,sans-serif;font-size:.78rem;'
-        'color:#7c8191;line-height:1.5;">' + body + '</div>'
-        '</div>'
+    _feat_cards = "".join(f"""
+        <div style="background:linear-gradient(145deg,#0f1727,#080e1c);
+             border:1px solid rgba(255,255,255,0.05);border-top:2px solid {color};
+             border-radius:.75rem;padding:1.1rem 1.2rem;">
+          <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;
+               color:{color};margin-bottom:.4rem;font-weight:700;">{title}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.78rem;
+               color:#7c8191;line-height:1.5;">{body}</div>
+        </div>"""
         for color, title, body in feat_grid)
-
-    st.markdown(
-        "<hr style='margin:.8rem 0;'>"
-        "<div style='font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;"
-        "letter-spacing:.16em;text-transform:uppercase;color:#e4eafd;"
-        "border-bottom:1px solid #1e2740;padding-bottom:.55rem;margin-bottom:1rem;'>"
-        + _L["how_it_works"] +
-        "</div>"
-        "<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:.5rem 0;'>"
-        + _hw_cards +
-        "</div>"
-        "<hr style='margin:.8rem 0;'>"
-        "<div style='font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;"
-        "letter-spacing:.16em;text-transform:uppercase;color:#e4eafd;"
-        "border-bottom:1px solid #1e2740;padding-bottom:.55rem;margin-bottom:1rem;'>"
-        + _L["platform_features"] +
-        "</div>"
-        "<div style='display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin:.5rem 0;'>"
-        + _feat_cards +
-        "</div>",
-        unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin:.5rem 0;">
+      {_feat_cards}
+    </div>""", unsafe_allow_html=True)
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
@@ -3285,25 +3457,24 @@ else:
 
     tab_analysis, tab_methodology = st.tabs([_L["analysis_tab"], _L["methodology_tab"]])
 
-    # ⭐ Add to Watchlist — prominent action on results page
-    _in_wl_main = ticker in st.session_state.watchlist
-    _wl_full_main = len(st.session_state.watchlist) >= _get_limit("watchlist_stocks")
-    _wl_col1, _wl_col2 = st.columns([3, 1])
-    with _wl_col2:
-        if _in_wl_main:
-            st.markdown(f'<div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.25);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.65rem;color:#00e5b0;font-weight:700;text-align:center;">⭐ In Watchlist</div>', unsafe_allow_html=True)
-        elif _wl_full_main:
-            st.markdown(f'<div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;text-align:center;">Watchlist full</div>', unsafe_allow_html=True)
-        else:
-            if st.button(f"⭐ Add to Watchlist", key="forecast_wl_add", use_container_width=True):
-                if _sb_add_watchlist(st.session_state.user.id, ticker):
-                    st.session_state.watchlist.append(ticker)
-                    st.rerun()
-
     with tab_methodology:
         render_methodology_page(seq_len_val=seq_len, ci_n=ci_bootstrap_n, show_ci=show_conf_interval)
 
     with tab_analysis:
+        # ⭐ Add to Watchlist — prominent action at top of analysis tab
+        _in_wl_main = ticker in st.session_state.watchlist
+        _wl_full_main = len(st.session_state.watchlist) >= _get_limit("watchlist_stocks")
+        _, _wl_col2 = st.columns([3, 1])
+        with _wl_col2:
+            if _in_wl_main:
+                st.markdown(f'<div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.25);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.65rem;color:#00e5b0;font-weight:700;text-align:center;">⭐ In Watchlist</div>', unsafe_allow_html=True)
+            elif _wl_full_main:
+                st.markdown(f'<div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;text-align:center;">Watchlist full</div>', unsafe_allow_html=True)
+            else:
+                if st.button(f"⭐ Add to Watchlist", key="forecast_wl_add", use_container_width=True):
+                    if _sb_add_watchlist(st.session_state.user.id, ticker):
+                        st.session_state.watchlist.append(ticker)
+                        st.rerun()
         with st.spinner(_L["engineering"]):
             df = add_technical_features(df)
         close_series = df['Close'].squeeze()
@@ -3550,6 +3721,7 @@ else:
                 with _ab1:
                     if st.button(_L["refresh_prices"], key="pt_refresh", use_container_width=True):
                         av_get_quote.clear()
+                        get_ticker_full.clear()
                         for h in st.session_state.portfolio:
                             try:
                                 _q = av_get_quote(h["ticker"])
@@ -3703,8 +3875,9 @@ else:
                         ))
                         fig_pl.add_hline(y=0, line_dash="dash",
                                          line_color="#3e4558", line_width=1)
+                        _pl_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k != "yaxis"}
                         fig_pl.update_layout(
-                            **PLOTLY_LAYOUT,
+                            **_pl_layout,
                             title=dict(text="Portfolio Unrealised P&L — Last 12 Months",
                                        font=dict(color=C_GREEN, size=12)),
                             height=300,
@@ -3728,8 +3901,9 @@ else:
                             annotation_font_color=C_YELLOW,
                             annotation_font_size=9,
                         )
+                        _val_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k != "yaxis"}
                         fig_val.update_layout(
-                            **PLOTLY_LAYOUT,
+                            **_val_layout,
                             title=dict(text="Portfolio Value vs Cost Basis — Last 12 Months",
                                        font=dict(color=C_GREEN, size=12)),
                             height=280,
@@ -3769,8 +3943,9 @@ else:
                     textposition="outside",
                     textfont=dict(color="#8a8fa0", size=9, family="IBM Plex Mono"),
                 ))
+                _bar_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k != "yaxis"}
                 fig_bar.update_layout(
-                    **PLOTLY_LAYOUT,
+                    **_bar_layout,
                     title=dict(text="Market Value per Holding",
                                font=dict(color=C_GREEN, size=12)),
                     height=260,
