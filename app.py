@@ -1490,12 +1490,79 @@ label, [data-testid="stSelectbox"] label,
     padding: 0.7rem 1rem !important;
 }
 
-/* ── SPINNER ── */
+/* ── HEART-WAVE / ECG LOADER ── */
+
+/* Hide the default Streamlit spinner SVG */
+[data-testid="stSpinner"] svg {
+    display: none !important;
+}
+
+/* Spinner text label */
 [data-testid="stSpinner"] p {
     font-family: var(--mono) !important;
-    font-size: 0.7rem !important;
+    font-size: 0.68rem !important;
     color: var(--accent) !important;
-    letter-spacing: 0.08em !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    margin-left: 0 !important;
+    text-align: center !important;
+    margin-top: 0.5rem !important;
+}
+
+/* Spinner container — stack the wave above the label */
+[data-testid="stSpinner"] > div {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1.2rem 2rem !important;
+    gap: 0.4rem !important;
+}
+
+/* The ECG / heart-wave element injected via ::before on the wrapper */
+[data-testid="stSpinner"] > div::before {
+    content: '' !important;
+    display: block !important;
+    width: 200px !important;
+    height: 48px !important;
+    background: transparent !important;
+    position: relative !important;
+    overflow: hidden !important;
+    /* ECG trace drawn as an SVG data-URI */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 48' preserveAspectRatio='none'%3E%3Cpolyline points='0,24 20,24 28,24 32,6 36,42 40,10 44,38 48,24 68,24 80,24 86,4 90,44 94,4 98,24 118,24 130,24 136,4 140,44 144,4 148,24 168,24 200,24' fill='none' stroke='%234d8eff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-size: 200px 48px !important;
+    background-repeat: repeat-x !important;
+    animation: ecg-scroll 1.4s linear infinite !important;
+    /* Fading masks on left/right edges */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important;
+    mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important;
+}
+
+@keyframes ecg-scroll {
+    0%   { background-position: 0 0; }
+    100% { background-position: 200px 0; }
+}
+
+/* Glowing scan-line dot that rides the wave */
+[data-testid="stSpinner"] > div::after {
+    content: '' !important;
+    display: block !important;
+    width: 8px !important;
+    height: 8px !important;
+    background: var(--emerald) !important;
+    border-radius: 50% !important;
+    box-shadow: 0 0 10px 3px rgba(0,229,176,0.7), 0 0 20px 6px rgba(0,229,176,0.3) !important;
+    animation: ecg-dot 1.4s linear infinite !important;
+    margin-top: -10px !important;
+    position: relative !important;
+    z-index: 2 !important;
+}
+
+@keyframes ecg-dot {
+    0%   { transform: translateX(-96px); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateX(96px); opacity: 0; }
 }
 
 /* ── SUCCESS / INFO / WARNING / ERROR ── */
