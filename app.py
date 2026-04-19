@@ -273,6 +273,270 @@ def get_fear_greed_index():
         logger.warning("get_fear_greed_index failed: %s", e)
         return None
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ── STARTUP FEATURES — helper functions ───────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── 1. Macro Risk Scanner ─────────────────────────────────────────────────────
+@st.cache_data(ttl=300)
+def get_macro_risk_score():
+    """Compute a Macro Climate score (0-100) from live VIX, S&P trend, Fear & Greed,
+    and 10-year yield proxy (TLT inverse). Returns dict with score, label, color, and factors."""
+    factors = {}
+    score = 50  # neutral baseline
+
+    try:
+        # VIX contribution  (lower VIX → safer environment for raising / deploying)
+        raw_vix = yf.download("^VIX", period="5d", interval="1d", progress=False, auto_adjust=True)
+        if not raw_vix.empty:
+            vix_close = raw_vix["Close"].dropna()
+            vix_val = float(vix_close.iloc[-1])
+            if vix_val < 15:
+                vix_contrib = +20; vix_label = f"VIX {vix_val:.1f} — Very low volatility"
+            elif vix_val < 20:
+                vix_contrib = +10; vix_label = f"VIX {vix_val:.1f} — Low volatility"
+            elif vix_val < 25:
+                vix_contrib = 0;   vix_label = f"VIX {vix_val:.1f} — Moderate volatility"
+            elif vix_val < 35:
+                vix_contrib = -15; vix_label = f"VIX {vix_val:.1f} — Elevated volatility"
+            else:
+                vix_contrib = -25; vix_label = f"VIX {vix_val:.1f} — High fear / volatility"
+            factors["Volatility (VIX)"] = (vix_contrib, vix_label)
+            score += vix_contrib
+    except Exception as e:
+        logger.warning("macro_risk: VIX fetch failed: %s", e)
+        factors["Volatility (VIX)"] = (0, "VIX — data unavailable")
+
+    try:
+        # S&P 500 momentum (20-day trend)
+        raw_sp = yf.download("^GSPC", period="30d", interval="1d", progress=False, auto_adjust=True)
+        if not raw_sp.empty:
+            sp_close = raw_sp["Close"].dropna()
+            if len(sp_close) >= 20:
+                sp_now = float(sp_close.iloc[-1])
+                sp_20  = float(sp_close.iloc[-20])
+                sp_pct = (sp_now - sp_20) / sp_20 * 100
+                if sp_pct > 4:
+                    sp_contrib = +20; sp_label = f"S&P +{sp_pct:.1f}% (20d) — Strong bull trend"
+                elif sp_pct > 1:
+                    sp_contrib = +10; sp_label = f"S&P +{sp_pct:.1f}% (20d) — Positive momentum"
+                elif sp_pct > -2:
+                    sp_contrib = 0;   sp_label = f"S&P {sp_pct:+.1f}% (20d) — Sideways / flat"
+                elif sp_pct > -6:
+                    sp_contrib = -10; sp_label = f"S&P {sp_pct:+.1f}% (20d) — Downtrend"
+                else:
+                    sp_contrib = -20; sp_label = f"S&P {sp_pct:+.1f}% (20d) — Sharp correction"
+                factors["Market Momentum (S&P)"] = (sp_contrib, sp_label)
+                score += sp_contrib
+    except Exception as e:
+        logger.warning("macro_risk: S&P fetch failed: %s", e)
+        factors["Market Momentum (S&P)"] = (0, "S&P — data unavailable")
+
+    try:
+        # Fear & Greed contribution
+        fg = get_fear_greed_index()
+        if fg:
+            fg_score = fg["score"]
+            if fg_score >= 65:
+                fg_contrib = +15; fg_label = f"Fear & Greed {fg_score:.0f} — Greed (risk-on)"
+            elif fg_score >= 45:
+                fg_contrib = +5;  fg_label = f"Fear & Greed {fg_score:.0f} — Neutral"
+            elif fg_score >= 30:
+                fg_contrib = -10; fg_label = f"Fear & Greed {fg_score:.0f} — Fear"
+            else:
+                fg_contrib = -20; fg_label = f"Fear & Greed {fg_score:.0f} — Extreme Fear"
+            factors["Investor Sentiment"] = (fg_contrib, fg_label)
+            score += fg_contrib
+    except Exception as e:
+        logger.warning("macro_risk: Fear & Greed failed: %s", e)
+        factors["Investor Sentiment"] = (0, "Sentiment — data unavailable")
+
+    try:
+        # TLT (20Y Treasury ETF) as bond proxy — rising TLT = falling yields = risk-off
+        raw_tlt = yf.download("TLT", period="30d", interval="1d", progress=False, auto_adjust=True)
+        if not raw_tlt.empty:
+            tlt_close = raw_tlt["Close"].dropna()
+            if len(tlt_close) >= 10:
+                tlt_now = float(tlt_close.iloc[-1])
+                tlt_10  = float(tlt_close.iloc[-10])
+                tlt_pct = (tlt_now - tlt_10) / tlt_10 * 100
+                if tlt_pct > 2:
+                    tlt_contrib = -10; tlt_label = f"Treasury (TLT) +{tlt_pct:.1f}% — Yields falling / recession risk"
+                elif tlt_pct > -1:
+                    tlt_contrib = +5;  tlt_label = f"Treasury (TLT) {tlt_pct:+.1f}% — Stable rates"
+                else:
+                    tlt_contrib = +10; tlt_label = f"Treasury (TLT) {tlt_pct:+.1f}% — Yields rising / growth signal"
+                factors["Bond Market (TLT)"] = (tlt_contrib, tlt_label)
+                score += tlt_contrib
+    except Exception as e:
+        logger.warning("macro_risk: TLT fetch failed: %s", e)
+        factors["Bond Market (TLT)"] = (0, "Bond market — data unavailable")
+
+    score = max(0, min(100, score))
+
+    if score >= 70:
+        label = "RAISE NOW"; color = "#00e5b0"
+        verdict = "Macro conditions are favorable. Risk appetite is elevated, markets are trending up, and volatility is contained. Strong window to fundraise or deploy capital."
+    elif score >= 50:
+        label = "PROCEED"; color = "#4d8eff"
+        verdict = "Conditions are broadly positive but mixed. Manageable risk for fundraising or strategic investments with appropriate diligence."
+    elif score >= 35:
+        label = "CAUTION"; color = "#ffd426"
+        verdict = "Market conditions are uncertain. Elevated volatility or fear signals present. Consider waiting for clearer conditions before major capital deployment."
+    else:
+        label = "WAIT"; color = "#ff5f5f"
+        verdict = "Macro environment is hostile — high volatility, negative momentum, or extreme fear. Strong signal to hold cash, delay fundraising, and preserve runway."
+
+    return {"score": score, "label": label, "color": color, "verdict": verdict, "factors": factors}
+
+
+# ── 2. Competitor / Sector Benchmark ─────────────────────────────────────────
+@st.cache_data(ttl=180)
+def get_competitor_data(tickers: list) -> list:
+    """Fetch live quote + overview for a list of competitor tickers."""
+    results = []
+    for sym in tickers:
+        try:
+            info = get_ticker_full(sym)
+            q    = av_get_quote(sym)
+            mktcap = info.get("marketCap", 0) or 0
+            pe     = info.get("trailingPE") or info.get("forwardPE") or 0
+            week52h = info.get("fiftyTwoWeekHigh", 0) or 0
+            week52l = info.get("fiftyTwoWeekLow",  0) or 0
+            # Momentum: distance from 52w high
+            pct_from_high = ((q["price"] - week52h) / week52h * 100) if week52h > 0 else 0
+            results.append({
+                "ticker":        sym,
+                "name":          info.get("longName", sym)[:30],
+                "sector":        info.get("sector", "Unknown"),
+                "price":         q["price"],
+                "change_pct":    q["change_pct"],
+                "mktcap":        mktcap,
+                "pe":            pe,
+                "52w_high":      week52h,
+                "52w_low":       week52l,
+                "pct_from_high": pct_from_high,
+            })
+        except Exception as e:
+            logger.warning("get_competitor_data: failed for '%s': %s", sym, e)
+            results.append({
+                "ticker": sym, "name": sym, "sector": "Unknown",
+                "price": 0, "change_pct": 0, "mktcap": 0, "pe": 0,
+                "52w_high": 0, "52w_low": 0, "pct_from_high": 0,
+            })
+    return results
+
+
+# ── 3. Pre-IPO Sector Benchmark ───────────────────────────────────────────────
+SECTOR_COMPS = {
+    "Technology":          ["AAPL","MSFT","GOOGL","META","NVDA"],
+    "Fintech / Finance":   ["JPM","V","MA","PYPL","SQ"],
+    "E-Commerce":          ["AMZN","SHOP","ETSY","EBAY","WMT"],
+    "Healthcare":          ["JNJ","UNH","ABBV","PFE","MRNA"],
+    "SaaS / Cloud":        ["CRM","NOW","SNOW","DDOG","ZS"],
+    "Mobility / EV":       ["TSLA","GM","F","RIVN","LCID"],
+    "Consumer / Retail":   ["AMZN","TGT","COST","MCD","NKE"],
+    "Energy / CleanTech":  ["XOM","CVX","ENPH","FSLR","NEE"],
+    "Media / Entertainment":["NFLX","DIS","SPOT","PARA","WBD"],
+    "Biotech":             ["AMGN","GILD","BIIB","REGN","VRTX"],
+}
+
+
+# ── 4. Signal Email Digest ────────────────────────────────────────────────────
+def _build_signal_digest_html(user_email: str, watchlist: list, signals: dict) -> str:
+    """Build HTML for a signal-change email digest. `signals` maps ticker → verdict."""
+    rows_html = ""
+    for sym in watchlist:
+        try:
+            q = av_get_quote(sym)
+            price = q["price"]
+            chg   = q["change_pct"]
+            color = "#00e5b0" if chg >= 0 else "#ff5f5f"
+            arrow = "▲" if chg >= 0 else "▼"
+            sign  = "+" if chg >= 0 else ""
+            sig   = signals.get(sym, "—")
+            sig_color = {"BUY":"#00e5b0","SELL":"#ff5f5f","HOLD":"#ffd426"}.get(sig, "#8a8fa0")
+            rows_html += (
+                f'<tr>'
+                f'<td style="padding:10px 14px;font-family:monospace;font-weight:700;color:#4d8eff;">{_html_mod.escape(sym)}</td>'
+                f'<td style="padding:10px 14px;font-family:monospace;color:#e4eafd;">${price:,.2f}</td>'
+                f'<td style="padding:10px 14px;font-family:monospace;color:{color};font-weight:700;">{arrow} {sign}{chg:.2f}%</td>'
+                f'<td style="padding:10px 14px;font-family:monospace;color:{sig_color};font-weight:700;">{sig}</td>'
+                f'</tr>'
+            )
+        except Exception:
+            rows_html += (
+                f'<tr><td style="padding:10px 14px;font-family:monospace;color:#4d8eff;">{_html_mod.escape(sym)}</td>'
+                f'<td colspan="3" style="padding:10px 14px;color:#8a8fa0;">Data unavailable</td></tr>'
+            )
+    date_str = pd.Timestamp.now().strftime("%B %d, %Y · %H:%M UTC")
+    return f"""<!DOCTYPE html><html><body style="margin:0;padding:0;background:#080e1c;">
+    <div style="max-width:600px;margin:32px auto;background:#0f1727;border-radius:12px;border:1px solid #252f47;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#0f1727,#141d30);padding:28px 32px;border-bottom:2px solid #4d8eff;">
+        <div style="font-family:monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#4d8eff;margin-bottom:6px;">Stockcast · Signal Alert</div>
+        <div style="font-size:22px;font-weight:800;color:#e4eafd;">📊 Signal Update</div>
+        <div style="font-size:13px;color:#8a8fa0;margin-top:4px;">{date_str}</div>
+      </div>
+      <div style="padding:24px 32px;">
+        <table style="width:100%;border-collapse:collapse;background:#080e1c;border-radius:8px;overflow:hidden;">
+          <thead><tr style="background:#141d30;">
+            <th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#3e4558;">Ticker</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#3e4558;">Price</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#3e4558;">Change</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#3e4558;">Signal</th>
+          </tr></thead>
+          <tbody>{rows_html}</tbody>
+        </table>
+        <div style="margin-top:20px;padding:14px 18px;background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2);border-radius:8px;font-size:11px;color:#8a8fa0;line-height:1.6;">
+          ⚠ Signals are AI-generated from technical analysis only. Not financial advice.
+        </div>
+      </div>
+      <div style="padding:18px 32px;border-top:1px solid #252f47;text-align:center;">
+        <div style="font-size:11px;color:#3e4558;">Sent to {_html_mod.escape(user_email)} · <a href="https://muawwizghani-stock-forecast.streamlit.app" style="color:#4d8eff;text-decoration:none;">Open Stockcast</a></div>
+      </div>
+    </div></body></html>"""
+
+
+# ── 5. Investor Report PDF data collector ─────────────────────────────────────
+def _build_investor_report_csv(ticker: str, df, preds, actual, rmse, mae, mape, r2, composite_sig: dict) -> str:
+    """Return a CSV string with key metrics for investor export."""
+    import io as _io
+    buf = _io.StringIO()
+    last_close = float(df["Close"].squeeze().iloc[-1])
+    rows = [
+        ["STOCKCAST — Investor Intelligence Report"],
+        [f"Ticker: {ticker}", f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M UTC')}"],
+        [],
+        ["── PRICE DATA ──"],
+        ["Last Close ($)", f"{last_close:.2f}"],
+        ["52w High ($)", f"{df['Close'].squeeze().max():.2f}"],
+        ["52w Low ($)",  f"{df['Close'].squeeze().min():.2f}"],
+        ["Days of Data", str(len(df))],
+        [],
+        ["── AI MODEL PERFORMANCE ──"],
+        ["RMSE ($)", f"{rmse:.2f}"],
+        ["MAE ($)",  f"{mae:.2f}"],
+        ["MAPE (%)", f"{mape:.2f}"],
+        ["R² Score", f"{r2:.4f}"],
+        [],
+        ["── SIGNAL INTELLIGENCE ──"],
+        ["Composite Signal", composite_sig.get("verdict_short", "—")],
+        ["Score (±100)",     f"{composite_sig.get('total_score', 0):+.0f}"],
+        ["XGBoost Forecast %", f"{composite_sig.get('xgb_pct', 0):+.2f}%"],
+        ["Take Profit ($)",  f"{composite_sig.get('take_profit', 0):.2f}"],
+        ["Stop Loss ($)",    f"{composite_sig.get('stop_loss', 0):.2f}"],
+        ["Risk/Reward",      f"{composite_sig.get('risk_reward', 0):.2f}x"],
+        [],
+        ["── DISCLAIMER ──"],
+        ["Stockcast is for educational purposes only. Not financial advice."],
+        ["Past performance does not guarantee future results."],
+    ]
+    import csv
+    writer = csv.writer(buf)
+    writer.writerows(rows)
+    return buf.getvalue()
+
+
 import nltk
 
 def _ensure_nltk_data():
@@ -1203,6 +1467,10 @@ if "show_upgrade_modal" not in st.session_state:
     st.session_state.show_upgrade_modal = False
 if "email_alerts_enabled" not in st.session_state:
     st.session_state.email_alerts_enabled = False
+if "competitor_tickers" not in st.session_state:
+    st.session_state.competitor_tickers = []
+if "signal_history" not in st.session_state:
+    st.session_state.signal_history = {}   # ticker → list of {date, verdict, score}
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -1528,12 +1796,10 @@ label, [data-testid="stSelectbox"] label,
     background: transparent !important;
     position: relative !important;
     overflow: hidden !important;
-    /* ECG trace drawn as an SVG data-URI */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 48' preserveAspectRatio='none'%3E%3Cpolyline points='0,24 20,24 28,24 32,6 36,42 40,10 44,38 48,24 68,24 80,24 86,4 90,44 94,4 98,24 118,24 130,24 136,4 140,44 144,4 148,24 168,24 200,24' fill='none' stroke='%234d8eff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
     background-size: 200px 48px !important;
     background-repeat: repeat-x !important;
     animation: ecg-scroll 1.4s linear infinite !important;
-    /* Fading masks on left/right edges */
     -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important;
     mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important;
 }
@@ -1543,7 +1809,6 @@ label, [data-testid="stSelectbox"] label,
     100% { background-position: 200px 0; }
 }
 
-/* Glowing scan-line dot that rides the wave */
 [data-testid="stSpinner"] > div::after {
     content: '' !important;
     display: block !important;
@@ -3444,6 +3709,37 @@ if not run_btn:
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
+    # ── Macro Climate Mini-Card on landing ─────────────────────────────────
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+    st.subheader("🌡  Market Climate · Startup Risk Scanner")
+    with st.spinner("Computing macro climate..."):
+        _lp_macro = get_macro_risk_score()
+    _lp_mc = _lp_macro["score"]; _lp_ml = _lp_macro["label"]; _lp_mco = _lp_macro["color"]
+    _lp_mv = _lp_macro["verdict"]
+    _lp_mc1, _lp_mc2 = st.columns([1, 3])
+    with _lp_mc1:
+        st.markdown(f"""
+        <div style="background:linear-gradient(145deg,#0f1727,#080e1c);border:2px solid {_lp_mco};
+             border-radius:1rem;padding:1.5rem;text-align:center;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:2.8rem;font-weight:700;color:{_lp_mco};line-height:1;">{_lp_mc:.0f}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.58rem;color:#8a8fa0;margin-bottom:.6rem;">/100 Climate Score</div>
+          <div style="background:{_lp_mco};color:#080e1c;font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;
+               letter-spacing:.09em;text-transform:uppercase;padding:.4rem .8rem;border-radius:.3rem;display:inline-block;">
+            {_lp_ml}
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with _lp_mc2:
+        st.markdown(f"""
+        <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.15);border-radius:.75rem;padding:1.2rem 1.5rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#4d8eff;margin-bottom:.4rem;">What this means for your startup</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#c8cedd;line-height:1.65;">{_lp_mv}</div>
+          <div style="margin-top:.8rem;font-family:Manrope,sans-serif;font-size:.65rem;color:#3e4558;">
+            Run any analysis → open <b style="color:#4d8eff;">Startup Hub</b> tab for full macro breakdown, competitor radar &amp; investor reports.
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     # Upgrade CTA — only for free users
     if not _is_pro():
         st.markdown(f"""
@@ -3653,7 +3949,7 @@ else:
         st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
 
         # Tabs
-        dash_tab, port_tab, mkt_tab, deep_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], _L["deep_analysis"]])
+        dash_tab, port_tab, mkt_tab, deep_tab, startup_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], _L["deep_analysis"], "🚀  Startup Hub"])
 
         # ──────────────────────────────────────────────────────────────────────
         with dash_tab:
@@ -4499,7 +4795,459 @@ else:
                 except Exception as e:
                     st.warning(f"Could not fetch news: {e}")
 
-# ── Footer ─────────────────────────────────────────────────────────────────────
+        # ══════════════════════════════════════════════════════════════════════
+        with startup_tab:
+            st.markdown("""
+            <div style="margin-bottom:1.4rem;">
+              <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#e4eafd;">
+                Startup <span style="color:#4d8eff;">Hub</span>
+              </div>
+              <div style="font-size:.83rem;color:#8a8fa0;margin-top:.3rem;line-height:1.6;max-width:680px;">
+                Intelligence tools built for founders — macro risk scanner, competitor tracking,
+                sector benchmarks, signal alerts, and investor-ready exports.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st_feat1, st_feat2, st_feat3 = st.tabs([
+                "🌡  Macro Climate",
+                "🔭  Competitor Radar",
+                "📑  Investor Report",
+            ])
+
+            # ── FEATURE 1: Macro Risk / Climate Scanner ────────────────────────
+            with st_feat1:
+                st.markdown("""
+                <div style="background:rgba(77,142,255,0.06);border:1px solid rgba(77,142,255,0.2);
+                     border-left:4px solid #4d8eff;padding:.9rem 1.4rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.14em;
+                       text-transform:uppercase;color:#4d8eff;margin-bottom:.3rem;">Macro Climate Scanner</div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8a8fa0;line-height:1.6;">
+                    Real-time composite score built from VIX, S&P momentum, Fear &amp; Greed, and bond market signals.
+                    Tells founders: <b style="color:#e4eafd;">RAISE NOW · PROCEED · CAUTION · WAIT</b>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                with st.spinner("Computing macro climate score..."):
+                    macro = get_macro_risk_score()
+
+                _mc_score  = macro["score"]
+                _mc_label  = macro["label"]
+                _mc_color  = macro["color"]
+                _mc_verdict = macro["verdict"]
+                _mc_factors = macro["factors"]
+
+                # Main score card
+                _mc_pct = f"{max(2, min(98, _mc_score)):.0f}%"
+                _mc_arc_bg = f"conic-gradient({_mc_color} {_mc_pct}, #1e2740 0%)"
+                st.markdown(f"""
+                <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;margin-bottom:1.5rem;">
+                  <div style="background:linear-gradient(145deg,#0f1727,#080e1c);border:2px solid {_mc_color};
+                       border-radius:1.2rem;padding:2rem 2.5rem;text-align:center;min-width:240px;
+                       box-shadow:0 0 40px rgba({','.join(str(int(_mc_color.lstrip('#')[i:i+2],16)) for i in (0,2,4))},0.15);">
+                    <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.18em;
+                         text-transform:uppercase;color:#3e4558;margin-bottom:.6rem;">Market Climate</div>
+                    <div style="font-family:IBM Plex Mono,monospace;font-size:4rem;font-weight:700;
+                         color:{_mc_color};line-height:1;">{_mc_score:.0f}</div>
+                    <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;margin-bottom:.8rem;">/100</div>
+                    <div style="background:{_mc_color};color:#080e1c;font-family:Manrope,sans-serif;
+                         font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+                         padding:.5rem 1.2rem;border-radius:.4rem;display:inline-block;">
+                      {_mc_label}
+                    </div>
+                    <div style="height:4px;background:linear-gradient(90deg,#ff5f5f,#ffd426,#00e5b0);border-radius:2px;
+                         margin-top:1.2rem;position:relative;">
+                      <div style="position:absolute;top:-6px;left:{_mc_pct};transform:translateX(-50%);
+                           width:3px;height:16px;background:#e4eafd;border-radius:1px;"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:.4rem;
+                         font-size:.5rem;color:#3e4558;text-transform:uppercase;font-weight:700;">
+                      <span>Wait</span><span>Caution</span><span>Raise</span>
+                    </div>
+                  </div>
+                  <div style="flex:1;min-width:280px;">
+                    <div style="background:rgba({'0,229,176' if _mc_score>=70 else '255,212,38' if _mc_score>=50 else '255,107,107'},0.06);
+                         border:1px solid {_mc_color};border-left:4px solid {_mc_color};
+                         padding:1rem 1.4rem;border-radius:0 .6rem .6rem 0;margin-bottom:1rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;
+                           text-transform:uppercase;color:{_mc_color};margin-bottom:.4rem;">Verdict</div>
+                      <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#c8cedd;line-height:1.65;">
+                        {_mc_verdict}
+                      </div>
+                    </div>
+                    <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;
+                         text-transform:uppercase;color:#3e4558;margin-bottom:.5rem;">Factor Breakdown</div>
+                    {"".join(f'''<div style="display:flex;align-items:center;justify-content:space-between;
+                         padding:.6rem .9rem;background:#0f1727;border:1px solid #1e2740;
+                         border-left:2px solid {'#00e5b0' if contrib>=0 else '#ff5f5f'};
+                         border-radius:0 .4rem .4rem 0;margin-bottom:.3rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.72rem;color:#8a8fa0;">{label}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;font-weight:700;
+                           color:{'#00e5b0' if contrib>0 else '#ff5f5f' if contrib<0 else '#ffd426'};">
+                        {'+' if contrib>0 else ''}{contrib}
+                      </div>
+                    </div>''' for factor, (contrib, label) in _mc_factors.items())}
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Historical macro signal chart (S&P last 90 days)
+                try:
+                    _sp_hist = yf.download("^GSPC", period="90d", interval="1d", progress=False, auto_adjust=True)
+                    if not _sp_hist.empty:
+                        _sp_c = _sp_hist["Close"].dropna()
+                        fig_macro = go.Figure()
+                        fig_macro.add_trace(go.Scatter(
+                            x=_sp_c.index, y=_sp_c.values,
+                            name="S&P 500 (90d)",
+                            line=dict(color="#4d8eff", width=1.8),
+                            fill="tozeroy", fillcolor="rgba(77,142,255,0.07)"
+                        ))
+                        fig_macro.update_layout(
+                            **PLOTLY_LAYOUT,
+                            title=dict(text="S&P 500 · 90-Day Macro Context", font=dict(color=C_GREEN, size=12)),
+                            height=220,
+                        )
+                        st.plotly_chart(fig_macro, use_container_width=True)
+                except Exception:
+                    pass
+
+                st.caption("⚠ Macro Climate is a composite heuristic — not a guaranteed predictor of market conditions. Always consult a financial advisor before major capital decisions.")
+
+            # ── FEATURE 2: Competitor Radar ───────────────────────────────────
+            with st_feat2:
+                st.markdown("""
+                <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18);
+                     border-left:4px solid #00e5b0;padding:.9rem 1.4rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.14em;
+                       text-transform:uppercase;color:#00e5b0;margin-bottom:.3rem;">Competitor Radar &amp; Sector Benchmark</div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8a8fa0;line-height:1.6;">
+                    Track public competitors' health, momentum, and valuation. Use for pitch prep, M&amp;A intel, and "comparable companies" tables.
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # ── Sub-section A: Manual competitor tracker ──────────────────
+                st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">Custom Competitor Watch</div>', unsafe_allow_html=True)
+
+                _comp_input_col, _comp_add_col = st.columns([4, 1])
+                with _comp_input_col:
+                    _comp_new = st.text_input(
+                        "Add competitor ticker",
+                        placeholder="e.g. MSFT, AAPL, SHOP  (comma-separated)",
+                        label_visibility="collapsed",
+                        key="comp_ticker_input"
+                    )
+                with _comp_add_col:
+                    if st.button("➕ Add", key="comp_add_btn", use_container_width=True):
+                        _new_syms = [s.strip().upper() for s in _comp_new.split(",") if s.strip()]
+                        for _ns in _new_syms:
+                            if _ns and _ns not in st.session_state.competitor_tickers and len(st.session_state.competitor_tickers) < 10:
+                                st.session_state.competitor_tickers.append(_ns)
+                        st.rerun()
+
+                # Also include current ticker automatically
+                _all_comps = list(dict.fromkeys([ticker] + st.session_state.competitor_tickers))
+
+                if len(_all_comps) > 1:
+                    with st.spinner("Fetching competitor data..."):
+                        _comp_data = get_competitor_data(_all_comps)
+
+                    # Remove individual tickers
+                    _rem_cols = st.columns(min(len(st.session_state.competitor_tickers), 6))
+                    for _i, _csym in enumerate(list(st.session_state.competitor_tickers)):
+                        with _rem_cols[_i % 6]:
+                            if st.button(f"✕ {_csym}", key=f"comp_rem_{_csym}_{_i}", use_container_width=True):
+                                st.session_state.competitor_tickers.remove(_csym)
+                                st.rerun()
+
+                    # Comparison table
+                    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;margin:.8rem 0 .4rem;">Live Comparison</div>', unsafe_allow_html=True)
+                    _comp_header_cols = st.columns([1.2, 2.5, 1.2, 1.2, 1.4, 1.4, 1.5])
+                    for _ch, _ct in zip(_comp_header_cols, ["Ticker","Company","Price","Chg%","Mkt Cap","P/E","vs 52w High"]):
+                        _ch.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_ct}</div>', unsafe_allow_html=True)
+
+                    for _cd in _comp_data:
+                        _is_current = _cd["ticker"] == ticker
+                        _row_bg = "rgba(77,142,255,0.07)" if _is_current else "transparent"
+                        _chg_col = "#00e5b0" if _cd["change_pct"] >= 0 else "#ff5f5f"
+                        _sign    = "+" if _cd["change_pct"] >= 0 else ""
+                        _mktcap_fmt = f"${_cd['mktcap']/1e12:.2f}T" if _cd['mktcap'] >= 1e12 else f"${_cd['mktcap']/1e9:.1f}B" if _cd['mktcap'] >= 1e9 else f"${_cd['mktcap']/1e6:.0f}M" if _cd['mktcap'] > 0 else "—"
+                        _pe_fmt  = f"{_cd['pe']:.1f}x" if _cd['pe'] > 0 else "—"
+                        _from_high_col = "#ff5f5f" if _cd['pct_from_high'] < -20 else "#ffd426" if _cd['pct_from_high'] < -10 else "#00e5b0"
+                        _from_high_str = f"{_cd['pct_from_high']:+.1f}%" if _cd['52w_high'] > 0 else "—"
+
+                        _rc = st.columns([1.2, 2.5, 1.2, 1.2, 1.4, 1.4, 1.5])
+                        _rc[0].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:#4d8eff;padding:.5rem 0;background:{_row_bg};border-radius:.3rem;">{_cd["ticker"]}{"  ←" if _is_current else ""}</div>', unsafe_allow_html=True)
+                        _rc[1].markdown(f'<div style="font-size:.73rem;color:#8a8fa0;padding:.5rem 0;">{_cd["name"]}</div>', unsafe_allow_html=True)
+                        _rc[2].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#e4eafd;padding:.5rem 0;">${_cd["price"]:,.2f}</div>', unsafe_allow_html=True)
+                        _rc[3].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:{_chg_col};padding:.5rem 0;">{_sign}{_cd["change_pct"]:.2f}%</div>', unsafe_allow_html=True)
+                        _rc[4].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#8a8fa0;padding:.5rem 0;">{_mktcap_fmt}</div>', unsafe_allow_html=True)
+                        _rc[5].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#adc6ff;padding:.5rem 0;">{_pe_fmt}</div>', unsafe_allow_html=True)
+                        _rc[6].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;font-weight:700;color:{_from_high_col};padding:.5rem 0;">{_from_high_str}</div>', unsafe_allow_html=True)
+
+                    # Price performance chart
+                    if len(_all_comps) >= 2:
+                        st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;margin:1rem 0 .4rem;">Relative Price Performance · 90 Days (Rebased to 100)</div>', unsafe_allow_html=True)
+                        try:
+                            _comp_hist = yf.download(_all_comps[:6], period="90d", interval="1d", progress=False, auto_adjust=True)
+                            _comp_close = _comp_hist["Close"] if "Close" in _comp_hist.columns else _comp_hist
+                            if isinstance(_comp_close.columns, pd.MultiIndex):
+                                _comp_close = _comp_close.droplevel(0, axis=1)
+                            if isinstance(_comp_close, pd.Series):
+                                _comp_close = _comp_close.to_frame(name=_all_comps[0])
+                            fig_comp = go.Figure()
+                            _colors_comp = ["#4d8eff","#00e5b0","#ffd426","#ff5f5f","#adc6ff","#ff9f40"]
+                            for _ci, _csym in enumerate(_all_comps[:6]):
+                                if _csym in _comp_close.columns:
+                                    _series = _comp_close[_csym].dropna()
+                                    if not _series.empty:
+                                        _rebased = (_series / _series.iloc[0]) * 100
+                                        fig_comp.add_trace(go.Scatter(
+                                            x=_rebased.index, y=_rebased.values,
+                                            name=_csym,
+                                            line=dict(color=_colors_comp[_ci % len(_colors_comp)], width=1.8 if _csym==ticker else 1.2,
+                                                      dash="solid" if _csym==ticker else "dot")
+                                        ))
+                            fig_comp.update_layout(
+                                **PLOTLY_LAYOUT,
+                                title=dict(text="Relative Performance · 90-Day Rebased (100 = start)", font=dict(color=C_GREEN, size=12)),
+                                height=340,
+                            )
+                            st.plotly_chart(fig_comp, use_container_width=True)
+                        except Exception as _e:
+                            st.info(f"Could not fetch multi-ticker history: {_e}")
+                else:
+                    st.info("Add competitor tickers above to see comparison. Your current analysis ticker is always included.")
+
+                st.markdown("<hr style='margin:1.2rem 0;'>", unsafe_allow_html=True)
+
+                # ── Sub-section B: Pre-IPO Sector Benchmark ───────────────────
+                st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">📊 Sector Benchmark — Public Comparables</div>', unsafe_allow_html=True)
+                st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8a8fa0;margin-bottom:.8rem;line-height:1.6;">Select your sector to see a pre-built table of public comps — useful for investor pitch "comparable company" sections.</div>', unsafe_allow_html=True)
+
+                _sector_choice = st.selectbox(
+                    "Select your sector",
+                    list(SECTOR_COMPS.keys()),
+                    label_visibility="collapsed",
+                    key="sector_bench_select"
+                )
+                with st.spinner(f"Loading {_sector_choice} benchmarks..."):
+                    _bench_data = get_competitor_data(SECTOR_COMPS[_sector_choice])
+
+                # Sector benchmark table
+                _bh = st.columns([1.2, 2.5, 1.2, 1.2, 1.4, 1.4, 1.5])
+                for _bh_col, _bt in zip(_bh, ["Ticker","Company","Price","Chg%","Mkt Cap","P/E","vs 52w High"]):
+                    _bh_col.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_bt}</div>', unsafe_allow_html=True)
+
+                for _bd in _bench_data:
+                    _bc_chg_col = "#00e5b0" if _bd["change_pct"] >= 0 else "#ff5f5f"
+                    _bc_sign    = "+" if _bd["change_pct"] >= 0 else ""
+                    _bc_mktcap  = f"${_bd['mktcap']/1e12:.2f}T" if _bd['mktcap'] >= 1e12 else f"${_bd['mktcap']/1e9:.1f}B" if _bd['mktcap'] >= 1e9 else f"${_bd['mktcap']/1e6:.0f}M" if _bd['mktcap'] > 0 else "—"
+                    _bc_pe      = f"{_bd['pe']:.1f}x" if _bd['pe'] > 0 else "—"
+                    _bc_fhc     = "#ff5f5f" if _bd['pct_from_high'] < -20 else "#ffd426" if _bd['pct_from_high'] < -10 else "#00e5b0"
+                    _bc_fhs     = f"{_bd['pct_from_high']:+.1f}%" if _bd['52w_high'] > 0 else "—"
+                    _bcr = st.columns([1.2, 2.5, 1.2, 1.2, 1.4, 1.4, 1.5])
+                    _bcr[0].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:#4d8eff;padding:.4rem 0;">{_bd["ticker"]}</div>', unsafe_allow_html=True)
+                    _bcr[1].markdown(f'<div style="font-size:.73rem;color:#8a8fa0;padding:.4rem 0;">{_bd["name"]}</div>', unsafe_allow_html=True)
+                    _bcr[2].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#e4eafd;padding:.4rem 0;">${_bd["price"]:,.2f}</div>', unsafe_allow_html=True)
+                    _bcr[3].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:{_bc_chg_col};padding:.4rem 0;">{_bc_sign}{_bd["change_pct"]:.2f}%</div>', unsafe_allow_html=True)
+                    _bcr[4].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#8a8fa0;padding:.4rem 0;">{_bc_mktcap}</div>', unsafe_allow_html=True)
+                    _bcr[5].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#adc6ff;padding:.4rem 0;">{_bc_pe}</div>', unsafe_allow_html=True)
+                    _bcr[6].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;font-weight:700;color:{_bc_fhc};padding:.4rem 0;">{_bc_fhs}</div>', unsafe_allow_html=True)
+
+                # Median P/E callout
+                _valid_pes = [_bd['pe'] for _bd in _bench_data if _bd['pe'] > 0]
+                if _valid_pes:
+                    _med_pe = sorted(_valid_pes)[len(_valid_pes)//2]
+                    _avg_chg = sum(_bd['change_pct'] for _bd in _bench_data) / len(_bench_data)
+                    st.markdown(f"""
+                    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.8rem;">
+                      <div style="background:rgba(77,142,255,0.06);border:1px solid rgba(77,142,255,0.2);
+                           border-radius:.5rem;padding:.7rem 1.2rem;flex:1;min-width:160px;">
+                        <div style="font-family:Manrope,sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Sector Median P/E</div>
+                        <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#adc6ff;">{_med_pe:.1f}x</div>
+                      </div>
+                      <div style="background:rgba({'0,229,176' if _avg_chg>=0 else '255,107,107'},0.06);border:1px solid rgba({'0,229,176' if _avg_chg>=0 else '255,107,107'},0.2);
+                           border-radius:.5rem;padding:.7rem 1.2rem;flex:1;min-width:160px;">
+                        <div style="font-family:Manrope,sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Avg Daily Change</div>
+                        <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:{'#00e5b0' if _avg_chg>=0 else '#ff5f5f'};">{'+' if _avg_chg>=0 else ''}{_avg_chg:.2f}%</div>
+                      </div>
+                      <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.15);
+                           border-radius:.5rem;padding:.7rem 1.2rem;flex:1;min-width:160px;">
+                        <div style="font-family:Manrope,sans-serif;font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Companies Tracked</div>
+                        <div style="font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#ffd426;">{len(_bench_data)}</div>
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # ── FEATURE 3: Investor Report ─────────────────────────────────────
+            with st_feat3:
+                st.markdown("""
+                <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2);
+                     border-left:4px solid #ffd426;padding:.9rem 1.4rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.14em;
+                       text-transform:uppercase;color:#ffd426;margin-bottom:.3rem;">Investor Report Generator</div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.8rem;color:#8a8fa0;line-height:1.6;">
+                    One-click CSV export of AI analysis, signals, model performance, and price data — ready for pitch decks or treasury memos.
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Report preview card
+                _ir_composite = None
+                try:
+                    _ir_composite = compute_composite_signal(df, last_close, preds[-1], preds, actual)
+                except Exception:
+                    pass
+
+                _ir_col1, _ir_col2 = st.columns(2)
+                with _ir_col1:
+                    st.markdown(f"""
+                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
+                         border-top:2px solid #ffd426;border-radius:.75rem;padding:1.3rem 1.5rem;margin-bottom:.6rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;letter-spacing:.12em;
+                           text-transform:uppercase;color:#ffd426;margin-bottom:.8rem;">Report Summary · {ticker}</div>
+                      <div style="display:flex;flex-direction:column;gap:.4rem;">
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">Last Close</span>
+                          <span style="color:#e4eafd;">${last_close:.2f}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">52w Range</span>
+                          <span style="color:#e4eafd;">${float(df["Close"].squeeze().min()):.2f} — ${float(df["Close"].squeeze().max()):.2f}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">MAPE</span>
+                          <span style="color:#adc6ff;">{mape:.2f}%</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">R² Score</span>
+                          <span style="color:#00e5b0;">{r2:.4f}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">AI Signal</span>
+                          <span style="color:{'#00e5b0' if _ir_composite and _ir_composite.get('verdict_short')=='BUY' else '#ff5f5f' if _ir_composite and _ir_composite.get('verdict_short')=='SELL' else '#ffd426'};">
+                            {_ir_composite.get('verdict_short', '—') if _ir_composite else '—'}
+                          </span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">Signal Score</span>
+                          <span style="color:#adc6ff;">{f"{_ir_composite.get('total_score',0):+.0f}/±100" if _ir_composite else '—'}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">Take Profit</span>
+                          <span style="color:#00e5b0;">${_ir_composite.get('take_profit',0):.2f} if _ir_composite else '—'</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
+                          <span style="color:#8a8fa0;">Stop Loss</span>
+                          <span style="color:#ff5f5f;">${_ir_composite.get('stop_loss',0):.2f} if _ir_composite else '—'</span>
+                        </div>
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with _ir_col2:
+                    # Signal Alert Dispatcher
+                    st.markdown(f"""
+                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
+                         border-top:2px solid #4d8eff;border-radius:.75rem;padding:1.3rem 1.5rem;margin-bottom:.6rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;letter-spacing:.12em;
+                           text-transform:uppercase;color:#4d8eff;margin-bottom:.6rem;">📧 Signal Email Dispatcher</div>
+                      <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#8a8fa0;line-height:1.55;margin-bottom:.8rem;">
+                        Fire a one-time signal update email to your inbox right now with all watchlist signals.
+                      </div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;margin-bottom:.3rem;">
+                        📬 {st.session_state.user.email}
+                      </div>
+                      <div style="font-family:Manrope,sans-serif;font-size:.68rem;color:#252f47;">
+                        Requires SMTP_HOST, SMTP_USER, SMTP_PASS in Streamlit secrets.
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # Send signal email button
+                    if st.button("📧 Send Signal Update Email", key="send_signal_email", use_container_width=True):
+                        _wl_for_email = st.session_state.watchlist or [ticker]
+                        _sigs_for_email = dict(st.session_state.alert_signals)
+                        if ticker and _ir_composite:
+                            _sigs_for_email[ticker] = _ir_composite.get("verdict_short", "—")
+                        try:
+                            _html_body = _build_signal_digest_html(
+                                st.session_state.user.email,
+                                _wl_for_email,
+                                _sigs_for_email
+                            )
+                            _sent = _send_email(
+                                st.session_state.user.email,
+                                f"Stockcast Signal Update · {ticker} · {pd.Timestamp.now().strftime('%b %d')}",
+                                _html_body
+                            )
+                            if _sent:
+                                st.success(f"✓ Signal email sent to {st.session_state.user.email}")
+                            else:
+                                st.warning("⚠ Email not sent — check SMTP credentials in Streamlit secrets.")
+                        except Exception as _mail_e:
+                            st.error(f"Email error: {_mail_e}")
+
+                # Signal History tracker
+                st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;margin:1rem 0 .5rem;">📈 Signal History Log</div>', unsafe_allow_html=True)
+
+                # Record current signal
+                if _ir_composite:
+                    _today_sig = {
+                        "date": pd.Timestamp.now().strftime("%b %d %H:%M"),
+                        "verdict": _ir_composite.get("verdict_short", "—"),
+                        "score":   _ir_composite.get("total_score", 0),
+                        "price":   last_close,
+                    }
+                    _hist_key = ticker
+                    if _hist_key not in st.session_state.signal_history:
+                        st.session_state.signal_history[_hist_key] = []
+                    # Avoid duplicates within same session run
+                    _existing_dates = [x["date"] for x in st.session_state.signal_history[_hist_key]]
+                    if _today_sig["date"] not in _existing_dates:
+                        st.session_state.signal_history[_hist_key].insert(0, _today_sig)
+                        st.session_state.signal_history[_hist_key] = st.session_state.signal_history[_hist_key][:20]
+
+                _sig_log = st.session_state.signal_history.get(ticker, [])
+                if _sig_log:
+                    _sl_cols = st.columns([1.5, 1.2, 1.2, 1.5])
+                    for _sc_h, _sc_t in zip(_sl_cols, ["Date","Signal","Score","Price"]):
+                        _sc_h.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_sc_t}</div>', unsafe_allow_html=True)
+                    for _se in _sig_log[:10]:
+                        _sc = "#00e5b0" if _se["verdict"]=="BUY" else "#ff5f5f" if _se["verdict"]=="SELL" else "#ffd426"
+                        _sr = st.columns([1.5, 1.2, 1.2, 1.5])
+                        _sr[0].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#3e4558;padding:.3rem 0;">{_se["date"]}</div>', unsafe_allow_html=True)
+                        _sr[1].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;font-weight:700;color:{_sc};padding:.3rem 0;">{_se["verdict"]}</div>', unsafe_allow_html=True)
+                        _sr[2].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:#adc6ff;padding:.3rem 0;">{_se["score"]:+.0f}</div>', unsafe_allow_html=True)
+                        _sr[3].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:#e4eafd;padding:.3rem 0;">${_se["price"]:.2f}</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#252f47;padding:.5rem 0;">No signal history yet this session.</div>', unsafe_allow_html=True)
+
+                st.markdown("<hr style='margin:1rem 0;'>", unsafe_allow_html=True)
+
+                # CSV download button
+                st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">⬇ Download Investor Report (CSV)</div>', unsafe_allow_html=True)
+                if _ir_composite:
+                    _report_csv = _build_investor_report_csv(
+                        ticker, df, preds, actual, rmse, mae, mape, r2, _ir_composite
+                    )
+                    st.download_button(
+                        label=f"⬇ Download {ticker} Investor Report · {pd.Timestamp.now().strftime('%Y-%m-%d')}.csv",
+                        data=_report_csv,
+                        file_name=f"stockcast_{ticker}_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="investor_report_dl"
+                    )
+                else:
+                    st.info("Run analysis first to generate an investor report.")
+
+                st.caption("⚠ Report is for educational and research purposes only. Not financial advice. Always consult a licensed advisor before investment decisions.")
+
+
 st.markdown(f"""
 <div style="text-align:center;margin-top:4rem;padding:2rem 1rem;border-top:1px solid #1e2740;">
   <div style="display:flex;align-items:center;justify-content:center;gap:1.2rem;flex-wrap:wrap;margin-bottom:1rem;">
