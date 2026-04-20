@@ -2110,11 +2110,11 @@ label, [data-testid="stSelectbox"] label,
     margin-top: 0.3rem;
 }
 
-/* ============================================================
-   METAPHOR SYSTEM  7 expert UI patterns for Stockcast
-   ============================================================ */
+/* ====================================================================
+   METAPHOR SYSTEM  ·  7 expert UI patterns  — STOCKCAST
+   ==================================================================== */
 
-/* 1. TABS - premium pill style with notification dots */
+/* 1. TABS — premium pill-style with notification dots */
 [data-testid="stTabs"] [role="tablist"] {
     background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 100%) !important;
     border: 1px solid var(--border) !important;
@@ -2156,16 +2156,16 @@ label, [data-testid="stSelectbox"] label,
 }
 .tab-dot {
     display: inline-block; width: 6px; height: 6px;
-    background: var(--red); border-radius: 50%; margin-left: 5px;
-    vertical-align: top; margin-top: 1px;
+    background: var(--red); border-radius: 50%;
+    margin-left: 5px; vertical-align: top; margin-top: 1px;
     box-shadow: 0 0 6px rgba(255,95,95,0.7);
     animation: tab-dot-pulse 2s ease-in-out infinite;
 }
 .tab-dot.green  { background: var(--emerald); box-shadow: 0 0 6px rgba(0,229,176,0.7); }
 .tab-dot.yellow { background: var(--yellow);  box-shadow: 0 0 6px rgba(255,212,38,0.7); }
 @keyframes tab-dot-pulse {
-    0%,100% { opacity:1; transform:scale(1); }
-    50%     { opacity:0.6; transform:scale(0.85); }
+    0%,100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.6; transform: scale(0.85); }
 }
 
 /* 2. SKELETON LOADING */
@@ -2177,7 +2177,7 @@ label, [data-testid="stSelectbox"] label,
 }
 @keyframes skeleton-shimmer {
     0%   { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+    100% { background-position:   0% 50%; }
 }
 .skeleton-card {
     background: var(--bg2); border: 1px solid var(--border);
@@ -2188,20 +2188,18 @@ label, [data-testid="stSelectbox"] label,
     content: ''; position: absolute; inset: 0;
     background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
     background-size: 200% 100%;
-    animation: skeleton-overlay 1.6s ease-in-out infinite;
+    animation: sk-overlay 1.6s ease-in-out infinite;
 }
-@keyframes skeleton-overlay {
+@keyframes sk-overlay {
     0%   { background-position: 200% 0; }
     100% { background-position: -200% 0; }
 }
-.sk-line        { height: 10px; margin-bottom: 8px; }
-.sk-line.w-100  { width: 100%; }
-.sk-line.w-80   { width: 80%; }
-.sk-line.w-60   { width: 60%; }
-.sk-line.w-40   { width: 40%; }
-.sk-line.title  { height: 20px; margin-bottom: 10px; width: 50%; }
-.sk-line.value  { height: 28px; width: 70%; margin-bottom: 6px; }
-.sk-circle      { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+.sk-line       { height: 10px; margin-bottom: 8px; border-radius: 4px; }
+.sk-line.w-100 { width: 100%; }  .sk-line.w-80 { width: 80%; }
+.sk-line.w-60  { width: 60%; }   .sk-line.w-40 { width: 40%; }
+.sk-line.title { height: 20px; width: 50%; margin-bottom: 10px; }
+.sk-line.value { height: 28px; width: 70%; margin-bottom: 6px; }
+.sk-circle     { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
 
 /* 3. CHIPS */
 .chip {
@@ -2210,23 +2208,23 @@ label, [data-testid="stSelectbox"] label,
     letter-spacing: 0.08em; text-transform: uppercase;
     padding: 0.3rem 0.75rem; border-radius: 100px;
     border: 1px solid var(--border2); background: var(--bg3);
-    color: var(--t3); cursor: default;
-    transition: all 0.15s ease; white-space: nowrap; user-select: none;
+    color: var(--t3); white-space: nowrap; user-select: none;
+    transition: all 0.15s ease;
 }
 .chip:hover { border-color: var(--accent); color: var(--t2); background: rgba(77,142,255,0.08); }
-.chip.buy   { background: rgba(0,229,176,0.1);  border-color: rgba(0,229,176,0.4);  color: var(--emerald); }
-.chip.sell  { background: rgba(255,95,95,0.1);   border-color: rgba(255,95,95,0.4);  color: var(--red); }
-.chip.hold  { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.4); color: var(--yellow); }
-.chip.live  { background: rgba(0,229,176,0.08);  border-color: rgba(0,229,176,0.25); color: var(--emerald);
-              animation: chip-live-pulse 2.5s ease-in-out infinite; }
-.chip.pro   { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.35);color: var(--yellow); }
-.chip.info  { background: rgba(77,142,255,0.1);  border-color: rgba(77,142,255,0.35);color: var(--accent); }
-.chip.warn  { background: rgba(255,160,0,0.1);   border-color: rgba(255,160,0,0.35); color: #ffa040; }
-.chip.ai    { background: rgba(173,198,255,0.1); border-color: rgba(173,198,255,0.3);color: var(--primary); }
-.chip.dot::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.chip.buy    { background: rgba(0,229,176,0.1);  border-color: rgba(0,229,176,0.4);  color: var(--emerald); }
+.chip.sell   { background: rgba(255,95,95,0.1);   border-color: rgba(255,95,95,0.4);  color: var(--red); }
+.chip.hold   { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.4); color: var(--yellow); }
+.chip.live   { background: rgba(0,229,176,0.08);  border-color: rgba(0,229,176,0.25); color: var(--emerald);
+               animation: chip-live-pulse 2.5s ease-in-out infinite; }
+.chip.info   { background: rgba(77,142,255,0.1);  border-color: rgba(77,142,255,0.35);color: var(--accent); }
+.chip.pro    { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.35);color: var(--yellow); }
+.chip.warn   { background: rgba(255,160,0,0.1);   border-color: rgba(255,160,0,0.35); color: #ffa040; }
+.chip.ai     { background: rgba(173,198,255,0.1); border-color: rgba(173,198,255,0.3);color: var(--primary); }
+.chip.dot::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 @keyframes chip-live-pulse {
     0%,100% { box-shadow: 0 0 0 0 rgba(0,229,176,0.3); }
-    50%     { box-shadow: 0 0 0 4px rgba(0,229,176,0); }
+    50%      { box-shadow: 0 0 0 4px rgba(0,229,176,0); }
 }
 .chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 
@@ -2238,7 +2236,8 @@ label, [data-testid="stSelectbox"] label,
     width: 100%; display: flex; align-items: center; justify-content: space-between;
     padding: 0.9rem 1.3rem; background: var(--bg2); border: none; cursor: pointer;
     font-family: var(--sans); font-size: 0.76rem; font-weight: 700;
-    color: var(--t2); text-align: left; transition: background 0.15s, color 0.15s; gap: 0.8rem;
+    color: var(--t2); text-align: left; gap: 0.8rem;
+    transition: background 0.15s, color 0.15s;
 }
 .accordion-trigger:hover  { background: var(--bg3); color: var(--t1); }
 .accordion-trigger.active { color: var(--accent); background: rgba(77,142,255,0.05); }
@@ -2257,45 +2256,43 @@ label, [data-testid="stSelectbox"] label,
 .accordion-body-inner { padding: 1rem 1.3rem 1.2rem; }
 
 /* 5. TOAST */
-.toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 99999;
-    display: flex; flex-direction: column-reverse; gap: 0.6rem; pointer-events: none; }
-.toast {
+#sc-toasts {
+    position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 99999;
+    display: flex; flex-direction: column-reverse; gap: 0.6rem; pointer-events: none;
+}
+.sc-toast {
     display: flex; align-items: flex-start; gap: 0.75rem;
     min-width: 280px; max-width: 380px; padding: 0.85rem 1rem;
-    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset;
-    pointer-events: all; position: relative;
-    animation: toast-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); position: relative;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    pointer-events: all;
+    animation: sc-toast-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
 }
-.toast.hiding { animation: toast-out 0.25s ease-in forwards; }
-@keyframes toast-in {
-    from { opacity:0; transform:translateX(20px) scale(0.92); }
-    to   { opacity:1; transform:translateX(0) scale(1); }
+.sc-toast.hiding { animation: sc-toast-out 0.25s ease-in forwards; }
+@keyframes sc-toast-in  { from{opacity:0;transform:translateX(20px) scale(0.92)} to{opacity:1;transform:translateX(0) scale(1)} }
+@keyframes sc-toast-out { from{opacity:1;transform:translateX(0) scale(1)} to{opacity:0;transform:translateX(20px) scale(0.9)} }
+.sc-toast::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
-@keyframes toast-out {
-    from { opacity:1; transform:translateX(0) scale(1); }
-    to   { opacity:0; transform:translateX(20px) scale(0.9); }
-}
-.toast::before {
-    content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg); background: var(--accent);
-}
-.toast.toast-success::before { background: var(--emerald); }
-.toast.toast-error::before   { background: var(--red); }
-.toast.toast-warn::before    { background: var(--yellow); }
-.toast-icon    { font-size: 1rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
-.toast-body    { flex: 1; min-width: 0; }
-.toast-title   { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; color: var(--t1); margin-bottom: 2px; line-height: 1.3; }
-.toast-message { font-family: var(--sans); font-size: 0.67rem; color: var(--t3); line-height: 1.45; }
-.toast-close   { background:none; border:none; color: var(--t4); cursor:pointer; font-size:0.75rem; padding:0; line-height:1; flex-shrink:0; transition:color 0.12s; pointer-events:all; }
-.toast-close:hover { color: var(--t2); }
-.toast-progress { position:absolute; bottom:0; left:0; height:2px; background:rgba(255,255,255,0.08); border-radius:0 0 var(--radius-lg) var(--radius-lg); width:100%; overflow:hidden; }
-.toast-progress-bar { height:100%; background: var(--accent); animation: toast-progress-anim linear forwards; transform-origin: left; }
-.toast.toast-success .toast-progress-bar { background: var(--emerald); }
-.toast.toast-error   .toast-progress-bar { background: var(--red); }
-.toast.toast-warn    .toast-progress-bar { background: var(--yellow); }
-@keyframes toast-progress-anim { from{transform:scaleX(1)} to{transform:scaleX(0)} }
+.sc-toast.t-success::before { background: var(--emerald); }
+.sc-toast.t-error::before   { background: var(--red); }
+.sc-toast.t-warn::before    { background: var(--yellow); }
+.sc-toast.t-info::before    { background: var(--accent); }
+.sc-toast-icon  { font-size: 1rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+.sc-toast-body  { flex: 1; min-width: 0; }
+.sc-toast-title { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; color: var(--t1); margin-bottom: 2px; }
+.sc-toast-msg   { font-family: var(--sans); font-size: 0.67rem; color: var(--t3); line-height: 1.45; }
+.sc-toast-close { background: none; border: none; color: var(--t4); cursor: pointer; font-size: 0.75rem; padding: 0; flex-shrink: 0; transition: color 0.12s; pointer-events: all; }
+.sc-toast-close:hover { color: var(--t2); }
+.sc-toast-bar { position: absolute; bottom: 0; left: 0; height: 2px; width: 100%; overflow: hidden; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: rgba(255,255,255,0.06); }
+.sc-toast-bar-fill { height: 100%; animation: sc-toast-bar-anim linear forwards; transform-origin: left; }
+.sc-toast.t-success .sc-toast-bar-fill { background: var(--emerald); }
+.sc-toast.t-error   .sc-toast-bar-fill { background: var(--red); }
+.sc-toast.t-warn    .sc-toast-bar-fill { background: var(--yellow); }
+.sc-toast.t-info    .sc-toast-bar-fill { background: var(--accent); }
+@keyframes sc-toast-bar-anim { from{transform:scaleX(1)} to{transform:scaleX(0)} }
 
 /* 6. BENTO GRID */
 .bento-grid {
@@ -2311,140 +2308,130 @@ label, [data-testid="stSelectbox"] label,
 }
 .bento-cell:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: rgba(77,142,255,0.2); }
 .bento-cell::before {
-    content:''; position:absolute; top:-30px; right:-30px; width:100px; height:100px;
-    border-radius:50%; background: var(--cell-glow, rgba(77,142,255,0.06));
-    pointer-events:none; filter:blur(20px);
+    content: ''; position: absolute; top: -30px; right: -30px;
+    width: 100px; height: 100px; border-radius: 50%;
+    background: var(--cell-glow, rgba(77,142,255,0.06));
+    pointer-events: none; filter: blur(20px);
 }
 .col-3  { grid-column: span 3; }  .col-4  { grid-column: span 4; }
 .col-5  { grid-column: span 5; }  .col-6  { grid-column: span 6; }
 .col-8  { grid-column: span 8; }  .col-12 { grid-column: span 12; }
 .row-2  { grid-row: span 2; }
-.bento-cell.accent-blue   { border-top:2px solid var(--accent);  --cell-glow:rgba(77,142,255,0.1); }
-.bento-cell.accent-green  { border-top:2px solid var(--emerald); --cell-glow:rgba(0,229,176,0.1); }
-.bento-cell.accent-yellow { border-top:2px solid var(--yellow);  --cell-glow:rgba(255,212,38,0.1); }
-.bento-cell.accent-red    { border-top:2px solid var(--red);     --cell-glow:rgba(255,95,95,0.1); }
-.bento-cell.accent-purple { border-top:2px solid var(--primary); --cell-glow:rgba(173,198,255,0.1); }
-.bento-label { font-family:var(--sans); font-size:0.54rem; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:var(--t4); margin-bottom:0.5rem; }
-.bento-value { font-family:var(--mono); font-size:1.7rem; font-weight:700; color:var(--t1); line-height:1.1; }
-.bento-sub   { font-family:var(--sans); font-size:0.7rem; color:var(--t3); margin-top:4px; }
-.bento-desc  { font-family:var(--sans); font-size:0.78rem; color:var(--t3); line-height:1.55; margin-top:0.5rem; }
-.bento-icon  { font-size:1.5rem; margin-bottom:0.6rem; line-height:1; }
-@media (max-width:768px) {
+.bento-cell.accent-blue   { border-top: 2px solid var(--accent);  --cell-glow: rgba(77,142,255,0.1); }
+.bento-cell.accent-green  { border-top: 2px solid var(--emerald); --cell-glow: rgba(0,229,176,0.1); }
+.bento-cell.accent-yellow { border-top: 2px solid var(--yellow);  --cell-glow: rgba(255,212,38,0.1); }
+.bento-cell.accent-red    { border-top: 2px solid var(--red);     --cell-glow: rgba(255,95,95,0.1); }
+.bento-cell.accent-purple { border-top: 2px solid var(--primary); --cell-glow: rgba(173,198,255,0.1); }
+.bento-label { font-family: var(--sans); font-size: 0.54rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--t4); margin-bottom: 0.5rem; }
+.bento-value { font-family: var(--mono); font-size: 1.7rem; font-weight: 700; color: var(--t1); line-height: 1.1; }
+.bento-sub   { font-family: var(--sans); font-size: 0.7rem; color: var(--t3); margin-top: 4px; }
+.bento-desc  { font-family: var(--sans); font-size: 0.78rem; color: var(--t3); line-height: 1.55; margin-top: 0.5rem; }
+.bento-icon  { font-size: 1.5rem; margin-bottom: 0.6rem; line-height: 1; }
+@media (max-width: 768px) {
     .bento-grid { grid-template-columns: repeat(6,1fr) !important; }
-    .col-3,.col-4,.col-5 { grid-column: span 6 !important; }
-    .col-6,.col-8 { grid-column: span 6 !important; }
+    .col-3,.col-4,.col-5,.col-6,.col-8 { grid-column: span 6 !important; }
     .row-2 { grid-row: span 1 !important; }
-}
-@media (max-width:480px) {
-    .bento-grid { grid-template-columns: 1fr !important; }
-    .col-3,.col-4,.col-5,.col-6,.col-8,.col-12 { grid-column: span 1 !important; }
 }
 
 /* 7. BREADCRUMBS */
-.breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:0; font-family:var(--mono); font-size:0.6rem; letter-spacing:0.06em; padding:0.55rem 0; margin-bottom:0.8rem; }
-.bc-item { display:flex; align-items:center; gap:4px; color:var(--t4); transition:color 0.12s; white-space:nowrap; }
-.bc-item:hover { color:var(--t2); cursor:pointer; }
-.bc-item.active { color:var(--accent); font-weight:700; cursor:default; }
-.bc-item.active:hover { color:var(--accent); }
-.bc-dot { display:inline-block; width:4px; height:4px; border-radius:50%; background:var(--t4); flex-shrink:0; }
-.bc-item.active .bc-dot { background:var(--accent); }
-.bc-sep { color:var(--border2); padding:0 6px; font-size:0.7rem; user-select:none; }
 .breadcrumb-bar {
     background: linear-gradient(90deg, var(--bg2), var(--bg3));
     border: 1px solid var(--border); border-radius: var(--radius);
     padding: 0.4rem 1rem; margin-bottom: 1rem;
     display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }
-.bc-context { font-family:var(--mono); font-size:0.56rem; color:var(--t4); letter-spacing:0.08em; white-space:nowrap; }
+.breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 0; font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.06em; }
+.bc-item { display: flex; align-items: center; gap: 4px; color: var(--t4); white-space: nowrap; }
+.bc-item.active { color: var(--accent); font-weight: 700; }
+.bc-dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--t4); flex-shrink: 0; }
+.bc-item.active .bc-dot { background: var(--accent); }
+.bc-sep { color: var(--border2); padding: 0 6px; font-size: 0.7rem; user-select: none; }
+.bc-context { font-family: var(--mono); font-size: 0.56rem; color: var(--t4); letter-spacing: 0.08em; white-space: nowrap; }
 
-/* ECG Spinner */
+/* ECG Heartbeat Spinner */
 [data-testid="stSpinner"] svg { display: none !important; }
-[data-testid="stSpinner"] p { font-family:var(--mono) !important; font-size:0.68rem !important; color:var(--accent) !important; letter-spacing:0.1em !important; text-transform:uppercase !important; text-align:center !important; margin-top:0.5rem !important; }
-[data-testid="stSpinner"] > div { display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; padding:1.2rem 2rem !important; gap:0.4rem !important; }
-[data-testid="stSpinner"] > div::before { content:'' !important; display:block !important; width:200px !important; height:48px !important; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 48'%3E%3Cpolyline points='0,24 20,24 28,24 32,6 36,42 40,10 44,38 48,24 68,24 80,24 86,4 90,44 94,4 98,24 118,24 130,24 136,4 140,44 144,4 148,24 168,24 200,24' fill='none' stroke='%234d8eff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important; background-size:200px 48px !important; background-repeat:repeat-x !important; animation:ecg-scroll 1.4s linear infinite !important; -webkit-mask-image:linear-gradient(to right,transparent 0%,black 15%,black 85%,transparent 100%) !important; mask-image:linear-gradient(to right,transparent 0%,black 15%,black 85%,transparent 100%) !important; }
+[data-testid="stSpinner"] p { font-family: var(--mono) !important; font-size: 0.68rem !important; color: var(--accent) !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; text-align: center !important; margin-top: 0.5rem !important; }
+[data-testid="stSpinner"] > div { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; padding: 1.2rem 2rem !important; gap: 0.4rem !important; }
+[data-testid="stSpinner"] > div::before { content: '' !important; display: block !important; width: 200px !important; height: 48px !important; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 48'%3E%3Cpolyline points='0,24 20,24 28,24 32,6 36,42 40,10 44,38 48,24 68,24 80,24 86,4 90,44 94,4 98,24 118,24 130,24 136,4 140,44 144,4 148,24 168,24 200,24' fill='none' stroke='%234d8eff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important; background-size: 200px 48px !important; background-repeat: repeat-x !important; animation: ecg-scroll 1.4s linear infinite !important; -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important; mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important; }
 @keyframes ecg-scroll { 0%{background-position:0 0} 100%{background-position:200px 0} }
-[data-testid="stSpinner"] > div::after { content:'' !important; display:block !important; width:8px !important; height:8px !important; background:var(--emerald) !important; border-radius:50% !important; box-shadow:0 0 10px 3px rgba(0,229,176,0.7),0 0 20px 6px rgba(0,229,176,0.3) !important; animation:ecg-dot 1.4s linear infinite !important; margin-top:-10px !important; position:relative !important; z-index:2 !important; }
+[data-testid="stSpinner"] > div::after { content: '' !important; display: block !important; width: 8px !important; height: 8px !important; background: var(--emerald) !important; border-radius: 50% !important; box-shadow: 0 0 10px 3px rgba(0,229,176,0.7), 0 0 20px 6px rgba(0,229,176,0.3) !important; animation: ecg-dot 1.4s linear infinite !important; margin-top: -10px !important; position: relative !important; z-index: 2 !important; }
 @keyframes ecg-dot { 0%{transform:translateX(-96px);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(96px);opacity:0} }
 
 </style>
-""", unsafe_allow_html=True)
 
-# Toast + Accordion JS engine
-st.markdown("""
-<div class="toast-container" id="sc-toasts"></div>
+<div id="sc-toasts"></div>
+
 <script>
 (function() {
-  var ICONS = { success: '✓', error: '⚠', warn: '⚡', info: '◈' };
-
+  /* ---- TOAST ENGINE ---- */
+  var ICONS = { success:'&#10003;', error:'&#9888;', warn:'&#9889;', info:'&#9672;' };
   window.SCToast = function(title, message, type, duration) {
     type = type || 'info';
-    duration = duration || 4000;
+    duration = duration === undefined ? 4000 : duration;
     var container = document.getElementById('sc-toasts');
     if (!container) return;
-    var toast = document.createElement('div');
-    toast.className = 'toast toast-' + type;
-    toast.style.position = 'relative';
-    toast.innerHTML =
-      '<span class="toast-icon">' + (ICONS[type] || '◈') + '</span>' +
-      '<div class="toast-body">' +
-        '<div class="toast-title">' + title + '</div>' +
-        (message ? '<div class="toast-message">' + message + '</div>' : '') +
+    var t = document.createElement('div');
+    t.className = 'sc-toast t-' + type;
+    t.innerHTML =
+      '<span class="sc-toast-icon">' + (ICONS[type] || '&#9672;') + '</span>' +
+      '<div class="sc-toast-body">' +
+        '<div class="sc-toast-title">' + title + '</div>' +
+        (message ? '<div class="sc-toast-msg">' + message + '</div>' : '') +
       '</div>' +
-      '<button class="toast-close" onclick="this.closest('.toast').remove()">&#x2715;</button>' +
-      '<div class="toast-progress"><div class="toast-progress-bar" style="animation-duration:' + duration + 'ms"></div></div>';
-    container.appendChild(toast);
+      '<button class="sc-toast-close" onclick="this.closest('.sc-toast').remove()">&#x2715;</button>' +
+      '<div class="sc-toast-bar"><div class="sc-toast-bar-fill" style="animation-duration:' + duration + 'ms"></div></div>';
+    container.appendChild(t);
     setTimeout(function() {
-      toast.classList.add('hiding');
-      setTimeout(function() { toast.remove(); }, 280);
+      t.classList.add('hiding');
+      setTimeout(function() { if(t.parentNode) t.parentNode.removeChild(t); }, 280);
     }, duration);
   };
 
+  /* ---- ACCORDION ENGINE ---- */
   function initAccordions() {
     var triggers = document.querySelectorAll('.accordion-trigger');
     for (var i = 0; i < triggers.length; i++) {
       (function(trigger) {
-        if (trigger._scInit) return;
-        trigger._scInit = true;
+        if (trigger._sc) return;
+        trigger._sc = true;
         trigger.addEventListener('click', function() {
           var body = trigger.nextElementSibling;
           var isOpen = body.classList.contains('open');
-          var accordion = trigger.closest('.accordion');
-          if (accordion) {
-            var openBodies = accordion.querySelectorAll('.accordion-body.open');
-            for (var j = 0; j < openBodies.length; j++) {
-              openBodies[j].classList.remove('open');
-              if (openBodies[j].previousElementSibling)
-                openBodies[j].previousElementSibling.classList.remove('active');
+          var acc = trigger.closest('.accordion');
+          if (acc) {
+            var open = acc.querySelectorAll('.accordion-body.open');
+            for (var j = 0; j < open.length; j++) {
+              open[j].classList.remove('open');
+              if (open[j].previousElementSibling) open[j].previousElementSibling.classList.remove('active');
             }
           }
-          if (!isOpen) {
-            body.classList.add('open');
-            trigger.classList.add('active');
-          }
+          if (!isOpen) { body.classList.add('open'); trigger.classList.add('active'); }
         });
       })(triggers[i]);
     }
   }
-
-  var observer = new MutationObserver(function() { initAccordions(); });
-  observer.observe(document.body, { childList: true, subtree: true });
+  var _obs = new MutationObserver(function() { initAccordions(); });
+  _obs.observe(document.body, { childList: true, subtree: true });
   initAccordions();
 
+  /* ---- NOTIFY HELPERS ---- */
   window.SCNotify = {
-    saved:   function(sym) { SCToast('Watchlist Updated', sym + ' added', 'success'); },
-    removed: function(sym) { SCToast('Watchlist Updated', sym + ' removed', 'info'); },
-    signal:  function(sym, sig) { SCToast('Signal: ' + sig, sym + ' flipped to ' + sig, sig === 'BUY' ? 'success' : sig === 'SELL' ? 'error' : 'warn'); },
-    email:   function(addr) { SCToast('Email Sent', 'Signal digest sent', 'success'); },
-    error:   function(msg)  { SCToast('Error', msg, 'error'); },
-    copy:    function()     { SCToast('Copied', 'Copied to clipboard', 'info'); },
-    macro:   function(label, score) { SCToast('Macro Climate: ' + label, 'Score ' + score + '/100', label === 'RAISE NOW' ? 'success' : label === 'WAIT' ? 'error' : 'warn'); },
+    saved:   function(s) { SCToast('Watchlist Updated', s + ' added', 'success'); },
+    removed: function(s) { SCToast('Watchlist Updated', s + ' removed', 'info'); },
+    signal:  function(s, v) { SCToast('Signal: ' + v, s + ' flipped to ' + v, v==='BUY'?'success':v==='SELL'?'error':'warn'); },
+    email:   function()  { SCToast('Email Sent', 'Signal digest delivered', 'success'); },
+    error:   function(m) { SCToast('Error', m, 'error'); },
+    copy:    function()  { SCToast('Copied', 'Copied to clipboard', 'info'); },
+    macro:   function(l, sc) { SCToast('Macro Climate: ' + l, 'Score ' + sc + '/100', l==='RAISE NOW'?'success':l==='WAIT'?'error':'warn'); }
   };
 
-  var _welcomed = sessionStorage.getItem('sc-welcomed');
-  if (!_welcomed) {
-    setTimeout(function() { SCToast('Stockcast Ready', 'AI Stock Assistant · Live Data Connected', 'success', 5000); }, 1200);
-    sessionStorage.setItem('sc-welcomed', '1');
-  }
+  /* ---- WELCOME TOAST (once per session) ---- */
+  try {
+    if (!sessionStorage.getItem('sc-v')) {
+      setTimeout(function() { SCToast('Stockcast Ready', 'AI Stock Assistant &#183; Live Data Connected', 'success', 5000); }, 1400);
+      sessionStorage.setItem('sc-v', '1');
+    }
+  } catch(e) {}
 })();
 </script>
 """, unsafe_allow_html=True)
@@ -2787,57 +2774,50 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
          Stockcast <span style="color:#4d8eff;">·</span> How the AI Assistant Works
     </div>
     """, unsafe_allow_html=True)
-    # Build accordion steps data
-    _steps = [
+    _steps_data = [
         ("01","#4d8eff","Data Ingestion","OHLCV via yfinance","Data",
-         "Up to 7 years of daily Open/High/Low/Close/Volume data is fetched from Yahoo Finance. Timezone normalization and MultiIndex flattening are applied for compatibility across yfinance versions.",
+         "Up to 7 years of daily OHLCV data fetched from Yahoo Finance. Timezone normalization and MultiIndex flattening applied for cross-version compatibility.",
          [("chip info","yfinance"),("chip info","OHLCV"),("chip info","7Y History")]),
         ("02","#adc6ff","Feature Engineering","20 Technical Indicators","Features",
-         f"Each trading day is described by 20 derived signals: MA5/10/20/50/200, EMA12/26, RSI(14), MACD(12/26/9) with histogram, Bollinger Band width & %B, ATR(14), Volume Ratio, Momentum, Returns(1d/5d), Volatility(20d), and High-Low%. Additionally, {seq_len_val} lag closes are appended as sequential memory.",
-         [("chip ai","RSI"),("chip ai","MACD"),("chip ai","Bollinger"),("chip ai","ATR"),("chip info","20 Signals")]),
+         f"MA5/10/20/50/200, EMA12/26, RSI(14), MACD(12/26/9) with histogram, Bollinger Band width &amp; %B, ATR(14), Volume Ratio, Momentum, Returns(1d/5d), Volatility(20d), High-Low%. Plus {seq_len_val} lag closes as sequential memory.",
+         [("chip ai","RSI"),("chip ai","MACD"),("chip ai","Bollinger"),("chip info","20 Signals")]),
         ("03","#00e5b0","Train / Test Split","80% train · 20% test (chronological)","Split",
-         "Data is split strictly chronologically — no shuffling — to prevent look-ahead bias. The model never sees future data during training. Evaluation is performed exclusively on the held-out 20%.",
+         "Strictly chronological split — no shuffling — to prevent look-ahead bias. The model never sees future data during training.",
          [("chip buy","80% Train"),("chip warn","20% Test"),("chip info","No Leakage")]),
         ("04","#4d8eff","XGBoost Engine","Gradient-boosted decision trees","Model",
-         "The AI engine uses XGBoost trained to project the next day's closing price. Hyperparameters (n_estimators, max_depth, learning_rate) are configurable via the sidebar. Subsample=0.8 and colsample_bytree=0.8 provide regularisation.",
-         [("chip ai","XGBoost"),("chip info","Configurable"),("chip ai","Regularised")]),
+         "XGBoost trained to project next day's closing price. Hyperparameters (n_estimators, max_depth, learning_rate) configurable via sidebar. Subsample=0.8, colsample_bytree=0.8.",
+         [("chip ai","XGBoost"),("chip info","Configurable HP"),("chip ai","Regularised")]),
         ("05","#adc6ff","Bootstrap CI",f"{ci_n} resampling iterations" if show_ci else "Disabled","Uncertainty",
-         f"Confidence intervals are produced by running the model {ci_n} times on inputs perturbed with Gaussian noise (σ=1.5%). The 5th and 95th percentiles form the 95% CI ribbon. A wider band indicates higher forecast uncertainty.",
+         f"Model run {ci_n}× on inputs perturbed with Gaussian noise (σ=1.5%). 5th–95th percentile forms 95% CI ribbon. Wider band = higher uncertainty.",
          [("chip ai",f"{ci_n} Samples"),("chip info","95% CI"),("chip warn","σ=1.5%")]),
         ("06","#00e5b0","Price Outlook","Iterative multi-step projection","Forecast",
-         "Future prices are projected by rolling: each day's projected price feeds back as the next day's lag input. Uncertainty compounds over time — Days 1–3 are most reliable. Days 6+ are directional guidance only.",
+         "Each projected price feeds back as next day's lag input. Uncertainty compounds — Days 1–3 most reliable, Days 6+ directional guidance only.",
          [("chip buy","Day 1-3 Reliable"),("chip warn","Day 6+ Directional")]),
         ("07","#ff5f5f","Signal Generation","BUY / SELL / HOLD research signal","Signal",
-         "A composite 6-factor research signal fires from AI outlook, RSI, MACD crossover, Bollinger %B, MA Golden/Death cross, and Volume confirmation. Score >+25 = STRONG BUY, <-25 = STRONG SELL.",
+         "Composite 6-factor signal from AI outlook, RSI, MACD crossover, Bollinger %B, MA Golden/Death cross, and Volume confirmation. Score &gt;+25 = STRONG BUY, &lt;-25 = STRONG SELL.",
          [("chip buy","BUY"),("chip sell","SELL"),("chip hold","HOLD"),("chip info","6 Factors")]),
         ("08","#4d8eff","Strategy Simulator","Walk-forward simulation","Backtest",
-         "The simulator replays AI signals on test-set prices: BUY fires when projected return exceeds threshold, SELL when below. KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, equity curve vs Buy-and-Hold.",
+         "Replays AI signals on test-set prices. KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, equity curve vs Buy-and-Hold.",
          [("chip warn","Sharpe"),("chip warn","Drawdown"),("chip info","Win Rate")]),
     ]
-
-    # Build accordion HTML
-    _acc_items = ""
-    for num, color, title, subtitle, badge, body, chips in _steps:
-        _chips_html = " ".join(f'<span class="{cc}">{cl}</span>' for cc, cl in chips)
-        _acc_items += f"""
-        <div class="accordion-item">
-          <button class="accordion-trigger">
-            <span class="accordion-num">{num}</span>
-            <span class="accordion-label" style="color:inherit;">{title}
-              <span style="font-family:var(--mono);font-size:.56rem;color:{color};margin-left:.5rem;letter-spacing:.08em;">{subtitle}</span>
-            </span>
-            <span class="accordion-badge">{badge}</span>
-            <span class="accordion-icon">▾</span>
-          </button>
-          <div class="accordion-body">
-            <div class="accordion-body-inner">
-              <div style="font-family:Manrope,sans-serif;font-size:.83rem;color:#8a8fa0;line-height:1.65;margin-bottom:.7rem;">{body}</div>
-              <div class="chip-group">{_chips_html}</div>
-            </div>
-          </div>
-        </div>"""
-
-    st.markdown(f'<div class="accordion">{_acc_items}</div>', unsafe_allow_html=True)
+    _acc_html = '<div class="accordion">'
+    for _sn, _sc, _st, _ss, _sb, _body, _chips in _steps_data:
+        _chips_html = " ".join(f'<span class="{cc}">{cl}</span>' for cc, cl in _chips)
+        _acc_html += (
+            f'<div class="accordion-item">' +
+            f'<button class="accordion-trigger">' +
+            f'<span class="accordion-num">{_sn}</span>' +
+            f'<span class="accordion-label">{_st} ' +
+            f'<span style="font-family:var(--mono);font-size:.56rem;color:{_sc};margin-left:.5rem;">{_ss}</span></span>' +
+            f'<span class="accordion-badge">{_sb}</span>' +
+            f'<span class="accordion-icon">&#9662;</span></button>' +
+            f'<div class="accordion-body"><div class="accordion-body-inner">' +
+            f'<div style="font-family:Manrope,sans-serif;font-size:.83rem;color:#8a8fa0;line-height:1.65;margin-bottom:.7rem;">{_body}</div>' +
+            f'<div class="chip-group">{_chips_html}</div>' +
+            f'</div></div></div>'
+        )
+    _acc_html += "</div>"
+    st.markdown(_acc_html, unsafe_allow_html=True)
     st.markdown("""
     <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.2);
          border-left:3px solid #ff5f5f;padding:1rem 1.5rem;margin-top:.5rem;border-radius:0 0.5rem 0.5rem 0;">
@@ -3250,7 +3230,7 @@ with st.sidebar:
             if ticker not in st.session_state.watchlist:
                 if _sb_add_watchlist(st.session_state.user.id, ticker):
                     st.session_state.watchlist.append(ticker)
-                    st.session_state["_toast_wl_add"] = ticker
+                    st.session_state["_wl_toast"] = ticker
                     st.rerun()
 
     col1, col2 = st.columns(2)
@@ -3406,10 +3386,9 @@ with st.sidebar:
         else:
             st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;margin-bottom:.4rem;">Free limit reached · <span style="color:#4d8eff;">Upgrade for {PLAN_LIMITS["pro"]["watchlist_stocks"]} stocks</span></div>', unsafe_allow_html=True)
 
-    # Fire pending toasts after rerun
-    if st.session_state.get("_toast_wl_add"):
-        _tw = st.session_state.pop("_toast_wl_add")
-        st.markdown(f'<script>if(window.SCNotify)SCNotify.saved("{_tw}");</script>', unsafe_allow_html=True)
+    if st.session_state.get("_wl_toast"):
+        _wt = st.session_state.pop("_wl_toast")
+        st.markdown(f'<script>if(window.SCNotify)SCNotify.saved("{_wt}");</script>', unsafe_allow_html=True)
 
     if st.session_state.watchlist:
         for wl_sym in list(st.session_state.watchlist):
@@ -3618,32 +3597,26 @@ if not run_btn:
         else:
             _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#3e4558"
 
-    # Determine if data loaded — show skeleton shimmer while values are default "—"
-    _sp_loaded  = _sp[0] != "—"
-    _nd_loaded  = _nd[0] != "—"
-    _vix_loaded = _vix[0] != "—"
-
-    def _sk_or(val, css_class="stat-value", color=None):
-        """Return value HTML or a skeleton line if value is missing."""
-        if val == "—":
-            return f'<div class="skeleton sk-line value" style="width:70%;"></div>'
-        style = f"color:{color};" if color else ""
-        return f'<div class="{css_class}" style="{style}">{val}</div>'
+    def _sk_val(v, color=None):
+        if v == "—":
+            return '<div class="skeleton sk-line value" style="width:65%;margin:.3rem auto;"></div>'
+        s = f"color:{color};" if color else ""
+        return f'<div class="stat-value" style="{s}">{v}</div>'
 
     st.markdown(f"""
     <div class="stat-grid" style="margin-bottom:.5rem;">
-      <div class="stat-card {'skeleton-card' if not _sp_loaded else ''}">
+      <div class="stat-card">
         <div class="stat-label">S&amp;P 500 · Market Pulse
-          <span class="chip live dot" style="font-size:.48rem;padding:.18rem .5rem;margin-left:6px;">Live</span>
+          <span class="chip live dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Live</span>
         </div>
-        {_sk_or(_sp[0]) if not _sp_loaded else f'<div class="stat-value">{_sp[0]}</div>'}
+        {_sk_val(_sp[0])}
         <div class="stat-sub" style="color:{_sp[2]};font-weight:700;font-size:.7rem;">{_sp[1]}</div>
       </div>
-      <div class="stat-card {'skeleton-card' if not _nd_loaded else ''}" style="border-top-color:#adc6ff;">
+      <div class="stat-card" style="border-top-color:#adc6ff;">
         <div class="stat-label">NASDAQ 100 · Tech Momentum
-          <span class="chip info dot" style="font-size:.48rem;padding:.18rem .5rem;margin-left:6px;">Tech</span>
+          <span class="chip info dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Tech</span>
         </div>
-        {_sk_or(_nd[0], color="#adc6ff") if not _nd_loaded else f'<div class="stat-value" style="color:#adc6ff;">{_nd[0]}</div>'}
+        {_sk_val(_nd[0], "#adc6ff")}
         <div class="stat-sub" style="color:{_nd[2]};font-weight:700;font-size:.7rem;">{_nd[1]}</div>
       </div>
       <div class="stat-card" style="border-top-color:{_fg_color};">
@@ -3651,9 +3624,9 @@ if not run_btn:
         <div class="stat-value" style="color:{_fg_color};">{_fg_val}</div>
         <div class="stat-sub" style="color:{_fg_color};font-size:.7rem;">{_fg_sub}</div>
       </div>
-      <div class="stat-card {'skeleton-card' if not _vix_loaded else ''}" style="border-top-color:#00e5b0;">
+      <div class="stat-card" style="border-top-color:#00e5b0;">
         <div class="stat-label">VIX · Volatility Index</div>
-        {_sk_or(_vix[0], color="#00e5b0") if not _vix_loaded else f'<div class="stat-value" style="color:#00e5b0;">{_vix[0]}</div>'}
+        {_sk_val(_vix[0], "#00e5b0")}
         <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
       </div>
     </div>
@@ -3663,17 +3636,6 @@ if not run_btn:
     if st.session_state.watchlist:
         st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
         st.subheader(_L["watchlist_live"])
-        # Skeleton placeholders while loading
-        _wl_skel_cols = st.columns(min(len(st.session_state.watchlist), 4))
-        for _sc in _wl_skel_cols:
-            with _sc:
-                st.markdown("""
-                <div class="skeleton-card" style="padding:1rem 1.2rem;min-height:100px;margin-bottom:.4rem;">
-                  <div class="skeleton sk-line w-40" style="margin:0 auto .5rem;"></div>
-                  <div class="skeleton sk-line value" style="margin:0 auto .4rem;height:24px;width:60%;"></div>
-                  <div class="skeleton sk-line w-40" style="margin:0 auto;height:10px;"></div>
-                </div>""", unsafe_allow_html=True)
-        # Actual data (overwrites skeletons via Streamlit rerun — shown while fetching)
         wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
         for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
             with wl_cols[i % 4]:
@@ -3683,19 +3645,19 @@ if not run_btn:
                     _chg  = _fi["change_pct"]
                     _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
                     _sign = "▲" if _chg >= 0 else "▼"
-                    _chip_cls = "buy" if _chg >= 0 else "sell"
+                    _wl_chip = "buy" if _chg >= 0 else "sell"
                     st.markdown(f"""
                     <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
                          border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.6rem;">
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;margin-bottom:.4rem;">{wl_sym}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;margin-bottom:.3rem;">{wl_sym}</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;margin:.3rem 0;">${_px:.2f}</div>
-                      <div style="display:flex;justify-content:center;margin-top:.5rem;">
-                        <span class="chip {_chip_cls} dot">{_sign} {_chg:+.2f}%</span>
+                      <div style="display:flex;justify-content:center;margin-top:.4rem;">
+                        <span class="chip {_wl_chip} dot" style="font-size:.58rem;">{_sign} {_chg:+.2f}%</span>
                       </div>
                     </div>""", unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
-                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;border-radius:.6rem;"><div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;">{wl_sym}</div><div class="skeleton sk-line value" style="margin:.4rem auto;width:60%;"></div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
@@ -3736,95 +3698,72 @@ if not run_btn:
     st.subheader(_L["platform_features"])
     st.markdown("""
     <div class="bento-grid">
-
-      <!-- Row 1: Hero cell (col-8) + tall stat cell (col-4 row-2) -->
       <div class="bento-cell accent-blue col-8">
         <div class="bento-icon">📈</div>
         <div class="bento-label">AI Price Outlook</div>
-        <div class="bento-value" style="font-size:1.3rem;color:var(--accent);">XGBoost Engine</div>
-        <div class="bento-desc">Projects next-day and multi-day closing price across 20 technical signals.
-          95% bootstrap confidence intervals quantify forecast uncertainty in real time.</div>
+        <div class="bento-value" style="font-size:1.25rem;color:var(--accent);">XGBoost Engine</div>
+        <div class="bento-desc">Projects next-day price across 20 technical signals with 95% bootstrap confidence intervals to quantify uncertainty.</div>
         <div class="chip-group" style="margin-top:.8rem;">
           <span class="chip ai dot">XGBoost</span>
           <span class="chip info dot">20 Signals</span>
           <span class="chip info dot">Bootstrap CI</span>
         </div>
       </div>
-
       <div class="bento-cell accent-green col-4 row-2">
         <div class="bento-icon">⭐</div>
         <div class="bento-label">Watchlist + Alerts</div>
         <div class="bento-value" style="color:var(--emerald);">Live</div>
         <div class="bento-sub">Real-time signal banners</div>
         <div class="bento-desc">Save stocks, see live prices on your dashboard, get instant alerts when AI signals flip BUY ↔ SELL.</div>
-        <div style="margin-top:.7rem;">
-          <span class="chip live dot">Live Prices</span>
-        </div>
+        <div style="margin-top:.7rem;"><span class="chip live dot">Live Prices</span></div>
       </div>
-
-      <!-- Row 1 cont: Signals cell (col-4) -->
       <div class="bento-cell accent-green col-4">
         <div class="bento-icon">⚙</div>
         <div class="bento-label">Explainable Signals</div>
-        <div class="bento-desc">RSI · MACD · Bollinger · MA Cross · Volume — each signal scored and explained in plain language.</div>
+        <div class="bento-desc">RSI · MACD · Bollinger · MA Cross · Volume — each scored and explained in plain language.</div>
         <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip buy dot">BUY</span>
-          <span class="chip sell dot">SELL</span>
-          <span class="chip hold dot">HOLD</span>
+          <span class="chip buy dot">BUY</span><span class="chip sell dot">SELL</span><span class="chip hold dot">HOLD</span>
         </div>
       </div>
-
-      <!-- Row 2: Simulator (col-5) + Shariah (col-3) + (col-4 already spanned row-2) -->
       <div class="bento-cell accent-yellow col-5">
         <div class="bento-icon">📊</div>
         <div class="bento-label">Strategy Simulator</div>
-        <div class="bento-desc">Walk-forward backtesting engine. Outputs Sharpe ratio, max drawdown, win rate, profit factor, and equity curve vs buy-and-hold.</div>
+        <div class="bento-desc">Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, and equity curve vs buy-and-hold.</div>
         <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip warn dot">Sharpe</span>
-          <span class="chip warn dot">Drawdown</span>
-          <span class="chip warn dot">Win Rate</span>
+          <span class="chip warn dot">Sharpe</span><span class="chip warn dot">Drawdown</span><span class="chip warn dot">Win Rate</span>
         </div>
       </div>
-
       <div class="bento-cell accent-purple col-3">
         <div class="bento-icon">☪</div>
         <div class="bento-label">Shariah Screen</div>
         <div class="bento-value" style="font-size:1rem;color:var(--primary);">AAOIFI</div>
         <div class="bento-sub">Standard No.21</div>
-        <div class="bento-desc" style="font-size:.72rem;">Business activity, debt/mktcap, debt/assets, cash/assets — auto-screened.</div>
+        <div class="bento-desc" style="font-size:.72rem;">Business activity, debt, cash ratios — auto-screened.</div>
       </div>
-
-      <!-- Row 3: NLP (col-4) + Model Compare (col-4) + Portfolio (col-4) -->
       <div class="bento-cell accent-green col-4">
         <div class="bento-icon">📰</div>
         <div class="bento-label">News Sentiment NLP</div>
-        <div class="bento-desc">Live Yahoo Finance headlines analysed with TextBlob. Positive/negative polarity scored and overlaid on signal context.</div>
+        <div class="bento-desc">Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.</div>
         <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip ai dot">TextBlob</span>
-          <span class="chip live dot">Live News</span>
+          <span class="chip ai dot">TextBlob</span><span class="chip live dot">Live News</span>
         </div>
       </div>
-
       <div class="bento-cell accent-purple col-4">
         <div class="bento-icon">🔬</div>
         <div class="bento-label">Model Comparison</div>
-        <div class="bento-desc">Benchmark XGBoost vs Prophet vs Linear Regression side-by-side — RMSE, MAE, MAPE, and R² in one view.</div>
+        <div class="bento-desc">XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
         <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip pro dot">Pro</span>
-          <span class="chip ai dot">3 Models</span>
+          <span class="chip pro dot">Pro</span><span class="chip ai dot">3 Models</span>
         </div>
       </div>
-
       <div class="bento-cell accent-yellow col-4">
         <div class="bento-icon">🏦</div>
         <div class="bento-label">Portfolio Tracker</div>
-        <div class="bento-desc">Track holdings, unrealised P&L, sector allocation, cost basis, and transaction history in one place.</div>
+        <div class="bento-desc">Track holdings, unrealised P&L, sector allocation, cost basis, and transaction history.</div>
         <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip info dot">P&L</span>
-          <span class="chip info dot">Sectors</span>
+          <span class="chip info dot">P&amp;L</span><span class="chip info dot">Sectors</span>
         </div>
       </div>
-
     </div>
     """, unsafe_allow_html=True)
 
@@ -3863,26 +3802,19 @@ else:
     if st.sidebar.button(_L.get("back", "← Back to Dashboard"), use_container_width=True, key="back_btn"):
         st.session_state.run_pressed = False
         st.rerun()
-    # ── Breadcrumb navigation bar ────────────────────────────────────────────
+    # ── Breadcrumb bar ────────────────────────────────────────────────────────
     st.markdown(f"""
     <div class="breadcrumb-bar">
       <nav class="breadcrumb">
-        <span class="bc-item">
-          <span class="bc-dot"></span>Stockcast
-        </span>
-        <span class="bc-sep">›</span>
-        <span class="bc-item">
-          <span class="bc-dot"></span>Analysis
-        </span>
-        <span class="bc-sep">›</span>
-        <span class="bc-item active">
-          <span class="bc-dot"></span>{ticker}
-        </span>
+        <span class="bc-item"><span class="bc-dot"></span>Stockcast</span>
+        <span class="bc-sep">&#xbb;</span>
+        <span class="bc-item"><span class="bc-dot"></span>Analysis</span>
+        <span class="bc-sep">&#xbb;</span>
+        <span class="bc-item active"><span class="bc-dot"></span>{ticker}</span>
       </nav>
-      <div class="bc-context">
-        <span class="chip live dot" style="font-size:.52rem;padding:.2rem .55rem;">Live</span>
-        &nbsp;
-        <span style="color:var(--t4);">{pd.Timestamp.now().strftime('%b %d · %H:%M')}</span>
+      <div class="bc-context" style="display:flex;align-items:center;gap:.5rem;">
+        <span class="chip live dot" style="font-size:.5rem;padding:.18rem .5rem;">Live</span>
+        <span>{pd.Timestamp.now().strftime('%b %d · %H:%M')}</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -4625,31 +4557,29 @@ else:
                 prev_verdict = st.session_state.alert_signals.get(ticker)
                 if prev_verdict is not None and prev_verdict != verdict_short:
                     _ac = {"BUY":"#00e5b0","SELL":"#ff5f5f"}.get(verdict_short,"#ffd426")
-                    st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid {_ac};border-left:4px solid {_ac};padding:.8rem 1.4rem;margin-bottom:1rem;font-family:Manrope,sans-serif;font-size:.78rem;color:{_ac};font-weight:700;border-radius:0 .5rem .5rem 0;">🔔 SIGNAL CHANGE — {ticker} &nbsp;|&nbsp; {prev_verdict} → {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}</div><script>if(window.SCNotify)SCNotify.signal("{ticker}","{verdict_short}");</script>', unsafe_allow_html=True)
+                    st.markdown(
+                        f'<div style="background:rgba(77,142,255,0.08);border:1px solid {_ac};border-left:4px solid {_ac};padding:.8rem 1.4rem;margin-bottom:1rem;font-family:Manrope,sans-serif;font-size:.78rem;color:{_ac};font-weight:700;border-radius:0 .5rem .5rem 0;">🔔 SIGNAL CHANGE — {ticker} &nbsp;|&nbsp; {prev_verdict} → {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}</div>' +
+                        f'<script>if(window.SCNotify)SCNotify.signal("{ticker}","{verdict_short}");</script>',
+                        unsafe_allow_html=True)
                 st.session_state.alert_signals[ticker] = verdict_short
 
             verdict_css = 'sell' if verdict_short=='SELL' else 'hold' if verdict_short=='HOLD' else ''
             sign = '+' if xgb_pct>=0 else ''
             score_color = '#00e5b0' if total_score>0 else '#ff5f5f' if total_score<0 else '#ffd426'
             rr_color = 'positive' if risk_reward>=1.5 else 'negative' if risk_reward<1 else 'neutral'
-
-            # Chip tags for signal context
-            _chip_sig   = "buy" if verdict_short=="BUY" else "sell" if verdict_short=="SELL" else "hold"
-            _rsi_chip   = "sell" if rsi_val > 70 else "buy" if rsi_val < 30 else "hold"
-            _rsi_lbl    = "Overbought" if rsi_val > 70 else "Oversold" if rsi_val < 30 else "Neutral RSI"
-            _trend_chip = "buy" if xgb_pct >= 0 else "sell"
-            _trend_lbl  = f"{'▲' if xgb_pct>=0 else '▼'} {abs(xgb_pct):.1f}% Outlook"
+            _chs  = "buy" if verdict_short=="BUY" else "sell" if verdict_short=="SELL" else "hold"
+            _rsic = "sell" if rsi_val>70 else "buy" if rsi_val<30 else "hold"
+            _rsil = "Overbought" if rsi_val>70 else "Oversold" if rsi_val<30 else "Neutral RSI"
+            _trc  = "buy" if xgb_pct>=0 else "sell"
+            _trl  = f"{'Up' if xgb_pct>=0 else 'Down'} {abs(xgb_pct):.1f}%"
 
             st.markdown(f"""
-            <div style="margin-bottom:.7rem;">
-              <div class="chip-group">
-                <span class="chip {_chip_sig} dot" style="font-size:.68rem;padding:.35rem .9rem;">{verdict_short}</span>
-                <span class="chip {_rsi_chip} dot">{_rsi_lbl}</span>
-                <span class="chip {_trend_chip} dot">{_trend_lbl}</span>
-                <span class="chip live dot">Live</span>
-                <span class="chip ai dot">XGBoost</span>
-                {'<span class="chip pro dot">Pro</span>' if _is_pro() else '<span class="chip info dot">Free</span>'}
-              </div>
+            <div class="chip-group" style="margin-bottom:.75rem;">
+              <span class="chip {_chs} dot" style="font-size:.68rem;padding:.35rem .9rem;">{verdict_short}</span>
+              <span class="chip {_rsic} dot">{_rsil}</span>
+              <span class="chip {_trc} dot">{_trl} Outlook</span>
+              <span class="chip live dot">Live</span>
+              <span class="chip ai dot">XGBoost</span>
             </div>
             <div class="signal-panel">
               <div class="signal-main {verdict_css}">
