@@ -273,276 +273,6 @@ def get_fear_greed_index():
         logger.warning("get_fear_greed_index failed: %s", e)
         return None
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ── STARTUP FEATURE HELPERS ────────────────────────────────────────────────────
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ── FEATURE 6: Macroeconomic Risk Scanner ─────────────────────────────────────
-@st.cache_data(ttl=300)
-def get_macro_risk_score():
-    """Composite macro climate score 0–100 from VIX, S&P momentum, Fear&Greed, TLT."""
-    factors = {}
-    score = 50
-
-    # VIX
-    try:
-        vix_df = _yf_download_with_retry("^VIX", period="5d", interval="1d")
-        if not vix_df.empty:
-            v = float(vix_df["Close"].dropna().iloc[-1])
-            c, lbl = (20,"VIX {:.1f} — Very low vol") if v<15 else \
-                     (10,"VIX {:.1f} — Low vol") if v<20 else \
-                     (0, "VIX {:.1f} — Moderate vol") if v<25 else \
-                     (-15,"VIX {:.1f} — Elevated vol") if v<35 else \
-                     (-25,"VIX {:.1f} — Fear/high vol")
-            factors["Volatility (VIX)"] = (c, lbl.format(v))
-            score += c
-    except Exception as e:
-        logger.warning("macro VIX: %s", e)
-        factors["Volatility (VIX)"] = (0, "VIX — unavailable")
-
-    # S&P 500 20-day momentum
-    try:
-        sp_df = _yf_download_with_retry("^GSPC", period="30d", interval="1d")
-        if not sp_df.empty:
-            s = sp_df["Close"].dropna()
-            if len(s) >= 20:
-                pct = (float(s.iloc[-1]) - float(s.iloc[-20])) / float(s.iloc[-20]) * 100
-                c, lbl = (20,f"S&P +{pct:.1f}% 20d — Strong bull") if pct>4 else \
-                         (10,f"S&P +{pct:.1f}% 20d — Positive") if pct>1 else \
-                         (0, f"S&P {pct:+.1f}% 20d — Sideways") if pct>-2 else \
-                         (-10,f"S&P {pct:+.1f}% 20d — Downtrend") if pct>-6 else \
-                         (-20,f"S&P {pct:+.1f}% 20d — Sharp correction")
-                factors["S&P Momentum"] = (c, lbl)
-                score += c
-    except Exception as e:
-        logger.warning("macro S&P: %s", e)
-        factors["S&P Momentum"] = (0, "S&P — unavailable")
-
-    # Fear & Greed
-    try:
-        fg = get_fear_greed_index()
-        if fg:
-            fgs = fg["score"]
-            c, lbl = (15,f"F&G {fgs:.0f} — Greed (risk-on)") if fgs>=65 else \
-                     (5, f"F&G {fgs:.0f} — Neutral") if fgs>=45 else \
-                     (-10,f"F&G {fgs:.0f} — Fear") if fgs>=30 else \
-                     (-20,f"F&G {fgs:.0f} — Extreme Fear")
-            factors["Fear & Greed"] = (c, lbl)
-            score += c
-    except Exception as e:
-        logger.warning("macro F&G: %s", e)
-        factors["Fear & Greed"] = (0, "F&G — unavailable")
-
-    # TLT (20Y Treasury ETF) — rising = yields falling = recession signal
-    try:
-        tlt_df = _yf_download_with_retry("TLT", period="30d", interval="1d")
-        if not tlt_df.empty:
-            t = tlt_df["Close"].dropna()
-            if len(t) >= 10:
-                pct = (float(t.iloc[-1]) - float(t.iloc[-10])) / float(t.iloc[-10]) * 100
-                c, lbl = (-10,f"TLT {pct:+.1f}% — Yields falling / risk-off") if pct>2 else \
-                         (5,  f"TLT {pct:+.1f}% — Stable rates") if pct>-1 else \
-                         (10, f"TLT {pct:+.1f}% — Yields rising / growth signal")
-                factors["Bond Market (TLT)"] = (c, lbl)
-                score += c
-    except Exception as e:
-        logger.warning("macro TLT: %s", e)
-        factors["Bond Market (TLT)"] = (0, "TLT — unavailable")
-
-    score = max(0, min(100, score))
-    if score >= 70:
-        label, color = "RAISE NOW",  "#00e5b0"
-        verdict = "Macro conditions are favorable — low volatility, positive momentum, and risk-on sentiment. Strong window to fundraise or deploy capital."
-    elif score >= 52:
-        label, color = "PROCEED",    "#4d8eff"
-        verdict = "Conditions are broadly positive but mixed. Manageable risk for fundraising or strategic investments with solid diligence."
-    elif score >= 35:
-        label, color = "CAUTION",    "#ffd426"
-        verdict = "Uncertain environment — elevated volatility or fear signals present. Consider waiting for clearer conditions before major capital deployment."
-    else:
-        label, color = "WAIT",       "#ff5f5f"
-        verdict = "Hostile macro environment — high volatility, negative momentum, or extreme fear. Strong signal to preserve runway and delay fundraising."
-
-    return {"score": score, "label": label, "color": color, "verdict": verdict, "factors": factors}
-
-
-# ── FEATURE 2: Treasury / Cash Reserve Optimizer ──────────────────────────────
-TREASURY_ETFS = {
-    "Ultra-safe (T-Bills)":  {"tickers": ["BIL","SGOV","SHV"],    "desc": "3-month T-bill ETFs — near-zero risk, highest liquidity. Ideal for <6-month runway parking."},
-    "Short-term Bonds":      {"tickers": ["SHY","VGSH","BSV"],     "desc": "1–3yr Treasury ETFs — modest yield bump over T-bills, still low duration risk."},
-    "Intermediate Bonds":    {"tickers": ["IEF","VGIT","BND"],     "desc": "3–10yr Treasuries — meaningful yield, some interest rate sensitivity. Suited for 12–24 month horizons."},
-    "Dividend / Income":     {"tickers": ["VYM","SCHD","HDV"],     "desc": "Dividend equity ETFs — higher yield, equity risk. For surplus capital beyond 18-month runway."},
-    "Balanced (60/40)":      {"tickers": ["AOA","AOR","AOM"],      "desc": "All-in-one allocation ETFs — diversified, auto-rebalanced. For non-critical treasury reserves."},
-}
-
-@st.cache_data(ttl=300)
-def get_treasury_etf_data(tickers: list) -> list:
-    """Fetch live quote + 1Y return for a list of ETF tickers."""
-    results = []
-    for sym in tickers:
-        try:
-            info = get_ticker_full(sym)
-            q    = av_get_quote(sym)
-            ytd_df = _yf_download_with_retry(sym, period="1y", interval="1d")
-            ret_1y = 0.0
-            if not ytd_df.empty:
-                c = ytd_df["Close"].dropna()
-                if len(c) >= 2:
-                    ret_1y = (float(c.iloc[-1]) - float(c.iloc[0])) / float(c.iloc[0]) * 100
-            div_yield = (info.get("dividendYield") or 0) * 100
-            expense   = (info.get("annualReportExpenseRatio") or info.get("expenseRatio") or 0) * 100
-            results.append({
-                "ticker":    sym,
-                "name":      (info.get("longName") or info.get("shortName") or sym)[:32],
-                "price":     q["price"],
-                "change_pct":q["change_pct"],
-                "ret_1y":    ret_1y,
-                "div_yield": div_yield,
-                "expense":   expense,
-                "aum":       info.get("totalAssets", 0) or 0,
-            })
-        except Exception as e:
-            logger.warning("treasury_etf_data: %s — %s", sym, e)
-            results.append({"ticker": sym, "name": sym, "price": 0, "change_pct": 0,
-                            "ret_1y": 0, "div_yield": 0, "expense": 0, "aum": 0})
-    return results
-
-
-# ── FEATURE 3: Competitor Stock Tracker ───────────────────────────────────────
-@st.cache_data(ttl=180)
-def get_competitor_snapshot(tickers: list) -> list:
-    """Live price, change, mktcap, P/E, 52w positioning for a list of tickers."""
-    results = []
-    for sym in tickers:
-        try:
-            info = get_ticker_full(sym)
-            q    = av_get_quote(sym)
-            w52h = info.get("fiftyTwoWeekHigh", 0) or 0
-            w52l = info.get("fiftyTwoWeekLow",  0) or 0
-            mktcap = info.get("marketCap", 0) or 0
-            pe     = info.get("trailingPE") or info.get("forwardPE") or 0
-            pct_from_high = ((q["price"] - w52h) / w52h * 100) if w52h > 0 else 0
-            results.append({
-                "ticker": sym, "name": (info.get("longName") or sym)[:30],
-                "sector": info.get("sector","Unknown"),
-                "price": q["price"], "change_pct": q["change_pct"],
-                "mktcap": mktcap, "pe": pe,
-                "w52h": w52h, "w52l": w52l, "pct_from_high": pct_from_high,
-            })
-        except Exception as e:
-            logger.warning("competitor_snapshot: %s — %s", sym, e)
-            results.append({"ticker": sym, "name": sym, "sector": "Unknown",
-                            "price": 0, "change_pct": 0, "mktcap": 0, "pe": 0,
-                            "w52h": 0, "w52l": 0, "pct_from_high": 0})
-    return results
-
-
-# ── FEATURE 4: Pre-IPO Sector Benchmark ───────────────────────────────────────
-SECTOR_COMPS = {
-    "SaaS / Cloud":           ["CRM","NOW","SNOW","DDOG","ZS","MDB","HUBS"],
-    "Fintech / Payments":     ["V","MA","PYPL","SQ","AFRM","SOFI","ADYEN.AS"],
-    "E-Commerce / Retail":    ["AMZN","SHOP","ETSY","WMT","TGT","EBAY","WISH"],
-    "AI / Semiconductors":    ["NVDA","AMD","INTC","AVGO","QCOM","ARM","SMCI"],
-    "Healthcare / Biotech":   ["JNJ","UNH","ABBV","PFE","MRNA","AMGN","GILD"],
-    "Mobility / EV":          ["TSLA","GM","F","RIVN","LCID","NIO","XPEV"],
-    "Cybersecurity":          ["CRWD","PANW","FTNT","ZS","OKTA","S","CYBR"],
-    "Consumer / Brands":      ["AAPL","NKE","MCD","SBUX","LULU","YUM","CMG"],
-    "Media / Entertainment":  ["NFLX","DIS","SPOT","META","SNAP","PINS","RDDT"],
-    "Energy / CleanTech":     ["ENPH","FSLR","NEE","PLUG","BE","RUN","ARRY"],
-    "Logistics / Supply":     ["UPS","FDX","AMZN","XPO","DKNG","UBER","LYFT"],
-    "Enterprise Tech":        ["MSFT","GOOGL","ORCL","SAP","IBM","ADBE","INTU"],
-}
-
-
-# ── FEATURE 1: Investor Report builder ────────────────────────────────────────
-def _build_investor_report_csv(ticker, df, preds, actual, rmse, mae, mape, r2, composite) -> str:
-    """Build a structured CSV investor report."""
-    import io, csv
-    buf = io.StringIO()
-    w   = csv.writer(buf)
-    lc  = float(df["Close"].squeeze().iloc[-1])
-    h52 = float(df["Close"].squeeze().max())
-    l52 = float(df["Close"].squeeze().min())
-    sig = composite.get("verdict_short", "—") if composite else "—"
-    sco = composite.get("total_score", 0) if composite else 0
-    tp  = composite.get("take_profit", 0) if composite else 0
-    sl  = composite.get("stop_loss", 0) if composite else 0
-    rr  = composite.get("risk_reward", 0) if composite else 0
-    xp  = composite.get("xgb_pct", 0) if composite else 0
-
-    rows = [
-        ["STOCKCAST — Investor Intelligence Report"],
-        [f"Ticker: {ticker}", f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M UTC')}"],
-        ["Not financial advice. For research purposes only."], [],
-        ["── PRICE SUMMARY ──"],
-        ["Last Close ($)", f"{lc:.2f}"],
-        ["52-Week High ($)", f"{h52:.2f}"],
-        ["52-Week Low ($)",  f"{l52:.2f}"],
-        ["% from 52w High",  f"{((lc-h52)/h52*100):+.1f}%"],
-        ["Trading Days Analysed", str(len(df))], [],
-        ["── AI MODEL QUALITY ──"],
-        ["RMSE ($)", f"{rmse:.2f}"],
-        ["MAE ($)",  f"{mae:.2f}"],
-        ["MAPE (%)", f"{mape:.2f}"],
-        ["R² Score", f"{r2:.4f}"], [],
-        ["── SIGNAL INTELLIGENCE ──"],
-        ["Composite Signal",    sig],
-        ["Signal Score (±100)", f"{sco:+.0f}"],
-        ["XGBoost Forecast %",  f"{xp:+.2f}%"],
-        ["Take Profit ($)",     f"{tp:.2f}"],
-        ["Stop Loss ($)",       f"{sl:.2f}"],
-        ["Risk / Reward",       f"{rr:.2f}x"], [],
-        ["── DISCLAIMER ──"],
-        ["Stockcast is for educational and research purposes only."],
-        ["Not financial advice. Consult a licensed financial advisor."],
-        ["Past performance does not guarantee future results."],
-    ]
-    w.writerows(rows)
-    return buf.getvalue()
-
-
-# ── FEATURE 5: Signal Alert Email ─────────────────────────────────────────────
-def _build_signal_alert_html(user_email: str, ticker: str, signal: str,
-                              price: float, score: float, tp: float, sl: float,
-                              rr: float, xp: float) -> str:
-    sig_color = {"BUY": "#00e5b0", "SELL": "#ff5f5f", "HOLD": "#ffd426"}.get(signal, "#8a8fa0")
-    date_str  = pd.Timestamp.now().strftime("%B %d, %Y · %H:%M UTC")
-    return f"""<!DOCTYPE html><html>
-<body style="margin:0;padding:0;background:#080e1c;font-family:Manrope,sans-serif;">
-<div style="max-width:560px;margin:32px auto;background:#0f1727;border-radius:12px;border:1px solid #252f47;overflow:hidden;">
-  <div style="background:linear-gradient(135deg,#0f1727,#141d30);padding:28px 32px;border-bottom:3px solid {sig_color};">
-    <div style="font-family:monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#4d8eff;margin-bottom:6px;">Stockcast · Signal Alert</div>
-    <div style="font-size:24px;font-weight:800;color:#e4eafd;">🔔 {ticker} — {signal}</div>
-    <div style="font-size:13px;color:#8a8fa0;margin-top:4px;">{date_str}</div>
-  </div>
-  <div style="padding:24px 32px;">
-    <table style="width:100%;border-collapse:collapse;">
-      <tr><td style="padding:8px 0;font-family:monospace;font-size:13px;color:#8a8fa0;">Signal</td>
-          <td style="padding:8px 0;font-family:monospace;font-size:16px;font-weight:700;color:{sig_color};">{signal}</td></tr>
-      <tr><td style="padding:8px 0;font-family:monospace;font-size:13px;color:#8a8fa0;">Score</td>
-          <td style="padding:8px 0;font-family:monospace;font-size:16px;color:#adc6ff;">{score:+.0f} / ±100</td></tr>
-      <tr><td style="padding:8px 0;font-family:monospace;font-size:13px;color:#8a8fa0;">Last Close</td>
-          <td style="padding:8px 0;font-family:monospace;font-size:16px;color:#e4eafd;">${price:.2f}</td></tr>
-      <tr><td style="padding:8px 0;font-family:monospace;font-size:13px;color:#8a8fa0;">AI Forecast</td>
-          <td style="padding:8px 0;font-family:monospace;font-size:16px;color:#adc6ff;">{xp:+.2f}%</td></tr>
-      <tr><td style="padding:8px 0;font-family:monospace;font-size:13px;color:#8a8fa0;">Take Profit</td>
-          <td style="padding:8px 0;font-family:monospace;font-size:16px;color:#00e5b0;">${tp:.2f}</td></tr>
-      <tr><td style="padding:8px 0;font-family:monospace;font-size:13px;color:#8a8fa0;">Stop Loss</td>
-          <td style="padding:8px 0;font-family:monospace;font-size:16px;color:#ff5f5f;">${sl:.2f}</td></tr>
-      <tr><td style="padding:8px 0;font-family:monospace;font-size:13px;color:#8a8fa0;">Risk/Reward</td>
-          <td style="padding:8px 0;font-family:monospace;font-size:16px;color:#ffd426;">{rr:.2f}×</td></tr>
-    </table>
-    <div style="margin-top:20px;padding:14px 18px;background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2);border-radius:8px;font-size:11px;color:#8a8fa0;line-height:1.6;">
-      ⚠ AI-generated signal from technical analysis only. Not financial advice. Always consult a licensed financial advisor before any investment decision.
-    </div>
-  </div>
-  <div style="padding:18px 32px;border-top:1px solid #252f47;text-align:center;font-size:11px;color:#3e4558;">
-    Sent to {_html_mod.escape(user_email)} · <a href="https://muawwizghani-stock-forecast.streamlit.app" style="color:#4d8eff;text-decoration:none;">Open Stockcast</a>
-  </div>
-</div>
-</body></html>"""
-
-
 import nltk
 
 def _ensure_nltk_data():
@@ -1473,12 +1203,6 @@ if "show_upgrade_modal" not in st.session_state:
     st.session_state.show_upgrade_modal = False
 if "email_alerts_enabled" not in st.session_state:
     st.session_state.email_alerts_enabled = False
-if "competitor_tickers" not in st.session_state:
-    st.session_state.competitor_tickers = []
-if "signal_log" not in st.session_state:
-    st.session_state.signal_log = {}        # ticker → [{date,verdict,score,price}]
-if "treasury_profile" not in st.session_state:
-    st.session_state.treasury_profile = "Ultra-safe (T-Bills)"
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -1766,41 +1490,12 @@ label, [data-testid="stSelectbox"] label,
     padding: 0.7rem 1rem !important;
 }
 
-/* ── HEART-WAVE / ECG LOADER ── */
-[data-testid="stSpinner"] svg { display: none !important; }
+/* ── SPINNER ── */
 [data-testid="stSpinner"] p {
-    font-family: var(--mono) !important; font-size: 0.68rem !important;
-    color: var(--accent) !important; letter-spacing: 0.1em !important;
-    text-transform: uppercase !important; text-align: center !important;
-    margin-top: 0.5rem !important;
-}
-[data-testid="stSpinner"] > div {
-    display: flex !important; flex-direction: column !important;
-    align-items: center !important; justify-content: center !important;
-    padding: 1.2rem 2rem !important; gap: 0.4rem !important;
-}
-[data-testid="stSpinner"] > div::before {
-    content: '' !important; display: block !important;
-    width: 200px !important; height: 48px !important;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 48'%3E%3Cpolyline points='0,24 20,24 28,24 32,6 36,42 40,10 44,38 48,24 68,24 80,24 86,4 90,44 94,4 98,24 118,24 130,24 136,4 140,44 144,4 148,24 168,24 200,24' fill='none' stroke='%234d8eff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
-    background-size: 200px 48px !important; background-repeat: repeat-x !important;
-    animation: ecg-scroll 1.4s linear infinite !important;
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important;
-    mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important;
-}
-@keyframes ecg-scroll { 0%{background-position:0 0} 100%{background-position:200px 0} }
-[data-testid="stSpinner"] > div::after {
-    content: '' !important; display: block !important;
-    width: 8px !important; height: 8px !important;
-    background: var(--emerald) !important; border-radius: 50% !important;
-    box-shadow: 0 0 10px 3px rgba(0,229,176,0.7), 0 0 20px 6px rgba(0,229,176,0.3) !important;
-    animation: ecg-dot 1.4s linear infinite !important;
-    margin-top: -10px !important; position: relative !important; z-index: 2 !important;
-}
-@keyframes ecg-dot {
-    0%  { transform: translateX(-96px); opacity: 0; }
-    10% { opacity: 1; } 90% { opacity: 1; }
-    100%{ transform: translateX(96px);  opacity: 0; }
+    font-family: var(--mono) !important;
+    font-size: 0.7rem !important;
+    color: var(--accent) !important;
+    letter-spacing: 0.08em !important;
 }
 
 /* ── SUCCESS / INFO / WARNING / ERROR ── */
@@ -2415,7 +2110,343 @@ label, [data-testid="stSelectbox"] label,
     margin-top: 0.3rem;
 }
 
+/* ============================================================
+   METAPHOR SYSTEM  7 expert UI patterns for Stockcast
+   ============================================================ */
+
+/* 1. TABS - premium pill style with notification dots */
+[data-testid="stTabs"] [role="tablist"] {
+    background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 100%) !important;
+    border: 1px solid var(--border) !important;
+    border-bottom: none !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    gap: 2px !important;
+    padding: 0.35rem 0.5rem !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+[data-testid="stTabs"] [role="tab"] {
+    font-family: var(--sans) !important;
+    font-size: 0.64rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.09em !important;
+    color: var(--t4) !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--radius) !important;
+    text-transform: uppercase !important;
+    padding: 0.5rem 1.1rem !important;
+    transition: color 0.18s, background 0.18s, border-color 0.18s, box-shadow 0.18s !important;
+    white-space: nowrap !important;
+}
+[data-testid="stTabs"] [role="tab"]:hover {
+    color: var(--t2) !important;
+    background: rgba(255,255,255,0.03) !important;
+}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    color: var(--t1) !important;
+    background: linear-gradient(135deg, rgba(77,142,255,0.14) 0%, rgba(77,142,255,0.06) 100%) !important;
+    border-color: rgba(77,142,255,0.3) !important;
+    box-shadow: 0 0 16px rgba(77,142,255,0.15), inset 0 1px 0 rgba(77,142,255,0.2) !important;
+}
+[data-testid="stTabPanel"] {
+    background: linear-gradient(180deg, rgba(77,142,255,0.02) 0%, transparent 60px) !important;
+    border: 1px solid var(--border) !important;
+    border-top: none !important;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg) !important;
+    padding: 1.4rem 0.2rem 0.4rem !important;
+}
+.tab-dot {
+    display: inline-block; width: 6px; height: 6px;
+    background: var(--red); border-radius: 50%; margin-left: 5px;
+    vertical-align: top; margin-top: 1px;
+    box-shadow: 0 0 6px rgba(255,95,95,0.7);
+    animation: tab-dot-pulse 2s ease-in-out infinite;
+}
+.tab-dot.green  { background: var(--emerald); box-shadow: 0 0 6px rgba(0,229,176,0.7); }
+.tab-dot.yellow { background: var(--yellow);  box-shadow: 0 0 6px rgba(255,212,38,0.7); }
+@keyframes tab-dot-pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%     { opacity:0.6; transform:scale(0.85); }
+}
+
+/* 2. SKELETON LOADING */
+.skeleton {
+    background: linear-gradient(90deg, var(--bg3) 25%, rgba(255,255,255,0.04) 50%, var(--bg3) 75%);
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
+    border-radius: var(--radius);
+}
+@keyframes skeleton-shimmer {
+    0%   { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+.skeleton-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 1.15rem 1.4rem;
+    overflow: hidden; position: relative;
+}
+.skeleton-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
+    background-size: 200% 100%;
+    animation: skeleton-overlay 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-overlay {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+.sk-line        { height: 10px; margin-bottom: 8px; }
+.sk-line.w-100  { width: 100%; }
+.sk-line.w-80   { width: 80%; }
+.sk-line.w-60   { width: 60%; }
+.sk-line.w-40   { width: 40%; }
+.sk-line.title  { height: 20px; margin-bottom: 10px; width: 50%; }
+.sk-line.value  { height: 28px; width: 70%; margin-bottom: 6px; }
+.sk-circle      { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+
+/* 3. CHIPS */
+.chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 0.3rem 0.75rem; border-radius: 100px;
+    border: 1px solid var(--border2); background: var(--bg3);
+    color: var(--t3); cursor: default;
+    transition: all 0.15s ease; white-space: nowrap; user-select: none;
+}
+.chip:hover { border-color: var(--accent); color: var(--t2); background: rgba(77,142,255,0.08); }
+.chip.buy   { background: rgba(0,229,176,0.1);  border-color: rgba(0,229,176,0.4);  color: var(--emerald); }
+.chip.sell  { background: rgba(255,95,95,0.1);   border-color: rgba(255,95,95,0.4);  color: var(--red); }
+.chip.hold  { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.4); color: var(--yellow); }
+.chip.live  { background: rgba(0,229,176,0.08);  border-color: rgba(0,229,176,0.25); color: var(--emerald);
+              animation: chip-live-pulse 2.5s ease-in-out infinite; }
+.chip.pro   { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.35);color: var(--yellow); }
+.chip.info  { background: rgba(77,142,255,0.1);  border-color: rgba(77,142,255,0.35);color: var(--accent); }
+.chip.warn  { background: rgba(255,160,0,0.1);   border-color: rgba(255,160,0,0.35); color: #ffa040; }
+.chip.ai    { background: rgba(173,198,255,0.1); border-color: rgba(173,198,255,0.3);color: var(--primary); }
+.chip.dot::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
+@keyframes chip-live-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(0,229,176,0.3); }
+    50%     { box-shadow: 0 0 0 4px rgba(0,229,176,0); }
+}
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* 4. ACCORDION */
+.accordion { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin: 0.5rem 0; }
+.accordion-item { border-bottom: 1px solid var(--border); }
+.accordion-item:last-child { border-bottom: none; }
+.accordion-trigger {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 0.9rem 1.3rem; background: var(--bg2); border: none; cursor: pointer;
+    font-family: var(--sans); font-size: 0.76rem; font-weight: 700;
+    color: var(--t2); text-align: left; transition: background 0.15s, color 0.15s; gap: 0.8rem;
+}
+.accordion-trigger:hover  { background: var(--bg3); color: var(--t1); }
+.accordion-trigger.active { color: var(--accent); background: rgba(77,142,255,0.05); }
+.accordion-icon {
+    width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; border: 1px solid var(--border2); flex-shrink: 0;
+    font-size: 0.65rem; color: var(--t4);
+    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.15s;
+}
+.accordion-trigger.active .accordion-icon { transform: rotate(180deg); border-color: var(--accent); color: var(--accent); }
+.accordion-num   { font-family: var(--mono); font-size: 0.6rem; color: var(--t4); flex-shrink: 0; }
+.accordion-label { flex: 1; }
+.accordion-badge { font-family: var(--mono); font-size: 0.56rem; color: var(--t4); flex-shrink: 0; }
+.accordion-body  { max-height: 0; overflow: hidden; transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1); background: var(--bg); }
+.accordion-body.open { max-height: 900px; }
+.accordion-body-inner { padding: 1rem 1.3rem 1.2rem; }
+
+/* 5. TOAST */
+.toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 99999;
+    display: flex; flex-direction: column-reverse; gap: 0.6rem; pointer-events: none; }
+.toast {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    min-width: 280px; max-width: 380px; padding: 0.85rem 1rem;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    pointer-events: all; position: relative;
+    animation: toast-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.toast.hiding { animation: toast-out 0.25s ease-in forwards; }
+@keyframes toast-in {
+    from { opacity:0; transform:translateX(20px) scale(0.92); }
+    to   { opacity:1; transform:translateX(0) scale(1); }
+}
+@keyframes toast-out {
+    from { opacity:1; transform:translateX(0) scale(1); }
+    to   { opacity:0; transform:translateX(20px) scale(0.9); }
+}
+.toast::before {
+    content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg); background: var(--accent);
+}
+.toast.toast-success::before { background: var(--emerald); }
+.toast.toast-error::before   { background: var(--red); }
+.toast.toast-warn::before    { background: var(--yellow); }
+.toast-icon    { font-size: 1rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+.toast-body    { flex: 1; min-width: 0; }
+.toast-title   { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; color: var(--t1); margin-bottom: 2px; line-height: 1.3; }
+.toast-message { font-family: var(--sans); font-size: 0.67rem; color: var(--t3); line-height: 1.45; }
+.toast-close   { background:none; border:none; color: var(--t4); cursor:pointer; font-size:0.75rem; padding:0; line-height:1; flex-shrink:0; transition:color 0.12s; pointer-events:all; }
+.toast-close:hover { color: var(--t2); }
+.toast-progress { position:absolute; bottom:0; left:0; height:2px; background:rgba(255,255,255,0.08); border-radius:0 0 var(--radius-lg) var(--radius-lg); width:100%; overflow:hidden; }
+.toast-progress-bar { height:100%; background: var(--accent); animation: toast-progress-anim linear forwards; transform-origin: left; }
+.toast.toast-success .toast-progress-bar { background: var(--emerald); }
+.toast.toast-error   .toast-progress-bar { background: var(--red); }
+.toast.toast-warn    .toast-progress-bar { background: var(--yellow); }
+@keyframes toast-progress-anim { from{transform:scaleX(1)} to{transform:scaleX(0)} }
+
+/* 6. BENTO GRID */
+.bento-grid {
+    display: grid; grid-template-columns: repeat(12, 1fr);
+    grid-auto-rows: minmax(100px, auto); gap: 0.75rem; margin: 1.2rem 0;
+}
+.bento-cell {
+    background: linear-gradient(145deg, var(--bg2), #090e1b);
+    border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-lg);
+    padding: 1.3rem 1.5rem; overflow: hidden; position: relative;
+    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), box-shadow 0.22s, border-color 0.22s;
+    box-shadow: var(--shadow-sm);
+}
+.bento-cell:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: rgba(77,142,255,0.2); }
+.bento-cell::before {
+    content:''; position:absolute; top:-30px; right:-30px; width:100px; height:100px;
+    border-radius:50%; background: var(--cell-glow, rgba(77,142,255,0.06));
+    pointer-events:none; filter:blur(20px);
+}
+.col-3  { grid-column: span 3; }  .col-4  { grid-column: span 4; }
+.col-5  { grid-column: span 5; }  .col-6  { grid-column: span 6; }
+.col-8  { grid-column: span 8; }  .col-12 { grid-column: span 12; }
+.row-2  { grid-row: span 2; }
+.bento-cell.accent-blue   { border-top:2px solid var(--accent);  --cell-glow:rgba(77,142,255,0.1); }
+.bento-cell.accent-green  { border-top:2px solid var(--emerald); --cell-glow:rgba(0,229,176,0.1); }
+.bento-cell.accent-yellow { border-top:2px solid var(--yellow);  --cell-glow:rgba(255,212,38,0.1); }
+.bento-cell.accent-red    { border-top:2px solid var(--red);     --cell-glow:rgba(255,95,95,0.1); }
+.bento-cell.accent-purple { border-top:2px solid var(--primary); --cell-glow:rgba(173,198,255,0.1); }
+.bento-label { font-family:var(--sans); font-size:0.54rem; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; color:var(--t4); margin-bottom:0.5rem; }
+.bento-value { font-family:var(--mono); font-size:1.7rem; font-weight:700; color:var(--t1); line-height:1.1; }
+.bento-sub   { font-family:var(--sans); font-size:0.7rem; color:var(--t3); margin-top:4px; }
+.bento-desc  { font-family:var(--sans); font-size:0.78rem; color:var(--t3); line-height:1.55; margin-top:0.5rem; }
+.bento-icon  { font-size:1.5rem; margin-bottom:0.6rem; line-height:1; }
+@media (max-width:768px) {
+    .bento-grid { grid-template-columns: repeat(6,1fr) !important; }
+    .col-3,.col-4,.col-5 { grid-column: span 6 !important; }
+    .col-6,.col-8 { grid-column: span 6 !important; }
+    .row-2 { grid-row: span 1 !important; }
+}
+@media (max-width:480px) {
+    .bento-grid { grid-template-columns: 1fr !important; }
+    .col-3,.col-4,.col-5,.col-6,.col-8,.col-12 { grid-column: span 1 !important; }
+}
+
+/* 7. BREADCRUMBS */
+.breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:0; font-family:var(--mono); font-size:0.6rem; letter-spacing:0.06em; padding:0.55rem 0; margin-bottom:0.8rem; }
+.bc-item { display:flex; align-items:center; gap:4px; color:var(--t4); transition:color 0.12s; white-space:nowrap; }
+.bc-item:hover { color:var(--t2); cursor:pointer; }
+.bc-item.active { color:var(--accent); font-weight:700; cursor:default; }
+.bc-item.active:hover { color:var(--accent); }
+.bc-dot { display:inline-block; width:4px; height:4px; border-radius:50%; background:var(--t4); flex-shrink:0; }
+.bc-item.active .bc-dot { background:var(--accent); }
+.bc-sep { color:var(--border2); padding:0 6px; font-size:0.7rem; user-select:none; }
+.breadcrumb-bar {
+    background: linear-gradient(90deg, var(--bg2), var(--bg3));
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 0.4rem 1rem; margin-bottom: 1rem;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.bc-context { font-family:var(--mono); font-size:0.56rem; color:var(--t4); letter-spacing:0.08em; white-space:nowrap; }
+
+/* ECG Spinner */
+[data-testid="stSpinner"] svg { display: none !important; }
+[data-testid="stSpinner"] p { font-family:var(--mono) !important; font-size:0.68rem !important; color:var(--accent) !important; letter-spacing:0.1em !important; text-transform:uppercase !important; text-align:center !important; margin-top:0.5rem !important; }
+[data-testid="stSpinner"] > div { display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; padding:1.2rem 2rem !important; gap:0.4rem !important; }
+[data-testid="stSpinner"] > div::before { content:'' !important; display:block !important; width:200px !important; height:48px !important; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 48'%3E%3Cpolyline points='0,24 20,24 28,24 32,6 36,42 40,10 44,38 48,24 68,24 80,24 86,4 90,44 94,4 98,24 118,24 130,24 136,4 140,44 144,4 148,24 168,24 200,24' fill='none' stroke='%234d8eff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important; background-size:200px 48px !important; background-repeat:repeat-x !important; animation:ecg-scroll 1.4s linear infinite !important; -webkit-mask-image:linear-gradient(to right,transparent 0%,black 15%,black 85%,transparent 100%) !important; mask-image:linear-gradient(to right,transparent 0%,black 15%,black 85%,transparent 100%) !important; }
+@keyframes ecg-scroll { 0%{background-position:0 0} 100%{background-position:200px 0} }
+[data-testid="stSpinner"] > div::after { content:'' !important; display:block !important; width:8px !important; height:8px !important; background:var(--emerald) !important; border-radius:50% !important; box-shadow:0 0 10px 3px rgba(0,229,176,0.7),0 0 20px 6px rgba(0,229,176,0.3) !important; animation:ecg-dot 1.4s linear infinite !important; margin-top:-10px !important; position:relative !important; z-index:2 !important; }
+@keyframes ecg-dot { 0%{transform:translateX(-96px);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(96px);opacity:0} }
+
 </style>
+""", unsafe_allow_html=True)
+
+# Toast + Accordion JS engine
+st.markdown("""
+<div class="toast-container" id="sc-toasts"></div>
+<script>
+(function() {
+  var ICONS = { success: '✓', error: '⚠', warn: '⚡', info: '◈' };
+
+  window.SCToast = function(title, message, type, duration) {
+    type = type || 'info';
+    duration = duration || 4000;
+    var container = document.getElementById('sc-toasts');
+    if (!container) return;
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.style.position = 'relative';
+    toast.innerHTML =
+      '<span class="toast-icon">' + (ICONS[type] || '◈') + '</span>' +
+      '<div class="toast-body">' +
+        '<div class="toast-title">' + title + '</div>' +
+        (message ? '<div class="toast-message">' + message + '</div>' : '') +
+      '</div>' +
+      '<button class="toast-close" onclick="this.closest('.toast').remove()">&#x2715;</button>' +
+      '<div class="toast-progress"><div class="toast-progress-bar" style="animation-duration:' + duration + 'ms"></div></div>';
+    container.appendChild(toast);
+    setTimeout(function() {
+      toast.classList.add('hiding');
+      setTimeout(function() { toast.remove(); }, 280);
+    }, duration);
+  };
+
+  function initAccordions() {
+    var triggers = document.querySelectorAll('.accordion-trigger');
+    for (var i = 0; i < triggers.length; i++) {
+      (function(trigger) {
+        if (trigger._scInit) return;
+        trigger._scInit = true;
+        trigger.addEventListener('click', function() {
+          var body = trigger.nextElementSibling;
+          var isOpen = body.classList.contains('open');
+          var accordion = trigger.closest('.accordion');
+          if (accordion) {
+            var openBodies = accordion.querySelectorAll('.accordion-body.open');
+            for (var j = 0; j < openBodies.length; j++) {
+              openBodies[j].classList.remove('open');
+              if (openBodies[j].previousElementSibling)
+                openBodies[j].previousElementSibling.classList.remove('active');
+            }
+          }
+          if (!isOpen) {
+            body.classList.add('open');
+            trigger.classList.add('active');
+          }
+        });
+      })(triggers[i]);
+    }
+  }
+
+  var observer = new MutationObserver(function() { initAccordions(); });
+  observer.observe(document.body, { childList: true, subtree: true });
+  initAccordions();
+
+  window.SCNotify = {
+    saved:   function(sym) { SCToast('Watchlist Updated', sym + ' added', 'success'); },
+    removed: function(sym) { SCToast('Watchlist Updated', sym + ' removed', 'info'); },
+    signal:  function(sym, sig) { SCToast('Signal: ' + sig, sym + ' flipped to ' + sig, sig === 'BUY' ? 'success' : sig === 'SELL' ? 'error' : 'warn'); },
+    email:   function(addr) { SCToast('Email Sent', 'Signal digest sent', 'success'); },
+    error:   function(msg)  { SCToast('Error', msg, 'error'); },
+    copy:    function()     { SCToast('Copied', 'Copied to clipboard', 'info'); },
+    macro:   function(label, score) { SCToast('Macro Climate: ' + label, 'Score ' + score + '/100', label === 'RAISE NOW' ? 'success' : label === 'WAIT' ? 'error' : 'warn'); },
+  };
+
+  var _welcomed = sessionStorage.getItem('sc-welcomed');
+  if (!_welcomed) {
+    setTimeout(function() { SCToast('Stockcast Ready', 'AI Stock Assistant · Live Data Connected', 'success', 5000); }, 1200);
+    sessionStorage.setItem('sc-welcomed', '1');
+  }
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════
@@ -2756,41 +2787,57 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
          Stockcast <span style="color:#4d8eff;">·</span> How the AI Assistant Works
     </div>
     """, unsafe_allow_html=True)
-    steps = [
-        ("01","#4d8eff","Data Ingestion","OHLCV via yfinance",
-         "Up to 7 years of daily Open/High/Low/Close/Volume data is fetched from Yahoo Finance. Timezone normalization and MultiIndex flattening are applied for compatibility across yfinance versions."),
-        ("02","#adc6ff","Feature Engineering","20 Technical Indicators",
-         f"Each trading day is described by 20 derived signals: MA5/10/20/50/200, EMA12/26, RSI(14), MACD(12/26/9) with histogram, Bollinger Band width & %B, ATR(14), Volume Ratio, Momentum, Returns(1d/5d), Volatility(20d), and High-Low%. Additionally, {seq_len_val} lag closes are appended as sequential memory."),
-        ("03","#00e5b0","Train/Test Split","80% train · 20% test (chronological)",
-         "Data is split strictly chronologically — no shuffling — to prevent look-ahead bias. The model never sees future data during training. Evaluation is performed exclusively on the held-out 20%."),
-        ("04","#4d8eff","XGBoost Engine","Gradient-boosted decision trees",
-         "The AI engine uses XGBoost trained to project the next day's closing price. Hyperparameters (n_estimators, max_depth, learning_rate) are configurable via the sidebar. Subsample=0.8 and colsample_bytree=0.8 provide regularisation."),
-        ("05","#adc6ff","Bootstrap CI",f"{ci_n} resampling iterations" if show_ci else "Disabled",
-         f"Confidence intervals are produced by running the model {ci_n} times on inputs perturbed with Gaussian noise (σ=1.5%). The 5th and 95th percentiles form the 95% CI ribbon. A wider band indicates higher forecast uncertainty."),
-        ("06","#00e5b0","Price Outlook","Iterative multi-step projection",
-         "Future prices are projected by rolling: each day's projected price feeds back as the next day's lag input. Uncertainty compounds over time — Days 1–3 are most reliable. Days 6+ are directional guidance only."),
-        ("07","#ff5f5f","Signal Generation","BUY / SELL / HOLD research signal",
-         "A composite 6-factor research signal fires from AI outlook, RSI, MACD crossover, Bollinger %B, MA Golden/Death cross, and Volume confirmation. Score >+25 = STRONG BUY, <-25 = STRONG SELL."),
-        ("08","#4d8eff","Strategy Simulator","Walk-forward simulation",
-         "The simulator replays AI signals on test-set prices: BUY fires when projected return exceeds threshold, SELL when below. KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, equity curve vs Buy-and-Hold."),
+    # Build accordion steps data
+    _steps = [
+        ("01","#4d8eff","Data Ingestion","OHLCV via yfinance","Data",
+         "Up to 7 years of daily Open/High/Low/Close/Volume data is fetched from Yahoo Finance. Timezone normalization and MultiIndex flattening are applied for compatibility across yfinance versions.",
+         [("chip info","yfinance"),("chip info","OHLCV"),("chip info","7Y History")]),
+        ("02","#adc6ff","Feature Engineering","20 Technical Indicators","Features",
+         f"Each trading day is described by 20 derived signals: MA5/10/20/50/200, EMA12/26, RSI(14), MACD(12/26/9) with histogram, Bollinger Band width & %B, ATR(14), Volume Ratio, Momentum, Returns(1d/5d), Volatility(20d), and High-Low%. Additionally, {seq_len_val} lag closes are appended as sequential memory.",
+         [("chip ai","RSI"),("chip ai","MACD"),("chip ai","Bollinger"),("chip ai","ATR"),("chip info","20 Signals")]),
+        ("03","#00e5b0","Train / Test Split","80% train · 20% test (chronological)","Split",
+         "Data is split strictly chronologically — no shuffling — to prevent look-ahead bias. The model never sees future data during training. Evaluation is performed exclusively on the held-out 20%.",
+         [("chip buy","80% Train"),("chip warn","20% Test"),("chip info","No Leakage")]),
+        ("04","#4d8eff","XGBoost Engine","Gradient-boosted decision trees","Model",
+         "The AI engine uses XGBoost trained to project the next day's closing price. Hyperparameters (n_estimators, max_depth, learning_rate) are configurable via the sidebar. Subsample=0.8 and colsample_bytree=0.8 provide regularisation.",
+         [("chip ai","XGBoost"),("chip info","Configurable"),("chip ai","Regularised")]),
+        ("05","#adc6ff","Bootstrap CI",f"{ci_n} resampling iterations" if show_ci else "Disabled","Uncertainty",
+         f"Confidence intervals are produced by running the model {ci_n} times on inputs perturbed with Gaussian noise (σ=1.5%). The 5th and 95th percentiles form the 95% CI ribbon. A wider band indicates higher forecast uncertainty.",
+         [("chip ai",f"{ci_n} Samples"),("chip info","95% CI"),("chip warn","σ=1.5%")]),
+        ("06","#00e5b0","Price Outlook","Iterative multi-step projection","Forecast",
+         "Future prices are projected by rolling: each day's projected price feeds back as the next day's lag input. Uncertainty compounds over time — Days 1–3 are most reliable. Days 6+ are directional guidance only.",
+         [("chip buy","Day 1-3 Reliable"),("chip warn","Day 6+ Directional")]),
+        ("07","#ff5f5f","Signal Generation","BUY / SELL / HOLD research signal","Signal",
+         "A composite 6-factor research signal fires from AI outlook, RSI, MACD crossover, Bollinger %B, MA Golden/Death cross, and Volume confirmation. Score >+25 = STRONG BUY, <-25 = STRONG SELL.",
+         [("chip buy","BUY"),("chip sell","SELL"),("chip hold","HOLD"),("chip info","6 Factors")]),
+        ("08","#4d8eff","Strategy Simulator","Walk-forward simulation","Backtest",
+         "The simulator replays AI signals on test-set prices: BUY fires when projected return exceeds threshold, SELL when below. KPIs: Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, equity curve vs Buy-and-Hold.",
+         [("chip warn","Sharpe"),("chip warn","Drawdown"),("chip info","Win Rate")]),
     ]
-    for num, color, title, subtitle, body in steps:
-        st.markdown(f"""
-        <div style="display:flex;gap:1.2rem;margin-bottom:1rem;
-             background:#0f1727;border:1px solid #252f47;border-left:3px solid {color};
-             padding:1.1rem 1.4rem;border-radius:0 0.5rem 0.5rem 0;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;
-               color:{color};opacity:.5;min-width:2.5rem;line-height:1.1;">{num}</div>
-          <div>
-            <div style="font-family:Manrope,sans-serif;font-size:0.7rem;font-weight:800;
-                 letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;">{title}</div>
-            <div style="font-family:IBM Plex Mono,monospace;font-size:0.6rem;letter-spacing:.1em;
-                 color:{color};margin-bottom:.4rem;">{subtitle}</div>
-            <div style="font-family:Manrope,sans-serif;font-size:0.82rem;
-                 color:#8a8fa0;line-height:1.6;">{body}</div>
+
+    # Build accordion HTML
+    _acc_items = ""
+    for num, color, title, subtitle, badge, body, chips in _steps:
+        _chips_html = " ".join(f'<span class="{cc}">{cl}</span>' for cc, cl in chips)
+        _acc_items += f"""
+        <div class="accordion-item">
+          <button class="accordion-trigger">
+            <span class="accordion-num">{num}</span>
+            <span class="accordion-label" style="color:inherit;">{title}
+              <span style="font-family:var(--mono);font-size:.56rem;color:{color};margin-left:.5rem;letter-spacing:.08em;">{subtitle}</span>
+            </span>
+            <span class="accordion-badge">{badge}</span>
+            <span class="accordion-icon">▾</span>
+          </button>
+          <div class="accordion-body">
+            <div class="accordion-body-inner">
+              <div style="font-family:Manrope,sans-serif;font-size:.83rem;color:#8a8fa0;line-height:1.65;margin-bottom:.7rem;">{body}</div>
+              <div class="chip-group">{_chips_html}</div>
+            </div>
           </div>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>"""
+
+    st.markdown(f'<div class="accordion">{_acc_items}</div>', unsafe_allow_html=True)
     st.markdown("""
     <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.2);
          border-left:3px solid #ff5f5f;padding:1rem 1.5rem;margin-top:.5rem;border-radius:0 0.5rem 0.5rem 0;">
@@ -3203,6 +3250,7 @@ with st.sidebar:
             if ticker not in st.session_state.watchlist:
                 if _sb_add_watchlist(st.session_state.user.id, ticker):
                     st.session_state.watchlist.append(ticker)
+                    st.session_state["_toast_wl_add"] = ticker
                     st.rerun()
 
     col1, col2 = st.columns(2)
@@ -3357,6 +3405,11 @@ with st.sidebar:
             st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#8a8fa0;margin-bottom:.4rem;">Pro limit: {_wl_plan_lim} stocks</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;margin-bottom:.4rem;">Free limit reached · <span style="color:#4d8eff;">Upgrade for {PLAN_LIMITS["pro"]["watchlist_stocks"]} stocks</span></div>', unsafe_allow_html=True)
+
+    # Fire pending toasts after rerun
+    if st.session_state.get("_toast_wl_add"):
+        _tw = st.session_state.pop("_toast_wl_add")
+        st.markdown(f'<script>if(window.SCNotify)SCNotify.saved("{_tw}");</script>', unsafe_allow_html=True)
 
     if st.session_state.watchlist:
         for wl_sym in list(st.session_state.watchlist):
@@ -3565,16 +3618,32 @@ if not run_btn:
         else:
             _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#3e4558"
 
+    # Determine if data loaded — show skeleton shimmer while values are default "—"
+    _sp_loaded  = _sp[0] != "—"
+    _nd_loaded  = _nd[0] != "—"
+    _vix_loaded = _vix[0] != "—"
+
+    def _sk_or(val, css_class="stat-value", color=None):
+        """Return value HTML or a skeleton line if value is missing."""
+        if val == "—":
+            return f'<div class="skeleton sk-line value" style="width:70%;"></div>'
+        style = f"color:{color};" if color else ""
+        return f'<div class="{css_class}" style="{style}">{val}</div>'
+
     st.markdown(f"""
     <div class="stat-grid" style="margin-bottom:.5rem;">
-      <div class="stat-card">
-        <div class="stat-label">S&amp;P 500 · Market Pulse</div>
-        <div class="stat-value">{_sp[0]}</div>
+      <div class="stat-card {'skeleton-card' if not _sp_loaded else ''}">
+        <div class="stat-label">S&amp;P 500 · Market Pulse
+          <span class="chip live dot" style="font-size:.48rem;padding:.18rem .5rem;margin-left:6px;">Live</span>
+        </div>
+        {_sk_or(_sp[0]) if not _sp_loaded else f'<div class="stat-value">{_sp[0]}</div>'}
         <div class="stat-sub" style="color:{_sp[2]};font-weight:700;font-size:.7rem;">{_sp[1]}</div>
       </div>
-      <div class="stat-card" style="border-top-color:#adc6ff;">
-        <div class="stat-label">NASDAQ 100 · Tech Momentum</div>
-        <div class="stat-value" style="color:#adc6ff;">{_nd[0]}</div>
+      <div class="stat-card {'skeleton-card' if not _nd_loaded else ''}" style="border-top-color:#adc6ff;">
+        <div class="stat-label">NASDAQ 100 · Tech Momentum
+          <span class="chip info dot" style="font-size:.48rem;padding:.18rem .5rem;margin-left:6px;">Tech</span>
+        </div>
+        {_sk_or(_nd[0], color="#adc6ff") if not _nd_loaded else f'<div class="stat-value" style="color:#adc6ff;">{_nd[0]}</div>'}
         <div class="stat-sub" style="color:{_nd[2]};font-weight:700;font-size:.7rem;">{_nd[1]}</div>
       </div>
       <div class="stat-card" style="border-top-color:{_fg_color};">
@@ -3582,9 +3651,9 @@ if not run_btn:
         <div class="stat-value" style="color:{_fg_color};">{_fg_val}</div>
         <div class="stat-sub" style="color:{_fg_color};font-size:.7rem;">{_fg_sub}</div>
       </div>
-      <div class="stat-card" style="border-top-color:#00e5b0;">
+      <div class="stat-card {'skeleton-card' if not _vix_loaded else ''}" style="border-top-color:#00e5b0;">
         <div class="stat-label">VIX · Volatility Index</div>
-        <div class="stat-value" style="color:#00e5b0;">{_vix[0]}</div>
+        {_sk_or(_vix[0], color="#00e5b0") if not _vix_loaded else f'<div class="stat-value" style="color:#00e5b0;">{_vix[0]}</div>'}
         <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
       </div>
     </div>
@@ -3594,6 +3663,17 @@ if not run_btn:
     if st.session_state.watchlist:
         st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
         st.subheader(_L["watchlist_live"])
+        # Skeleton placeholders while loading
+        _wl_skel_cols = st.columns(min(len(st.session_state.watchlist), 4))
+        for _sc in _wl_skel_cols:
+            with _sc:
+                st.markdown("""
+                <div class="skeleton-card" style="padding:1rem 1.2rem;min-height:100px;margin-bottom:.4rem;">
+                  <div class="skeleton sk-line w-40" style="margin:0 auto .5rem;"></div>
+                  <div class="skeleton sk-line value" style="margin:0 auto .4rem;height:24px;width:60%;"></div>
+                  <div class="skeleton sk-line w-40" style="margin:0 auto;height:10px;"></div>
+                </div>""", unsafe_allow_html=True)
+        # Actual data (overwrites skeletons via Streamlit rerun — shown while fetching)
         wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
         for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
             with wl_cols[i % 4]:
@@ -3603,16 +3683,19 @@ if not run_btn:
                     _chg  = _fi["change_pct"]
                     _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
                     _sign = "▲" if _chg >= 0 else "▼"
+                    _chip_cls = "buy" if _chg >= 0 else "sell"
                     st.markdown(f"""
                     <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
-                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.5rem;">
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;">{wl_sym}</div>
+                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.6rem;">
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;margin-bottom:.4rem;">{wl_sym}</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;margin:.3rem 0;">${_px:.2f}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_col};">{_sign} {_chg:+.2f}%</div>
+                      <div style="display:flex;justify-content:center;margin-top:.5rem;">
+                        <span class="chip {_chip_cls} dot">{_sign} {_chg:+.2f}%</span>
+                      </div>
                     </div>""", unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
-                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;border-radius:.6rem;"><div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;">{wl_sym}</div><div class="skeleton sk-line value" style="margin:.4rem auto;width:60%;"></div></div>', unsafe_allow_html=True)
 
     # How it works
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
@@ -3651,34 +3734,99 @@ if not run_btn:
 
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
-    feat_grid = [
-        ("#4d8eff","📈 AI Price Outlook","Your assistant projects price direction across 20 technical signals with 95% bootstrap confidence intervals."),
-        ("#00e5b0","⚙ Explainable Signals","RSI, MACD, Bollinger, MA Cross, Volume — grouped, scored, explained in plain language."),
-        ("#ffd426","📊 Strategy Simulator","Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold."),
-        ("#ff5f5f","⭐ Watchlist + Alerts","Save stocks, see live prices on the dashboard, get banners when signals flip."),
-        ("#4d8eff","☪ Shariah Screening","AAOIFI Standard No.21 — screens business activity, debt & cash ratios automatically."),
-        ("#adc6ff","🔬 Model Comparison","Benchmark XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R2 side-by-side."),
-        ("#00e5b0","📰 News Sentiment NLP","Live Yahoo Finance headlines scored with TextBlob. Detects confluence with technical signals."),
-        ("#ffd426","🏦 Portfolio Tracker","Track holdings, P&L, sector allocation, and recent transaction history."),
-    ]
-    # Render as 2-column pairs using st.columns
-    for i in range(0, len(feat_grid), 2):
-        _fc1, _fc2 = st.columns(2)
-        for _fcol, _fi in [(_fc1, i), (_fc2, i+1)]:
-            if _fi < len(feat_grid):
-                _color, _title, _body = feat_grid[_fi]
-                with _fcol:
-                    st.markdown(
-                        f'<div style="background:linear-gradient(145deg,#0f1727,#080e1c);'
-                        f'border:1px solid rgba(255,255,255,0.05);border-top:2px solid {_color};'
-                        f'border-radius:.75rem;padding:1rem 1.1rem;margin-bottom:.6rem;">'
-                        f'<div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.12em;'
-                        f'color:{_color};margin-bottom:.4rem;font-weight:700;">{_title}</div>'
-                        f'<div style="font-family:Manrope,sans-serif;font-size:.76rem;'
-                        f'color:#7c8191;line-height:1.5;">{_body}</div>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
+    st.markdown("""
+    <div class="bento-grid">
+
+      <!-- Row 1: Hero cell (col-8) + tall stat cell (col-4 row-2) -->
+      <div class="bento-cell accent-blue col-8">
+        <div class="bento-icon">📈</div>
+        <div class="bento-label">AI Price Outlook</div>
+        <div class="bento-value" style="font-size:1.3rem;color:var(--accent);">XGBoost Engine</div>
+        <div class="bento-desc">Projects next-day and multi-day closing price across 20 technical signals.
+          95% bootstrap confidence intervals quantify forecast uncertainty in real time.</div>
+        <div class="chip-group" style="margin-top:.8rem;">
+          <span class="chip ai dot">XGBoost</span>
+          <span class="chip info dot">20 Signals</span>
+          <span class="chip info dot">Bootstrap CI</span>
+        </div>
+      </div>
+
+      <div class="bento-cell accent-green col-4 row-2">
+        <div class="bento-icon">⭐</div>
+        <div class="bento-label">Watchlist + Alerts</div>
+        <div class="bento-value" style="color:var(--emerald);">Live</div>
+        <div class="bento-sub">Real-time signal banners</div>
+        <div class="bento-desc">Save stocks, see live prices on your dashboard, get instant alerts when AI signals flip BUY ↔ SELL.</div>
+        <div style="margin-top:.7rem;">
+          <span class="chip live dot">Live Prices</span>
+        </div>
+      </div>
+
+      <!-- Row 1 cont: Signals cell (col-4) -->
+      <div class="bento-cell accent-green col-4">
+        <div class="bento-icon">⚙</div>
+        <div class="bento-label">Explainable Signals</div>
+        <div class="bento-desc">RSI · MACD · Bollinger · MA Cross · Volume — each signal scored and explained in plain language.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip buy dot">BUY</span>
+          <span class="chip sell dot">SELL</span>
+          <span class="chip hold dot">HOLD</span>
+        </div>
+      </div>
+
+      <!-- Row 2: Simulator (col-5) + Shariah (col-3) + (col-4 already spanned row-2) -->
+      <div class="bento-cell accent-yellow col-5">
+        <div class="bento-icon">📊</div>
+        <div class="bento-label">Strategy Simulator</div>
+        <div class="bento-desc">Walk-forward backtesting engine. Outputs Sharpe ratio, max drawdown, win rate, profit factor, and equity curve vs buy-and-hold.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip warn dot">Sharpe</span>
+          <span class="chip warn dot">Drawdown</span>
+          <span class="chip warn dot">Win Rate</span>
+        </div>
+      </div>
+
+      <div class="bento-cell accent-purple col-3">
+        <div class="bento-icon">☪</div>
+        <div class="bento-label">Shariah Screen</div>
+        <div class="bento-value" style="font-size:1rem;color:var(--primary);">AAOIFI</div>
+        <div class="bento-sub">Standard No.21</div>
+        <div class="bento-desc" style="font-size:.72rem;">Business activity, debt/mktcap, debt/assets, cash/assets — auto-screened.</div>
+      </div>
+
+      <!-- Row 3: NLP (col-4) + Model Compare (col-4) + Portfolio (col-4) -->
+      <div class="bento-cell accent-green col-4">
+        <div class="bento-icon">📰</div>
+        <div class="bento-label">News Sentiment NLP</div>
+        <div class="bento-desc">Live Yahoo Finance headlines analysed with TextBlob. Positive/negative polarity scored and overlaid on signal context.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip ai dot">TextBlob</span>
+          <span class="chip live dot">Live News</span>
+        </div>
+      </div>
+
+      <div class="bento-cell accent-purple col-4">
+        <div class="bento-icon">🔬</div>
+        <div class="bento-label">Model Comparison</div>
+        <div class="bento-desc">Benchmark XGBoost vs Prophet vs Linear Regression side-by-side — RMSE, MAE, MAPE, and R² in one view.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip pro dot">Pro</span>
+          <span class="chip ai dot">3 Models</span>
+        </div>
+      </div>
+
+      <div class="bento-cell accent-yellow col-4">
+        <div class="bento-icon">🏦</div>
+        <div class="bento-label">Portfolio Tracker</div>
+        <div class="bento-desc">Track holdings, unrealised P&L, sector allocation, cost basis, and transaction history in one place.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip info dot">P&L</span>
+          <span class="chip info dot">Sectors</span>
+        </div>
+      </div>
+
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
@@ -3715,6 +3863,30 @@ else:
     if st.sidebar.button(_L.get("back", "← Back to Dashboard"), use_container_width=True, key="back_btn"):
         st.session_state.run_pressed = False
         st.rerun()
+    # ── Breadcrumb navigation bar ────────────────────────────────────────────
+    st.markdown(f"""
+    <div class="breadcrumb-bar">
+      <nav class="breadcrumb">
+        <span class="bc-item">
+          <span class="bc-dot"></span>Stockcast
+        </span>
+        <span class="bc-sep">›</span>
+        <span class="bc-item">
+          <span class="bc-dot"></span>Analysis
+        </span>
+        <span class="bc-sep">›</span>
+        <span class="bc-item active">
+          <span class="bc-dot"></span>{ticker}
+        </span>
+      </nav>
+      <div class="bc-context">
+        <span class="chip live dot" style="font-size:.52rem;padding:.2rem .55rem;">Live</span>
+        &nbsp;
+        <span style="color:var(--t4);">{pd.Timestamp.now().strftime('%b %d · %H:%M')}</span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     # ── Input validation ──────────────────────────────────────────────────────
     if not ticker or len(ticker.strip()) < 1:
         st.warning("Please enter a ticker symbol.")
@@ -3891,10 +4063,7 @@ else:
         st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
 
         # Tabs
-        dash_tab, port_tab, mkt_tab, deep_tab, startup_tab = st.tabs([
-            _L["dashboard_tab"], _L["portfolio"], _L["markets"],
-            _L["deep_analysis"], "🚀  Startup Hub"
-        ])
+        dash_tab, port_tab, mkt_tab, deep_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], _L["deep_analysis"]])
 
         # ──────────────────────────────────────────────────────────────────────
         with dash_tab:
@@ -4456,7 +4625,7 @@ else:
                 prev_verdict = st.session_state.alert_signals.get(ticker)
                 if prev_verdict is not None and prev_verdict != verdict_short:
                     _ac = {"BUY":"#00e5b0","SELL":"#ff5f5f"}.get(verdict_short,"#ffd426")
-                    st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid {_ac};border-left:4px solid {_ac};padding:.8rem 1.4rem;margin-bottom:1rem;font-family:Manrope,sans-serif;font-size:.78rem;color:{_ac};font-weight:700;border-radius:0 .5rem .5rem 0;">🔔 SIGNAL CHANGE — {ticker} &nbsp;|&nbsp; {prev_verdict} → {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid {_ac};border-left:4px solid {_ac};padding:.8rem 1.4rem;margin-bottom:1rem;font-family:Manrope,sans-serif;font-size:.78rem;color:{_ac};font-weight:700;border-radius:0 .5rem .5rem 0;">🔔 SIGNAL CHANGE — {ticker} &nbsp;|&nbsp; {prev_verdict} → {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}</div><script>if(window.SCNotify)SCNotify.signal("{ticker}","{verdict_short}");</script>', unsafe_allow_html=True)
                 st.session_state.alert_signals[ticker] = verdict_short
 
             verdict_css = 'sell' if verdict_short=='SELL' else 'hold' if verdict_short=='HOLD' else ''
@@ -4464,7 +4633,24 @@ else:
             score_color = '#00e5b0' if total_score>0 else '#ff5f5f' if total_score<0 else '#ffd426'
             rr_color = 'positive' if risk_reward>=1.5 else 'negative' if risk_reward<1 else 'neutral'
 
+            # Chip tags for signal context
+            _chip_sig   = "buy" if verdict_short=="BUY" else "sell" if verdict_short=="SELL" else "hold"
+            _rsi_chip   = "sell" if rsi_val > 70 else "buy" if rsi_val < 30 else "hold"
+            _rsi_lbl    = "Overbought" if rsi_val > 70 else "Oversold" if rsi_val < 30 else "Neutral RSI"
+            _trend_chip = "buy" if xgb_pct >= 0 else "sell"
+            _trend_lbl  = f"{'▲' if xgb_pct>=0 else '▼'} {abs(xgb_pct):.1f}% Outlook"
+
             st.markdown(f"""
+            <div style="margin-bottom:.7rem;">
+              <div class="chip-group">
+                <span class="chip {_chip_sig} dot" style="font-size:.68rem;padding:.35rem .9rem;">{verdict_short}</span>
+                <span class="chip {_rsi_chip} dot">{_rsi_lbl}</span>
+                <span class="chip {_trend_chip} dot">{_trend_lbl}</span>
+                <span class="chip live dot">Live</span>
+                <span class="chip ai dot">XGBoost</span>
+                {'<span class="chip pro dot">Pro</span>' if _is_pro() else '<span class="chip info dot">Free</span>'}
+              </div>
+            </div>
             <div class="signal-panel">
               <div class="signal-main {verdict_css}">
                 <div class="signal-lbl">{_L["composite_signal"]}</div>
@@ -4739,760 +4925,6 @@ else:
                     st.info("Install `textblob` to enable News Sentiment NLP.")
                 except Exception as e:
                     st.warning(f"Could not fetch news: {e}")
-
-        # ══════════════════════════════════════════════════════════════════════
-        # 🚀  STARTUP HUB TAB
-        # ══════════════════════════════════════════════════════════════════════
-        with startup_tab:
-
-            # Header
-            st.markdown(f"""
-            <div style="margin-bottom:1.4rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:1.9rem;font-weight:800;
-                   letter-spacing:-.03em;color:#e4eafd;line-height:1.2;">
-                Startup <span style="color:#4d8eff;">Hub</span>
-              </div>
-              <div style="font-size:.82rem;color:#8a8fa0;margin-top:.35rem;line-height:1.65;max-width:700px;">
-                Six tools built for founders — macro risk scanner, treasury optimizer,
-                competitor radar, sector benchmarks, automated signal alerts, and investor-ready reports.
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Collect composite signal for this ticker (needed across sub-tabs)
-            _sh_composite = None
-            try:
-                _sh_composite = compute_composite_signal(df, last_close, preds[-1], preds, actual)
-            except Exception:
-                pass
-
-            # Sub-tabs
-            hub1, hub2, hub3, hub4, hub5, hub6 = st.tabs([
-                "🌡 Macro Risk",
-                "🏦 Treasury",
-                "🔭 Competitors",
-                "📊 Sector Bench",
-                "🔔 Signal Alert",
-                "📑 Investor Report",
-            ])
-
-            # ────────────────────────────────────────────────────────────────
-            # HUB 1 — MACROECONOMIC RISK SCANNER
-            # ────────────────────────────────────────────────────────────────
-            with hub1:
-                st.markdown("""
-                <div style="background:rgba(77,142,255,0.06);border:1px solid rgba(77,142,255,0.2);
-                     border-left:4px solid #4d8eff;padding:.85rem 1.3rem;margin-bottom:1.2rem;
-                     border-radius:0 .6rem .6rem 0;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                       letter-spacing:.14em;text-transform:uppercase;color:#4d8eff;margin-bottom:.25rem;">
-                    Macroeconomic Risk Scanner
-                  </div>
-                  <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">
-                    Live composite score from VIX, S&amp;P momentum, Fear &amp; Greed, and bond market.
-                    Tells founders: <b style="color:#e4eafd;">RAISE NOW · PROCEED · CAUTION · WAIT</b>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                with st.spinner("Computing macro climate..."):
-                    _macro = get_macro_risk_score()
-
-                _ms = _macro["score"]; _ml = _macro["label"]; _mc = _macro["color"]
-                _mv = _macro["verdict"]; _mf = _macro["factors"]
-                _mp = f"{max(2, min(98, _ms)):.0f}%"
-
-                # Score card + verdict
-                _hb1a, _hb1b = st.columns([1, 2])
-                with _hb1a:
-                    st.markdown(f"""
-                    <div style="background:linear-gradient(145deg,#0f1727,#080e1c);
-                         border:2px solid {_mc};border-radius:1.2rem;
-                         padding:2rem 1.5rem;text-align:center;
-                         box-shadow:0 0 40px rgba(0,0,0,0.5);">
-                      <div style="font-family:Manrope,sans-serif;font-size:.56rem;font-weight:800;
-                           letter-spacing:.18em;text-transform:uppercase;color:#3e4558;margin-bottom:.5rem;">
-                        Market Climate
-                      </div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:4rem;font-weight:700;
-                           color:{_mc};line-height:1;">{_ms:.0f}</div>
-                      <div style="font-size:.68rem;color:#3e4558;margin-bottom:.9rem;">/100</div>
-                      <div style="background:{_mc};color:#080e1c;font-family:Manrope,sans-serif;
-                           font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
-                           padding:.5rem 1.2rem;border-radius:.4rem;display:inline-block;">
-                        {_ml}
-                      </div>
-                      <div style="height:4px;background:linear-gradient(90deg,#ff5f5f,#ffd426,#00e5b0);
-                           border-radius:2px;margin-top:1.3rem;position:relative;">
-                        <div style="position:absolute;top:-7px;left:{_mp};transform:translateX(-50%);
-                             width:3px;height:18px;background:#e4eafd;border-radius:1px;"></div>
-                      </div>
-                      <div style="display:flex;justify-content:space-between;margin-top:.35rem;
-                           font-size:.5rem;color:#3e4558;text-transform:uppercase;font-weight:700;">
-                        <span>Wait</span><span>Proceed</span><span>Raise</span>
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                with _hb1b:
-                    # Verdict box
-                    st.markdown(f"""
-                    <div style="background:rgba(0,0,0,0.2);border:1px solid {_mc};
-                         border-left:4px solid {_mc};padding:1rem 1.4rem;
-                         border-radius:0 .6rem .6rem 0;margin-bottom:.8rem;">
-                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
-                           letter-spacing:.14em;text-transform:uppercase;color:{_mc};margin-bottom:.35rem;">
-                        Founder Verdict
-                      </div>
-                      <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#c8cedd;line-height:1.65;">
-                        {_mv}
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    # Factor rows
-                    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">Factor Breakdown</div>', unsafe_allow_html=True)
-                    for _fn, (_fc, _fl) in _mf.items():
-                        _fc_color = "#00e5b0" if _fc > 0 else "#ff5f5f" if _fc < 0 else "#ffd426"
-                        _fc_border = "#00e5b0" if _fc > 0 else "#ff5f5f" if _fc < 0 else "#1e2740"
-                        st.markdown(f"""
-                        <div style="display:flex;align-items:center;justify-content:space-between;
-                             padding:.5rem .9rem;background:#0f1727;border-left:2px solid {_fc_border};
-                             border-radius:0 .35rem .35rem 0;margin-bottom:.25rem;">
-                          <div style="font-family:Manrope,sans-serif;font-size:.72rem;color:#8a8fa0;">{_fl}</div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;font-weight:700;
-                               color:{_fc_color};">{'+' if _fc>0 else ''}{_fc}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                # S&P 90-day chart
-                try:
-                    _sp_hist = _yf_download_with_retry("^GSPC", period="90d", interval="1d")
-                    if not _sp_hist.empty:
-                        _sp_c = _sp_hist["Close"].dropna()
-                        _fig_macro = go.Figure()
-                        _fig_macro.add_trace(go.Scatter(x=_sp_c.index, y=_sp_c.values,
-                            name="S&P 500", line=dict(color="#4d8eff", width=1.8),
-                            fill="tozeroy", fillcolor="rgba(77,142,255,0.07)"))
-                        _fig_macro.update_layout(**PLOTLY_LAYOUT,
-                            title=dict(text="S&P 500 · 90-Day Macro Context", font=dict(color=C_GREEN, size=12)),
-                            height=200)
-                        st.plotly_chart(_fig_macro, use_container_width=True)
-                except Exception:
-                    pass
-                st.caption("⚠ Macro Climate is a composite heuristic tool. Not financial advice.")
-
-            # ────────────────────────────────────────────────────────────────
-            # HUB 2 — TREASURY / CASH RESERVE OPTIMIZER
-            # ────────────────────────────────────────────────────────────────
-            with hub2:
-                st.markdown("""
-                <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18);
-                     border-left:4px solid #00e5b0;padding:.85rem 1.3rem;margin-bottom:1.2rem;
-                     border-radius:0 .6rem .6rem 0;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                       letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.25rem;">
-                    Treasury / Cash Reserve Optimizer
-                  </div>
-                  <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">
-                    Don't let idle startup cash rot in a bank account. Compare low-risk ETF options
-                    optimized for your runway horizon — from T-bills to dividend income.
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Inputs
-                _tb1, _tb2, _tb3 = st.columns(3)
-                with _tb1:
-                    _cash_amt = st.number_input("Cash to deploy ($)", min_value=10000,
-                        max_value=50000000, value=500000, step=10000, key="treasury_cash")
-                with _tb2:
-                    _horizon_mo = st.selectbox("Time horizon", ["3 months","6 months",
-                        "12 months","18 months","24 months+"], index=1, key="treasury_horizon")
-                with _tb3:
-                    _risk_pref = st.selectbox("Risk tolerance", ["Capital preservation",
-                        "Balanced growth","Income-focused"], index=0, key="treasury_risk")
-
-                # Recommended profile based on horizon + risk
-                _horizon_map = {"3 months":"Ultra-safe (T-Bills)", "6 months":"Ultra-safe (T-Bills)",
-                                "12 months":"Short-term Bonds", "18 months":"Intermediate Bonds",
-                                "24 months+":"Balanced (60/40)"}
-                if _risk_pref == "Income-focused":
-                    _auto_profile = "Dividend / Income"
-                elif _risk_pref == "Capital preservation":
-                    _auto_profile = _horizon_map.get(_horizon_mo, "Ultra-safe (T-Bills)")
-                else:
-                    _auto_profile = _horizon_map.get(_horizon_mo, "Short-term Bonds")
-
-                # Recommendation card
-                _tp_data = TREASURY_ETFS[_auto_profile]
-                st.markdown(f"""
-                <div style="background:linear-gradient(135deg,rgba(0,229,176,0.08),rgba(77,142,255,0.04));
-                     border:1px solid rgba(0,229,176,0.25);border-radius:.75rem;
-                     padding:1rem 1.4rem;margin:.6rem 0 1rem;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.56rem;font-weight:800;
-                       letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.3rem;">
-                    ✦ Recommended Strategy
-                  </div>
-                  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
-                    <div>
-                      <div style="font-family:Manrope,sans-serif;font-size:1rem;font-weight:800;color:#e4eafd;">
-                        {_auto_profile}
-                      </div>
-                      <div style="font-size:.78rem;color:#8a8fa0;margin-top:.25rem;max-width:480px;line-height:1.55;">
-                        {_tp_data["desc"]}
-                      </div>
-                    </div>
-                    <div style="text-align:right;">
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#3e4558;">Suggested tickers</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#4d8eff;">
-                        {" · ".join(_tp_data["tickers"])}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Live ETF data table
-                with st.spinner("Loading ETF data..."):
-                    _tsy_etfs = get_treasury_etf_data(_tp_data["tickers"])
-
-                # Column headers
-                _th = st.columns([1, 2.5, 1.1, 1.1, 1.2, 1.2, 1.5])
-                for _thc, _tht in zip(_th, ["Ticker","Name","Price","Today","1Y Return","Div Yield","AUM"]):
-                    _thc.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_tht}</div>', unsafe_allow_html=True)
-
-                for _te in _tsy_etfs:
-                    _te_chg_c = "#00e5b0" if _te["change_pct"] >= 0 else "#ff5f5f"
-                    _te_sign  = "+" if _te["change_pct"] >= 0 else ""
-                    _te_r1y_c = "#00e5b0" if _te["ret_1y"] >= 0 else "#ff5f5f"
-                    _te_aum   = f"${_te['aum']/1e9:.1f}B" if _te["aum"] >= 1e9 else f"${_te['aum']/1e6:.0f}M" if _te["aum"] > 0 else "—"
-                    _tr = st.columns([1, 2.5, 1.1, 1.1, 1.2, 1.2, 1.5])
-                    _tr[0].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;font-weight:700;color:#4d8eff;padding:.4rem 0;">{_te["ticker"]}</div>', unsafe_allow_html=True)
-                    _tr[1].markdown(f'<div style="font-size:.73rem;color:#8a8fa0;padding:.4rem 0;">{_te["name"]}</div>', unsafe_allow_html=True)
-                    _tr[2].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#e4eafd;padding:.4rem 0;">${_te["price"]:.2f}</div>', unsafe_allow_html=True)
-                    _tr[3].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:{_te_chg_c};padding:.4rem 0;">{_te_sign}{_te["change_pct"]:.2f}%</div>', unsafe_allow_html=True)
-                    _tr[4].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{_te_r1y_c};font-weight:700;padding:.4rem 0;">{"+" if _te["ret_1y"]>=0 else ""}{_te["ret_1y"]:.1f}%</div>', unsafe_allow_html=True)
-                    _tr[5].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#adc6ff;padding:.4rem 0;">{_te["div_yield"]:.2f}% </div>', unsafe_allow_html=True)
-                    _tr[6].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#8a8fa0;padding:.4rem 0;">{_te_aum}</div>', unsafe_allow_html=True)
-
-                # Projected yield calculator
-                _valid_r = [e["ret_1y"] for e in _tsy_etfs if e["ret_1y"] != 0]
-                if _valid_r:
-                    _avg_r = sum(_valid_r) / len(_valid_r)
-                    _proj_gain = _cash_amt * (_avg_r / 100)
-                    _proj_final = _cash_amt + _proj_gain
-                    st.markdown(f"""
-                    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.9rem;">
-                      <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #00e5b0;
-                           border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:160px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
-                             color:#3e4558;margin-bottom:.3rem;">Deployed Capital</div>
-                        <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;">${_cash_amt:,.0f}</div>
-                      </div>
-                      <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #4d8eff;
-                           border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:160px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
-                             color:#3e4558;margin-bottom:.3rem;">Avg 1Y Return (ETF basket)</div>
-                        <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#4d8eff;">{"+" if _avg_r>=0 else ""}{_avg_r:.2f}%</div>
-                      </div>
-                      <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #ffd426;
-                           border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:160px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
-                             color:#3e4558;margin-bottom:.3rem;">Projected Gain (1Y)</div>
-                        <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#ffd426;">{"+" if _proj_gain>=0 else ""}${_proj_gain:,.0f}</div>
-                      </div>
-                      <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #00e5b0;
-                           border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:160px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
-                             color:#3e4558;margin-bottom:.3rem;">Projected Final Value</div>
-                        <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#00e5b0;">${_proj_final:,.0f}</div>
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                # Browse all profiles
-                st.markdown("<hr style='margin:1.2rem 0;'>", unsafe_allow_html=True)
-                st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">Browse All Strategies</div>', unsafe_allow_html=True)
-                for _pname, _pinfo in TREASURY_ETFS.items():
-                    _is_rec = _pname == _auto_profile
-                    _p_border = "rgba(0,229,176,0.4)" if _is_rec else "#252f47"
-                    _p_bg     = "rgba(0,229,176,0.04)" if _is_rec else "transparent"
-                    st.markdown(f"""
-                    <div style="background:{_p_bg};border:1px solid {_p_border};border-radius:.5rem;
-                         padding:.7rem 1.1rem;margin-bottom:.35rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
-                      <div>
-                        <div style="font-family:Manrope,sans-serif;font-size:.72rem;font-weight:700;color:#e4eafd;">
-                          {("✦ " if _is_rec else "") + _pname}
-                        </div>
-                        <div style="font-size:.68rem;color:#3e4558;margin-top:.15rem;">{_pinfo["desc"][:80]}…</div>
-                      </div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#4d8eff;white-space:nowrap;">
-                        {" · ".join(_pinfo["tickers"])}
-                      </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                st.caption("⚠ Past ETF returns do not guarantee future results. Not financial advice.")
-
-            # ────────────────────────────────────────────────────────────────
-            # HUB 3 — COMPETITOR STOCK TRACKER
-            # ────────────────────────────────────────────────────────────────
-            with hub3:
-                st.markdown("""
-                <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.18);
-                     border-left:4px solid #ffd426;padding:.85rem 1.3rem;margin-bottom:1.2rem;
-                     border-radius:0 .6rem .6rem 0;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                       letter-spacing:.14em;text-transform:uppercase;color:#ffd426;margin-bottom:.25rem;">
-                    Competitor Stock Tracker · B2B Intel
-                  </div>
-                  <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">
-                    Monitor public competitors' health signals in real time — stock trend, market cap momentum,
-                    P/E, and 52-week positioning. Your current analysis ticker is always included.
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Add competitors UI
-                _ci1, _ci2 = st.columns([5, 1])
-                with _ci1:
-                    _comp_raw = st.text_input("Add tickers (comma-separated)",
-                        placeholder="e.g. MSFT, AAPL, SHOP, AMZN",
-                        label_visibility="collapsed", key="comp_input")
-                with _ci2:
-                    if st.button("➕ Add", key="comp_add", use_container_width=True):
-                        for _s in [x.strip().upper() for x in _comp_raw.split(",") if x.strip()]:
-                            if _s and _s not in st.session_state.competitor_tickers and len(st.session_state.competitor_tickers) < 9:
-                                st.session_state.competitor_tickers.append(_s)
-                        st.rerun()
-
-                # Remove buttons
-                if st.session_state.competitor_tickers:
-                    _rem_cols = st.columns(min(len(st.session_state.competitor_tickers), 5))
-                    for _ri, _rs in enumerate(list(st.session_state.competitor_tickers)):
-                        with _rem_cols[_ri % 5]:
-                            if st.button(f"✕ {_rs}", key=f"comp_rem_{_rs}_{_ri}", use_container_width=True):
-                                st.session_state.competitor_tickers.remove(_rs)
-                                st.rerun()
-
-                # Build full list (current ticker always first)
-                _all_comp = list(dict.fromkeys([ticker] + st.session_state.competitor_tickers))
-
-                with st.spinner("Fetching competitor data..."):
-                    _comp_rows = get_competitor_snapshot(_all_comp)
-
-                # Table headers
-                _ch_cols = st.columns([1.2, 2.4, 1.2, 1.2, 1.5, 1.2, 1.5])
-                for _ch, _ct in zip(_ch_cols, ["Ticker","Company","Price","Δ Today","Mkt Cap","P/E","vs 52w High"]):
-                    _ch.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_ct}</div>', unsafe_allow_html=True)
-
-                for _cr in _comp_rows:
-                    _is_cur   = _cr["ticker"] == ticker
-                    _cc_chg   = "#00e5b0" if _cr["change_pct"] >= 0 else "#ff5f5f"
-                    _cc_sign  = "+" if _cr["change_pct"] >= 0 else ""
-                    _cc_mc    = f"${_cr['mktcap']/1e12:.2f}T" if _cr['mktcap']>=1e12 else f"${_cr['mktcap']/1e9:.1f}B" if _cr['mktcap']>=1e9 else f"${_cr['mktcap']/1e6:.0f}M" if _cr['mktcap']>0 else "—"
-                    _cc_pe    = f"{_cr['pe']:.1f}×" if _cr['pe'] > 0 else "—"
-                    _cc_fhc   = "#ff5f5f" if _cr['pct_from_high']<-20 else "#ffd426" if _cr['pct_from_high']<-10 else "#00e5b0"
-                    _cc_fhs   = f"{_cr['pct_from_high']:+.1f}%" if _cr['w52h'] > 0 else "—"
-                    _row_bg   = "rgba(77,142,255,0.06)" if _is_cur else "transparent"
-                    _row_border = "rgba(77,142,255,0.3)" if _is_cur else "transparent"
-
-                    _rc = st.columns([1.2, 2.4, 1.2, 1.2, 1.5, 1.2, 1.5])
-                    _rc[0].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;font-weight:700;color:#4d8eff;padding:.45rem 0;">{_cr["ticker"]}{"  ◄" if _is_cur else ""}</div>', unsafe_allow_html=True)
-                    _rc[1].markdown(f'<div style="font-size:.73rem;color:#8a8fa0;padding:.45rem 0;">{_cr["name"]}</div>', unsafe_allow_html=True)
-                    _rc[2].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#e4eafd;padding:.45rem 0;">${_cr["price"]:,.2f}</div>', unsafe_allow_html=True)
-                    _rc[3].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:{_cc_chg};padding:.45rem 0;">{_cc_sign}{_cr["change_pct"]:.2f}%</div>', unsafe_allow_html=True)
-                    _rc[4].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#8a8fa0;padding:.45rem 0;">{_cc_mc}</div>', unsafe_allow_html=True)
-                    _rc[5].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#adc6ff;padding:.45rem 0;">{_cc_pe}</div>', unsafe_allow_html=True)
-                    _rc[6].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:{_cc_fhc};padding:.45rem 0;">{_cc_fhs}</div>', unsafe_allow_html=True)
-
-                # 90-day relative performance chart
-                if len(_all_comp) >= 2:
-                    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;margin:1rem 0 .4rem;">Relative Performance · 90 Days (rebased to 100)</div>', unsafe_allow_html=True)
-                    try:
-                        _ch_raw = yf.download(_all_comp[:6], period="90d", interval="1d",
-                                              progress=False, auto_adjust=True)
-                        _ch_cls = _ch_raw["Close"] if "Close" in _ch_raw.columns else _ch_raw
-                        if isinstance(_ch_cls.columns, pd.MultiIndex):
-                            _ch_cls = _ch_cls.droplevel(0, axis=1)
-                        if isinstance(_ch_cls, pd.Series):
-                            _ch_cls = _ch_cls.to_frame(name=_all_comp[0])
-                        _fig_cmp = go.Figure()
-                        _comp_palette = ["#4d8eff","#00e5b0","#ffd426","#ff5f5f","#adc6ff","#ff9f40"]
-                        for _ci2, _csym in enumerate(_all_comp[:6]):
-                            if _csym in _ch_cls.columns:
-                                _ser = _ch_cls[_csym].dropna()
-                                if not _ser.empty:
-                                    _reb = (_ser / _ser.iloc[0]) * 100
-                                    _fig_cmp.add_trace(go.Scatter(
-                                        x=_reb.index, y=_reb.values, name=_csym,
-                                        line=dict(color=_comp_palette[_ci2 % 6],
-                                                  width=2.2 if _csym==ticker else 1.2,
-                                                  dash="solid" if _csym==ticker else "dot")))
-                        _fig_cmp.update_layout(**PLOTLY_LAYOUT,
-                            title=dict(text="Relative Price Performance · Rebased to 100", font=dict(color=C_GREEN, size=12)),
-                            height=320)
-                        st.plotly_chart(_fig_cmp, use_container_width=True)
-                    except Exception as _ce:
-                        st.info(f"Could not fetch comparison history: {_ce}")
-
-            # ────────────────────────────────────────────────────────────────
-            # HUB 4 — PRE-IPO SECTOR BENCHMARK
-            # ────────────────────────────────────────────────────────────────
-            with hub4:
-                st.markdown("""
-                <div style="background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.2);
-                     border-left:4px solid #adc6ff;padding:.85rem 1.3rem;margin-bottom:1.2rem;
-                     border-radius:0 .6rem .6rem 0;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                       letter-spacing:.14em;text-transform:uppercase;color:#adc6ff;margin-bottom:.25rem;">
-                    Pre-IPO · Sector Benchmark Mode
-                  </div>
-                  <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">
-                    Select your sector to instantly generate a public comps table — P/E, market cap,
-                    momentum, and positioning. The "comparable companies" table VCs ask for.
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                _sec_sel = st.selectbox("Your sector", list(SECTOR_COMPS.keys()),
-                    label_visibility="collapsed", key="sector_select")
-
-                with st.spinner(f"Loading {_sec_sel} benchmarks..."):
-                    _bench = get_competitor_snapshot(SECTOR_COMPS[_sec_sel])
-
-                # Sector summary stats
-                _valid_pe  = [b["pe"] for b in _bench if b["pe"] > 0]
-                _valid_chg = [b["change_pct"] for b in _bench]
-                _valid_mc  = [b["mktcap"] for b in _bench if b["mktcap"] > 0]
-                _med_pe    = sorted(_valid_pe)[len(_valid_pe)//2] if _valid_pe else 0
-                _avg_chg   = sum(_valid_chg)/len(_valid_chg) if _valid_chg else 0
-                _total_mc  = sum(_valid_mc)
-
-                _s1, _s2, _s3 = st.columns(3)
-                _s1.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #adc6ff;border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.54rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Sector Median P/E</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:#adc6ff;">{_med_pe:.1f}×</div></div>', unsafe_allow_html=True)
-                _s2.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid {"#00e5b0" if _avg_chg>=0 else "#ff5f5f"};border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.54rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Avg Daily Change</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:{"#00e5b0" if _avg_chg>=0 else "#ff5f5f"};">{_avg_chg:+.2f}%</div></div>', unsafe_allow_html=True)
-                _s3.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #ffd426;border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.54rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Combined Market Cap</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:#ffd426;">${_total_mc/1e12:.2f}T</div></div>', unsafe_allow_html=True)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                # Benchmark table headers
-                _bh = st.columns([1.2, 2.4, 1.2, 1.2, 1.5, 1.2, 1.5])
-                for _bhc, _bht in zip(_bh, ["Ticker","Company","Price","Δ Today","Mkt Cap","P/E","vs 52w High"]):
-                    _bhc.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_bht}</div>', unsafe_allow_html=True)
-
-                for _bd in _bench:
-                    _bd_chg_c = "#00e5b0" if _bd["change_pct"] >= 0 else "#ff5f5f"
-                    _bd_sign  = "+" if _bd["change_pct"] >= 0 else ""
-                    _bd_mc    = f"${_bd['mktcap']/1e12:.2f}T" if _bd['mktcap']>=1e12 else f"${_bd['mktcap']/1e9:.1f}B" if _bd['mktcap']>=1e9 else "—"
-                    _bd_pe    = f"{_bd['pe']:.1f}×" if _bd['pe'] > 0 else "—"
-                    _bd_fhc   = "#ff5f5f" if _bd['pct_from_high']<-20 else "#ffd426" if _bd['pct_from_high']<-10 else "#00e5b0"
-                    _bd_fhs   = f"{_bd['pct_from_high']:+.1f}%" if _bd['w52h'] > 0 else "—"
-                    _br = st.columns([1.2, 2.4, 1.2, 1.2, 1.5, 1.2, 1.5])
-                    _br[0].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;font-weight:700;color:#4d8eff;padding:.4rem 0;">{_bd["ticker"]}</div>', unsafe_allow_html=True)
-                    _br[1].markdown(f'<div style="font-size:.73rem;color:#8a8fa0;padding:.4rem 0;">{_bd["name"]}</div>', unsafe_allow_html=True)
-                    _br[2].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#e4eafd;padding:.4rem 0;">${_bd["price"]:,.2f}</div>', unsafe_allow_html=True)
-                    _br[3].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:{_bd_chg_c};padding:.4rem 0;">{_bd_sign}{_bd["change_pct"]:.2f}%</div>', unsafe_allow_html=True)
-                    _br[4].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#8a8fa0;padding:.4rem 0;">{_bd_mc}</div>', unsafe_allow_html=True)
-                    _br[5].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#adc6ff;padding:.4rem 0;">{_bd_pe}</div>', unsafe_allow_html=True)
-                    _br[6].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;font-weight:700;color:{_bd_fhc};padding:.4rem 0;">{_bd_fhs}</div>', unsafe_allow_html=True)
-
-                # Sector performance chart
-                try:
-                    _sec_syms = [b["ticker"] for b in _bench if b["price"] > 0][:8]
-                    if _sec_syms:
-                        _sec_hist = yf.download(_sec_syms, period="90d", interval="1d",
-                                                progress=False, auto_adjust=True)
-                        _sec_cls = _sec_hist["Close"] if "Close" in _sec_hist.columns else _sec_hist
-                        if isinstance(_sec_cls.columns, pd.MultiIndex):
-                            _sec_cls = _sec_cls.droplevel(0, axis=1)
-                        if isinstance(_sec_cls, pd.Series):
-                            _sec_cls = _sec_cls.to_frame(name=_sec_syms[0])
-                        _fig_sec = go.Figure()
-                        _sec_pal = ["#4d8eff","#00e5b0","#ffd426","#ff5f5f","#adc6ff","#ff9f40","#c084fc","#34d399"]
-                        for _si, _ss in enumerate(_sec_syms):
-                            if _ss in _sec_cls.columns:
-                                _sv = _sec_cls[_ss].dropna()
-                                if not _sv.empty:
-                                    _sv_reb = (_sv / _sv.iloc[0]) * 100
-                                    _fig_sec.add_trace(go.Scatter(x=_sv_reb.index, y=_sv_reb.values,
-                                        name=_ss, line=dict(color=_sec_pal[_si % 8], width=1.5)))
-                        _fig_sec.update_layout(**PLOTLY_LAYOUT,
-                            title=dict(text=f"{_sec_sel} · 90-Day Relative Performance", font=dict(color=C_GREEN, size=12)),
-                            height=360)
-                        st.plotly_chart(_fig_sec, use_container_width=True)
-                except Exception:
-                    pass
-                st.caption("⚠ Benchmarks are for research purposes only. Not financial advice.")
-
-            # ────────────────────────────────────────────────────────────────
-            # HUB 5 — SIGNAL ALERT VIA EMAIL
-            # ────────────────────────────────────────────────────────────────
-            with hub5:
-                st.markdown("""
-                <div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.18);
-                     border-left:4px solid #ff5f5f;padding:.85rem 1.3rem;margin-bottom:1.2rem;
-                     border-radius:0 .6rem .6rem 0;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                       letter-spacing:.14em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.25rem;">
-                    Signal Alert · Email Automation
-                  </div>
-                  <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">
-                    Send yourself an instant AI signal update by email. Requires SMTP credentials
-                    in Streamlit secrets (SMTP_HOST · SMTP_PORT · SMTP_USER · SMTP_PASS).
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Signal preview card
-                if _sh_composite:
-                    _sa_sig   = _sh_composite.get("verdict_short","—")
-                    _sa_score = _sh_composite.get("total_score", 0)
-                    _sa_xp    = _sh_composite.get("xgb_pct", 0)
-                    _sa_tp    = _sh_composite.get("take_profit", 0)
-                    _sa_sl    = _sh_composite.get("stop_loss", 0)
-                    _sa_rr    = _sh_composite.get("risk_reward", 0)
-                    _sa_color = {"BUY":"#00e5b0","SELL":"#ff5f5f"}.get(_sa_sig,"#ffd426")
-
-                    # Log signal
-                    _today_entry = {
-                        "date":    pd.Timestamp.now().strftime("%b %d · %H:%M"),
-                        "verdict": _sa_sig,
-                        "score":   _sa_score,
-                        "price":   last_close,
-                    }
-                    if ticker not in st.session_state.signal_log:
-                        st.session_state.signal_log[ticker] = []
-                    _existing = [e["date"] for e in st.session_state.signal_log[ticker]]
-                    if _today_entry["date"] not in _existing:
-                        st.session_state.signal_log[ticker].insert(0, _today_entry)
-                        st.session_state.signal_log[ticker] = st.session_state.signal_log[ticker][:20]
-
-                    _sp1, _sp2 = st.columns([1, 2])
-                    with _sp1:
-                        st.markdown(f"""
-                        <div style="background:linear-gradient(145deg,#0f1727,#141d30);
-                             border:2px solid {_sa_color};border-radius:.9rem;
-                             padding:1.5rem;text-align:center;">
-                          <div style="font-family:Manrope,sans-serif;font-size:.56rem;font-weight:800;
-                               letter-spacing:.16em;text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">
-                            Current Signal
-                          </div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;font-weight:800;
-                               color:{_sa_color};letter-spacing:.04em;">{_sa_sig}</div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.82rem;color:#8a8fa0;margin-top:.3rem;">
-                            {_sa_score:+.0f} / ±100
-                          </div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:#e4eafd;margin-top:.4rem;">
-                            ${last_close:.2f}
-                          </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    with _sp2:
-                        st.markdown(f"""
-                        <div style="background:#0f1727;border:1px solid #252f47;border-radius:.75rem;
-                             padding:1.2rem 1.5rem;">
-                          <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
-                               letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.6rem;">
-                            Email Preview · {ticker}
-                          </div>
-                          <div style="display:flex;flex-direction:column;gap:.35rem;">
-                            <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;border-bottom:1px solid #1e2740;padding-bottom:.3rem;">
-                              <span style="color:#3e4558;">Signal</span>
-                              <span style="color:{_sa_color};font-weight:700;">{_sa_sig}</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;border-bottom:1px solid #1e2740;padding-bottom:.3rem;">
-                              <span style="color:#3e4558;">AI Forecast</span>
-                              <span style="color:#adc6ff;">{_sa_xp:+.2f}%</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;border-bottom:1px solid #1e2740;padding-bottom:.3rem;">
-                              <span style="color:#3e4558;">Take Profit</span>
-                              <span style="color:#00e5b0;">${_sa_tp:.2f}</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;border-bottom:1px solid #1e2740;padding-bottom:.3rem;">
-                              <span style="color:#3e4558;">Stop Loss</span>
-                              <span style="color:#ff5f5f;">${_sa_sl:.2f}</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
-                              <span style="color:#3e4558;">Risk / Reward</span>
-                              <span style="color:#ffd426;">{_sa_rr:.2f}×</span>
-                            </div>
-                          </div>
-                          <div style="margin-top:.7rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">
-                            📬 {st.session_state.user.email}
-                          </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    # Send button
-                    if st.button(f"📧 Send Signal Alert for {ticker}", key="send_alert_email",
-                                 use_container_width=True):
-                        _alert_html = _build_signal_alert_html(
-                            st.session_state.user.email, ticker,
-                            _sa_sig, last_close, _sa_score,
-                            _sa_tp, _sa_sl, _sa_rr, _sa_xp
-                        )
-                        _sent = _send_email(
-                            st.session_state.user.email,
-                            f"Stockcast Signal · {ticker} — {_sa_sig} · {pd.Timestamp.now().strftime('%b %d')}",
-                            _alert_html
-                        )
-                        if _sent:
-                            st.success(f"✓ Signal alert sent to {st.session_state.user.email}")
-                        else:
-                            st.warning("⚠ Email not sent — add SMTP_HOST, SMTP_USER, SMTP_PASS to Streamlit secrets.")
-
-                    st.markdown("<hr style='margin:1rem 0;'>", unsafe_allow_html=True)
-
-                    # Signal history log
-                    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;margin-bottom:.5rem;">📋 Signal History Log — {}</div>'.format(ticker), unsafe_allow_html=True)
-                    _log = st.session_state.signal_log.get(ticker, [])
-                    if _log:
-                        _lh = st.columns([2, 1.3, 1.3, 1.4])
-                        for _lhc, _lht in zip(_lh, ["Timestamp","Signal","Score","Price"]):
-                            _lhc.markdown(f'<div style="font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_lht}</div>', unsafe_allow_html=True)
-                        for _le in _log[:10]:
-                            _lc = {"BUY":"#00e5b0","SELL":"#ff5f5f","HOLD":"#ffd426"}.get(_le["verdict"],"#8a8fa0")
-                            _lr = st.columns([2, 1.3, 1.3, 1.4])
-                            _lr[0].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.67rem;color:#3e4558;padding:.3rem 0;">{_le["date"]}</div>', unsafe_allow_html=True)
-                            _lr[1].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;font-weight:700;color:{_lc};padding:.3rem 0;">{_le["verdict"]}</div>', unsafe_allow_html=True)
-                            _lr[2].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:#adc6ff;padding:.3rem 0;">{_le["score"]:+.0f}</div>', unsafe_allow_html=True)
-                            _lr[3].markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:#e4eafd;padding:.3rem 0;">${_le["price"]:.2f}</div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown('<div style="font-size:.75rem;color:#252f47;padding:.4rem 0;">No history yet this session.</div>', unsafe_allow_html=True)
-
-                else:
-                    st.info("Run analysis first to generate signal data for email alerts.")
-
-                st.markdown("""
-                <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12);
-                     border-radius:.5rem;padding:.8rem 1.2rem;margin-top:1rem;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.62rem;font-weight:700;
-                       color:#4d8eff;margin-bottom:.4rem;">SMTP Setup (Streamlit secrets)</div>
-                  <pre style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;
-                       background:transparent;margin:0;line-height:1.7;">SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = "you@gmail.com"
-SMTP_PASS = "your-app-password"
-SMTP_FROM = "Stockcast &lt;you@gmail.com&gt;"</pre>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # ────────────────────────────────────────────────────────────────
-            # HUB 6 — INVESTOR-READY REPORT GENERATOR
-            # ────────────────────────────────────────────────────────────────
-            with hub6:
-                st.markdown("""
-                <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18);
-                     border-left:4px solid #00e5b0;padding:.85rem 1.3rem;margin-bottom:1.2rem;
-                     border-radius:0 .6rem .6rem 0;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                       letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.25rem;">
-                    Investor-Ready Report Generator
-                  </div>
-                  <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">
-                    One-click CSV export of the full AI analysis — price data, model quality,
-                    signal intelligence, and risk metrics. Ready to drop into a pitch deck or treasury memo.
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Full report preview
-                _ir1, _ir2 = st.columns(2)
-
-                with _ir1:
-                    st.markdown(f"""
-                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);
-                         border:1px solid #252f47;border-top:2px solid #00e5b0;
-                         border-radius:.75rem;padding:1.3rem 1.5rem;">
-                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
-                           letter-spacing:.12em;text-transform:uppercase;color:#00e5b0;margin-bottom:.8rem;">
-                        Price Summary · {ticker}
-                      </div>
-                      {''.join(f'''<div style="display:flex;justify-content:space-between;padding:.35rem 0;
-                           border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
-                        <span style="color:#3e4558;">{lbl}</span>
-                        <span style="color:{vc};">{val}</span>
-                      </div>''' for lbl, val, vc in [
-                          ("Last Close ($)",  f"{last_close:.2f}", "#e4eafd"),
-                          ("52-Week High ($)",f"{float(df['Close'].squeeze().max()):.2f}", "#00e5b0"),
-                          ("52-Week Low ($)", f"{float(df['Close'].squeeze().min()):.2f}", "#ff5f5f"),
-                          ("% from 52w High", f"{((last_close - float(df['Close'].squeeze().max()))/float(df['Close'].squeeze().max())*100):+.1f}%", "#ffd426"),
-                          ("Days Analysed",   str(len(df)), "#8a8fa0"),
-                      ])}
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                with _ir2:
-                    st.markdown(f"""
-                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);
-                         border:1px solid #252f47;border-top:2px solid #4d8eff;
-                         border-radius:.75rem;padding:1.3rem 1.5rem;">
-                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
-                           letter-spacing:.12em;text-transform:uppercase;color:#4d8eff;margin-bottom:.8rem;">
-                        AI Model &amp; Signals
-                      </div>
-                      {''.join(f'''<div style="display:flex;justify-content:space-between;padding:.35rem 0;
-                           border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.72rem;">
-                        <span style="color:#3e4558;">{lbl}</span>
-                        <span style="color:{vc};">{val}</span>
-                      </div>''' for lbl, val, vc in [
-                          ("RMSE ($)",        f"{rmse:.2f}", "#e4eafd"),
-                          ("MAE ($)",         f"{mae:.2f}",  "#e4eafd"),
-                          ("MAPE (%)",        f"{mape:.2f}", "#ffd426"),
-                          ("R² Score",        f"{r2:.4f}",   "#00e5b0"),
-                          ("Signal",          _sh_composite.get("verdict_short","—") if _sh_composite else "—",
-                           {"BUY":"#00e5b0","SELL":"#ff5f5f"}.get(_sh_composite.get("verdict_short","") if _sh_composite else "","#ffd426")),
-                          ("Score (±100)",    f"{_sh_composite.get('total_score',0):+.0f}" if _sh_composite else "—", "#adc6ff"),
-                          ("XGBoost Fcst %",  f"{_sh_composite.get('xgb_pct',0):+.2f}%" if _sh_composite else "—", "#adc6ff"),
-                          ("Take Profit ($)", f"{_sh_composite.get('take_profit',0):.2f}" if _sh_composite else "—", "#00e5b0"),
-                          ("Stop Loss ($)",   f"{_sh_composite.get('stop_loss',0):.2f}" if _sh_composite else "—", "#ff5f5f"),
-                          ("Risk/Reward",     f"{_sh_composite.get('risk_reward',0):.2f}×" if _sh_composite else "—", "#ffd426"),
-                      ])}
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                # Download button
-                _report_data = _build_investor_report_csv(
-                    ticker, df, preds, actual, rmse, mae, mape, r2, _sh_composite
-                )
-                st.download_button(
-                    label=f"⬇  Download Investor Report — {ticker} · {pd.Timestamp.now().strftime('%Y-%m-%d')}.csv",
-                    data=_report_data,
-                    file_name=f"stockcast_report_{ticker}_{pd.Timestamp.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="investor_dl"
-                )
-
-                # What's included explainer
-                st.markdown("""
-                <div style="background:rgba(0,0,0,0.2);border:1px solid #1e2740;border-radius:.5rem;
-                     padding:1rem 1.4rem;margin-top:.6rem;">
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                       letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.6rem;">
-                    What's included in the report
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem .8rem;
-                       font-family:Manrope,sans-serif;font-size:.74rem;color:#8a8fa0;line-height:1.5;">
-                    <div>✓ Price summary &amp; 52-week range</div>
-                    <div>✓ AI model quality (RMSE, MAE, MAPE, R²)</div>
-                    <div>✓ Composite signal with score</div>
-                    <div>✓ XGBoost forecast percentage</div>
-                    <div>✓ Take profit &amp; stop loss levels</div>
-                    <div>✓ Risk / reward ratio</div>
-                    <div>✓ Trading days analysed</div>
-                    <div>✓ Timestamped &amp; labelled</div>
-                  </div>
-                </div>
-                <div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#3e4558;
-                     margin-top:.7rem;line-height:1.5;">
-                  ⚠ Report is for educational and research purposes only.
-                  Not financial advice. Always consult a licensed financial advisor.
-                </div>
-                """, unsafe_allow_html=True)
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
