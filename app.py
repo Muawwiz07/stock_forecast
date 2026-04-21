@@ -2348,224 +2348,6 @@ label, [data-testid="stSelectbox"] label,
 .bc-sep { color: var(--border2); padding: 0 6px; font-size: 0.7rem; user-select: none; }
 .bc-context { font-family: var(--mono); font-size: 0.56rem; color: var(--t4); letter-spacing: 0.08em; white-space: nowrap; }
 
-/* ====================================================================
-   UI COMPONENT KIT v2.0 — sc- prefixed classes (from ui_components.py)
-   Enhanced variants that layer on top of the base design system
-   ==================================================================== */
-
-/* SC-TABS — horizontal scroll pill tabs with animated dot indicators */
-.sc-tabs-bar {
-    display: flex;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    border-bottom: none;
-    padding: 0 .5rem;
-    gap: 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-.sc-tabs-bar::-webkit-scrollbar { display: none; }
-.sc-tab-btn {
-    position: relative;
-    padding: .7rem 1.1rem;
-    font-family: var(--sans);
-    font-size: .61rem;
-    font-weight: 700;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--t3);
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-    transition: color .15s, border-color .15s;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: .45rem;
-}
-.sc-tab-btn:hover { color: var(--t2); }
-.sc-tab-btn.active {
-    color: var(--t1);
-    border-bottom-color: var(--accent);
-}
-.sc-tab-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: sc-pulse 2s infinite;
-    flex-shrink: 0;
-}
-.sc-tab-dot.red    { background: var(--red); }
-.sc-tab-dot.emerald{ background: var(--emerald); }
-.sc-tab-dot.yellow { background: var(--yellow); }
-@keyframes sc-pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(77,142,255,.5); }
-    50%       { opacity: .85; box-shadow: 0 0 0 4px rgba(77,142,255,0); }
-}
-.sc-tab-notif {
-    background: var(--red);
-    color: #fff;
-    border-radius: 2rem;
-    font-size: .48rem;
-    font-weight: 700;
-    padding: .1rem .38rem;
-    min-width: 16px;
-    text-align: center;
-}
-.sc-tab-panel {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-top: none;
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-    padding: 1.4rem 1.5rem;
-    min-height: 120px;
-}
-
-/* SC-SKELETON — richer shimmer with wave animation */
-.sc-skeleton {
-    background: linear-gradient(90deg,
-        rgba(255,255,255,.03) 0%,
-        rgba(255,255,255,.07) 50%,
-        rgba(255,255,255,.03) 100%);
-    background-size: 600px 100%;
-    animation: sc-shimmer 1.6s infinite linear;
-    border-radius: 4px;
-}
-@keyframes sc-shimmer {
-    0%   { background-position: -600px 0; }
-    100% { background-position:  600px 0; }
-}
-.sc-skel-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 1.2rem 1.4rem;
-}
-.sc-skel-row    { display: flex; align-items: center; gap: .75rem; margin-bottom: .65rem; }
-.sc-skel-circle { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; }
-.sc-skel-line   { height: 10px; border-radius: 4px; }
-.sc-skel-block  { height: 44px; border-radius: 6px; margin-top: .8rem; }
-
-/* SC-CHIPS — interactive filter chips with glow states */
-.sc-chips-row { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
-.sc-chip {
-    display: inline-flex; align-items: center; gap: .35rem;
-    border-radius: 2rem; padding: .28rem .78rem;
-    font-family: var(--sans); font-size: .6rem; font-weight: 700;
-    letter-spacing: .09em; text-transform: uppercase;
-    cursor: pointer; border: 1px solid transparent;
-    transition: all .16s; user-select: none; white-space: nowrap;
-}
-.sc-chip-buy { background: rgba(0,229,176,.1); border-color: rgba(0,229,176,.3); color: var(--emerald); }
-.sc-chip-buy:hover, .sc-chip-buy.active { background: rgba(0,229,176,.2); border-color: var(--emerald); box-shadow: 0 0 12px rgba(0,229,176,.25); }
-.sc-chip-sell { background: rgba(255,95,95,.1); border-color: rgba(255,95,95,.3); color: var(--red); }
-.sc-chip-sell:hover, .sc-chip-sell.active { background: rgba(255,95,95,.2); border-color: var(--red); box-shadow: 0 0 12px rgba(255,95,95,.25); }
-.sc-chip-hold { background: rgba(255,212,38,.1); border-color: rgba(255,212,38,.3); color: var(--yellow); }
-.sc-chip-hold:hover, .sc-chip-hold.active { background: rgba(255,212,38,.2); border-color: var(--yellow); box-shadow: 0 0 12px rgba(255,212,38,.25); }
-.sc-chip-neutral { background: rgba(77,142,255,.08); border-color: rgba(77,142,255,.2); color: var(--accent); }
-.sc-chip-neutral:hover, .sc-chip-neutral.active { background: rgba(77,142,255,.16); border-color: var(--accent); }
-.sc-chip-grey { background: rgba(138,143,160,.06); border-color: var(--border2); color: var(--t3); }
-.sc-chip-grey:hover, .sc-chip-grey.active { background: rgba(138,143,160,.12); border-color: var(--t3); color: var(--t2); }
-.sc-chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-
-/* SC-ACCORDION — step-number accordion with indent body */
-.sc-accordion { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
-.sc-accordion-item { border-bottom: 1px solid var(--border); }
-.sc-accordion-item:last-child { border-bottom: none; }
-.sc-accordion-trigger {
-    width: 100%; background: var(--bg2); border: none;
-    padding: .95rem 1.3rem;
-    display: flex; align-items: center; justify-content: space-between;
-    cursor: pointer; transition: background .15s; text-align: left; gap: 1rem;
-}
-.sc-accordion-trigger:hover { background: var(--bg3); }
-.sc-accordion-trigger.open { background: rgba(77,142,255,.05); }
-.sc-accordion-left { display: flex; align-items: center; gap: .75rem; }
-.sc-accordion-step {
-    width: 24px; height: 24px; border-radius: 50%;
-    background: rgba(77,142,255,.12); border: 1px solid rgba(77,142,255,.25);
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--mono); font-size: .56rem; font-weight: 700; color: var(--accent);
-    flex-shrink: 0; transition: all .2s;
-}
-.sc-accordion-trigger.open .sc-accordion-step { background: rgba(77,142,255,.22); border-color: var(--accent); }
-.sc-accordion-label { font-family: var(--sans); font-size: .74rem; font-weight: 700; color: var(--t2); }
-.sc-accordion-trigger.open .sc-accordion-label { color: var(--t1); }
-.sc-accordion-meta { font-family: var(--mono); font-size: .54rem; color: var(--t4); letter-spacing: .08em; }
-.sc-accordion-chevron { width: 16px; height: 16px; color: var(--t4); transition: transform .25s cubic-bezier(.4,0,.2,1); flex-shrink: 0; }
-.sc-accordion-chevron.open { transform: rotate(180deg); color: var(--accent); }
-.sc-accordion-body { overflow: hidden; transition: max-height .3s cubic-bezier(.4,0,.2,1), opacity .25s; opacity: 0; max-height: 0; }
-.sc-accordion-body.open { opacity: 1; max-height: 500px; }
-.sc-accordion-inner {
-    padding: 1rem 1.3rem 1.2rem 1.3rem;
-    background: rgba(0,0,0,.15);
-    border-left: 3px solid rgba(77,142,255,.2);
-    margin: 0 0 0 1.3rem;
-    border-radius: 0 0 0 4px;
-    font-size: .8rem; color: var(--t3); line-height: 1.7;
-}
-.sc-accordion-inner strong { color: var(--accent); font-weight: 700; }
-
-/* SC-BENTO — enhanced bento grid with gradient accent bars */
-.sc-bento {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: .75rem;
-    margin: 1.2rem 0;
-}
-@media (max-width: 640px) {
-    .sc-bento { grid-template-columns: 1fr 1fr; }
-    .sc-bento-hero { grid-column: span 2 !important; }
-}
-.sc-bento-cell {
-    background: linear-gradient(145deg, var(--bg2), #090e1b);
-    border: 1px solid rgba(255,255,255,.04);
-    border-radius: var(--radius-lg);
-    padding: 1.3rem 1.4rem;
-    transition: all .25s cubic-bezier(.4,0,.2,1);
-    box-shadow: var(--shadow-sm);
-    position: relative; overflow: hidden;
-}
-.sc-bento-cell:hover { border-color: rgba(77,142,255,.3); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(77,142,255,.1); }
-.sc-bento-hero { grid-column: span 2; }
-.sc-bento-cell::after {
-    content: ''; position: absolute; top: 0; right: 0;
-    width: 80px; height: 80px;
-    background: radial-gradient(circle at top right, rgba(77,142,255,.07), transparent 70%);
-    pointer-events: none;
-}
-.sc-bento-accent-bar { position: absolute; top: 0; left: 0; right: 0; height: 2px; }
-.sc-bento-tag { font-family: var(--mono); font-size: .5rem; letter-spacing: .18em; text-transform: uppercase; color: var(--t4); margin-bottom: .5rem; }
-.sc-bento-heading { font-family: var(--sans); font-size: .88rem; font-weight: 800; color: var(--t1); margin-bottom: .35rem; line-height: 1.3; }
-.sc-bento-body { font-size: .72rem; color: var(--t3); line-height: 1.6; }
-.sc-bento-big-num { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; line-height: 1; margin: .5rem 0 .2rem; }
-.sc-bento-chip {
-    display: inline-flex; align-items: center; gap: .3rem;
-    font-family: var(--mono); font-size: .54rem; font-weight: 700;
-    letter-spacing: .06em; border-radius: 2rem; padding: .2rem .6rem; margin-top: .6rem;
-}
-
-/* SC-BREADCRUMBS — enhanced navigation trail */
-.sc-bc-wrap {
-    background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 8px; padding: .6rem 1rem;
-    display: inline-flex; align-items: center; gap: .2rem; flex-wrap: wrap;
-}
-.sc-bc-item { display: flex; align-items: center; gap: .2rem; font-family: var(--mono); font-size: .6rem; letter-spacing: .07em; }
-.sc-bc-link { color: var(--t4); cursor: pointer; padding: .15rem .4rem; border-radius: 4px; transition: color .15s, background .15s; }
-.sc-bc-link:hover { color: var(--accent); background: rgba(77,142,255,.08); }
-.sc-bc-sep { color: var(--t4); font-size: .55rem; margin: 0 .05rem; user-select: none; }
-.sc-bc-current { color: var(--t1); font-weight: 700; padding: .15rem .5rem; background: rgba(77,142,255,.1); border: 1px solid rgba(77,142,255,.2); border-radius: 4px; }
-
-/* SC-SUB-LABEL — section label used above component demos */
-.sc-sub-label {
-    font-family: var(--mono); font-size: .54rem; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--t4);
-    margin: .8rem 0 .4rem; font-weight: 700;
-}
-
 /* ECG Heartbeat Spinner */
 [data-testid="stSpinner"] svg { display: none !important; }
 [data-testid="stSpinner"] p { font-family: var(--mono) !important; font-size: 0.68rem !important; color: var(--accent) !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; text-align: center !important; margin-top: 0.5rem !important; }
@@ -2605,7 +2387,7 @@ label, [data-testid="stSelectbox"] label,
     }, duration);
   };
 
-  /* ---- ACCORDION ENGINE (base .accordion-trigger classes) ---- */
+  /* ---- ACCORDION ENGINE ---- */
   function initAccordions() {
     var triggers = document.querySelectorAll('.accordion-trigger');
     for (var i = 0; i < triggers.length; i++) {
@@ -2628,43 +2410,9 @@ label, [data-testid="stSelectbox"] label,
       })(triggers[i]);
     }
   }
-  var _obs = new MutationObserver(function() { initAccordions(); initScAccordions(); });
+  var _obs = new MutationObserver(function() { initAccordions(); });
   _obs.observe(document.body, { childList: true, subtree: true });
   initAccordions();
-
-  /* ---- SC-ACCORDION ENGINE (sc-accordion-trigger classes) ---- */
-  function initScAccordions() {
-    var triggers = document.querySelectorAll('.sc-accordion-trigger');
-    for (var i = 0; i < triggers.length; i++) {
-      (function(trigger) {
-        if (trigger._sc2) return;
-        trigger._sc2 = true;
-        trigger.addEventListener('click', function() {
-          var body = trigger.nextElementSibling;
-          var chevron = trigger.querySelector('.sc-accordion-chevron');
-          var isOpen = body.classList.contains('open');
-          /* close all siblings */
-          var acc = trigger.closest('.sc-accordion');
-          if (acc) {
-            acc.querySelectorAll('.sc-accordion-body.open').forEach(function(b) {
-              b.classList.remove('open');
-              if (b.previousElementSibling) {
-                b.previousElementSibling.classList.remove('open');
-                var ch = b.previousElementSibling.querySelector('.sc-accordion-chevron');
-                if (ch) ch.classList.remove('open');
-              }
-            });
-          }
-          if (!isOpen) {
-            body.classList.add('open');
-            trigger.classList.add('open');
-            if (chevron) chevron.classList.add('open');
-          }
-        });
-      })(triggers[i]);
-    }
-  }
-  initScAccordions();
 
   /* ---- NOTIFY HELPERS ---- */
   window.SCNotify = {
@@ -3899,22 +3647,17 @@ if not run_btn:
                     _sign = "▲" if _chg >= 0 else "▼"
                     _wl_chip = "buy" if _chg >= 0 else "sell"
                     st.markdown(f"""
-                    <div class="sc-bento-cell" style="text-align:center;padding:1rem 1.2rem;">
-                      <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,{_col},transparent);"></div>
-                      <div style="font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;color:var(--t4);text-transform:uppercase;margin-bottom:.3rem;">{wl_sym}</div>
-                      <div style="font-family:var(--mono);font-size:1.3rem;font-weight:700;color:var(--t1);margin:.3rem 0;">${_px:.2f}</div>
+                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
+                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.6rem;">
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;margin-bottom:.3rem;">{wl_sym}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;margin:.3rem 0;">${_px:.2f}</div>
                       <div style="display:flex;justify-content:center;margin-top:.4rem;">
                         <span class="chip {_wl_chip} dot" style="font-size:.58rem;">{_sign} {_chg:+.2f}%</span>
                       </div>
                     </div>""", unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
-                    st.markdown(f"""
-                    <div class="sc-skel-card" style="text-align:center;padding:1rem 1.2rem;">
-                      <div style="font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;color:var(--t4);text-transform:uppercase;margin-bottom:.6rem;">{wl_sym}</div>
-                      <div class="sc-skel-line sc-skeleton" style="width:70%;margin:.4rem auto;height:20px;"></div>
-                      <div class="sc-skel-line sc-skeleton" style="width:50%;margin:.3rem auto;height:12px;"></div>
-                    </div>""", unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
 
     # How it works
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
@@ -3937,11 +3680,16 @@ if not run_btn:
         _b = _L[_bk].replace("'", "&#39;")
         with _col:
             st.markdown(
-                f'<div class="sc-bento-cell" style="min-height:140px;">'
-                f'<div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,{_color},transparent);"></div>'
-                f'<div style="font-family:var(--mono);font-size:1.2rem;font-weight:700;color:{_color};margin-bottom:.5rem;">{_num}</div>'
-                f'<div class="sc-bento-tag" style="color:{_color};font-size:.63rem;letter-spacing:.12em;">{_t}</div>'
-                f'<div class="sc-bento-body">{_b}</div>'
+                f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
+                f'border:1px solid #252f47;border-top:2px solid {_color};'
+                f'padding:1.3rem 1.4rem;border-radius:.6rem;min-height:140px;">'
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
+                f'font-weight:700;color:{_color};margin-bottom:.5rem;">{_num}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.68rem;'
+                f'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;'
+                f'font-weight:700;margin-bottom:.4rem;">{_t}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.78rem;'
+                f'color:#8a8fa0;line-height:1.6;">{_b}</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -3949,97 +3697,71 @@ if not run_btn:
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
     st.markdown("""
-    <div class="sc-bento">
-      <!-- Hero: AI Price Outlook (spans 2 cols) -->
-      <div class="sc-bento-cell sc-bento-hero">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#4d8eff,transparent);"></div>
-        <div class="sc-bento-tag">AI Engine</div>
-        <div class="sc-bento-heading">📈 AI Price Outlook</div>
-        <div style="font-family:var(--mono);font-size:1.1rem;font-weight:700;color:var(--accent);margin:.3rem 0 .5rem;">XGBoost Engine</div>
-        <div class="sc-bento-body">Projects next-day price across 20 technical signals with 95% bootstrap confidence intervals to quantify uncertainty.</div>
+    <div class="bento-grid">
+      <div class="bento-cell accent-blue col-8">
+        <div class="bento-icon">📈</div>
+        <div class="bento-label">AI Price Outlook</div>
+        <div class="bento-value" style="font-size:1.25rem;color:var(--accent);">XGBoost Engine</div>
+        <div class="bento-desc">Projects next-day price across 20 technical signals with 95% bootstrap confidence intervals to quantify uncertainty.</div>
         <div class="chip-group" style="margin-top:.8rem;">
           <span class="chip ai dot">XGBoost</span>
           <span class="chip info dot">20 Signals</span>
           <span class="chip info dot">Bootstrap CI</span>
         </div>
       </div>
-      <!-- Watchlist + Alerts -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#00e5b0,transparent);"></div>
-        <div class="sc-bento-tag">Watchlist</div>
-        <div class="sc-bento-heading">⭐ Watchlist + Alerts</div>
-        <div class="sc-bento-big-num" style="color:var(--emerald);">Live</div>
-        <div class="sc-bento-chip" style="background:rgba(0,229,176,.1);border:1px solid rgba(0,229,176,.25);color:var(--emerald);">
-          <span style="width:5px;height:5px;border-radius:50%;background:var(--emerald);display:inline-block;"></span>Real-time signal banners
-        </div>
-        <div class="sc-bento-body" style="margin-top:.6rem;">Save stocks, see live prices, get instant alerts when AI signals flip BUY ↔ SELL.</div>
+      <div class="bento-cell accent-green col-4 row-2">
+        <div class="bento-icon">⭐</div>
+        <div class="bento-label">Watchlist + Alerts</div>
+        <div class="bento-value" style="color:var(--emerald);">Live</div>
+        <div class="bento-sub">Real-time signal banners</div>
+        <div class="bento-desc">Save stocks, see live prices on your dashboard, get instant alerts when AI signals flip BUY ↔ SELL.</div>
+        <div style="margin-top:.7rem;"><span class="chip live dot">Live Prices</span></div>
       </div>
-      <!-- Explainable Signals -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#00e5b0,transparent);"></div>
-        <div class="sc-bento-tag">Signal Engine</div>
-        <div class="sc-bento-heading">⚙ BUY · HOLD · SELL</div>
-        <div class="sc-bento-body">RSI · MACD · Bollinger · MA Cross · Volume — each scored and explained in plain language.</div>
+      <div class="bento-cell accent-green col-4">
+        <div class="bento-icon">⚙</div>
+        <div class="bento-label">Explainable Signals</div>
+        <div class="bento-desc">RSI · MACD · Bollinger · MA Cross · Volume — each scored and explained in plain language.</div>
         <div class="chip-group" style="margin-top:.7rem;">
           <span class="chip buy dot">BUY</span><span class="chip sell dot">SELL</span><span class="chip hold dot">HOLD</span>
         </div>
       </div>
-      <!-- Strategy Simulator -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#ffd426,transparent);"></div>
-        <div class="sc-bento-tag">Risk Management</div>
-        <div class="sc-bento-heading">📊 Strategy Simulator</div>
-        <div class="sc-bento-body">Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, equity curve vs buy-and-hold.</div>
+      <div class="bento-cell accent-yellow col-5">
+        <div class="bento-icon">📊</div>
+        <div class="bento-label">Strategy Simulator</div>
+        <div class="bento-desc">Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, and equity curve vs buy-and-hold.</div>
         <div class="chip-group" style="margin-top:.7rem;">
           <span class="chip warn dot">Sharpe</span><span class="chip warn dot">Drawdown</span><span class="chip warn dot">Win Rate</span>
         </div>
       </div>
-      <!-- Shariah Screen -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#a78bfa,transparent);"></div>
-        <div class="sc-bento-tag">Shariah Screening</div>
-        <div class="sc-bento-heading">☪ Halal Compliance</div>
-        <div style="font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--primary);margin:.3rem 0 .2rem;">AAOIFI</div>
-        <div class="sc-bento-body" style="font-size:.72rem;">Standard No.21 — Business activity, debt/assets, cash/assets ratios auto-screened.</div>
+      <div class="bento-cell accent-purple col-3">
+        <div class="bento-icon">☪</div>
+        <div class="bento-label">Shariah Screen</div>
+        <div class="bento-value" style="font-size:1rem;color:var(--primary);">AAOIFI</div>
+        <div class="bento-sub">Standard No.21</div>
+        <div class="bento-desc" style="font-size:.72rem;">Business activity, debt, cash ratios — auto-screened.</div>
       </div>
-      <!-- News Sentiment NLP -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#00e5b0,transparent);"></div>
-        <div class="sc-bento-tag">NLP</div>
-        <div class="sc-bento-heading">📰 News Sentiment</div>
-        <div class="sc-bento-body">Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.</div>
+      <div class="bento-cell accent-green col-4">
+        <div class="bento-icon">📰</div>
+        <div class="bento-label">News Sentiment NLP</div>
+        <div class="bento-desc">Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.</div>
         <div class="chip-group" style="margin-top:.7rem;">
           <span class="chip ai dot">TextBlob</span><span class="chip live dot">Live News</span>
         </div>
       </div>
-      <!-- Model Comparison -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#adc6ff,transparent);"></div>
-        <div class="sc-bento-tag">Model Comparison</div>
-        <div class="sc-bento-heading">🔬 XGB vs Prophet vs LR</div>
-        <div class="sc-bento-body">RMSE, MAE, MAPE, R² side-by-side. See which model fits best for your ticker.</div>
+      <div class="bento-cell accent-purple col-4">
+        <div class="bento-icon">🔬</div>
+        <div class="bento-label">Model Comparison</div>
+        <div class="bento-desc">XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
         <div class="chip-group" style="margin-top:.7rem;">
           <span class="chip pro dot">Pro</span><span class="chip ai dot">3 Models</span>
         </div>
       </div>
-      <!-- Portfolio Tracker -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#ffd426,transparent);"></div>
-        <div class="sc-bento-tag">Portfolio</div>
-        <div class="sc-bento-heading">🏦 Portfolio Tracker</div>
-        <div class="sc-bento-body">Track holdings, unrealised P&amp;L, sector allocation, cost basis, and transaction history.</div>
+      <div class="bento-cell accent-yellow col-4">
+        <div class="bento-icon">🏦</div>
+        <div class="bento-label">Portfolio Tracker</div>
+        <div class="bento-desc">Track holdings, unrealised P&L, sector allocation, cost basis, and transaction history.</div>
         <div class="chip-group" style="margin-top:.7rem;">
           <span class="chip info dot">P&amp;L</span><span class="chip info dot">Sectors</span>
-        </div>
-      </div>
-      <!-- Multi-language -->
-      <div class="sc-bento-cell">
-        <div class="sc-bento-accent-bar" style="background:linear-gradient(90deg,#4d8eff,transparent);"></div>
-        <div class="sc-bento-tag">Accessibility</div>
-        <div class="sc-bento-heading">🌍 Multi-language</div>
-        <div class="sc-bento-body">Available in English, Arabic, Urdu, Hindi, and Chinese. Full UI translation including signal labels.</div>
-        <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip info dot">5 Languages</span>
         </div>
       </div>
     </div>
@@ -4082,24 +3804,17 @@ else:
         st.rerun()
     # ── Breadcrumb bar ────────────────────────────────────────────────────────
     st.markdown(f"""
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
-         gap:.5rem;margin-bottom:1rem;padding:.4rem 0;">
-      <div class="sc-bc-wrap">
-        <div class="sc-bc-item">
-          <span class="sc-bc-link" style="cursor:default;">Stockcast</span>
-        </div>
-        <span class="sc-bc-sep">›</span>
-        <div class="sc-bc-item">
-          <span class="sc-bc-link" style="cursor:default;">Analysis</span>
-        </div>
-        <span class="sc-bc-sep">›</span>
-        <div class="sc-bc-item">
-          <span class="sc-bc-current">{ticker}</span>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:.5rem;">
+    <div class="breadcrumb-bar">
+      <nav class="breadcrumb">
+        <span class="bc-item"><span class="bc-dot"></span>Stockcast</span>
+        <span class="bc-sep">&#xbb;</span>
+        <span class="bc-item"><span class="bc-dot"></span>Analysis</span>
+        <span class="bc-sep">&#xbb;</span>
+        <span class="bc-item active"><span class="bc-dot"></span>{ticker}</span>
+      </nav>
+      <div class="bc-context" style="display:flex;align-items:center;gap:.5rem;">
         <span class="chip live dot" style="font-size:.5rem;padding:.18rem .5rem;">Live</span>
-        <span style="font-family:var(--mono);font-size:.56rem;color:var(--t4);letter-spacing:.08em;">{pd.Timestamp.now().strftime('%b %d · %H:%M')}</span>
+        <span>{pd.Timestamp.now().strftime('%b %d · %H:%M')}</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
