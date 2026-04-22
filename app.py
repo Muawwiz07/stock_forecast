@@ -1433,6 +1433,52 @@ st.markdown("""
     --shadow-sm:   0 2px 8px rgba(0,0,0,0.3);
     --shadow-md:   0 6px 24px rgba(0,0,0,0.45);
     --shadow-lg:   0 12px 40px rgba(0,0,0,0.55);
+    /* ── FIX 1: Accessible font-size floor system ── */
+    --text-2xs:    0.72rem;  /* was 0.5–0.58rem — labels, caps, badges */
+    --text-xs:     0.78rem;  /* was 0.6–0.66rem — secondary labels, chips */
+    --text-sm:     0.84rem;  /* was 0.68–0.75rem — body small */
+    --text-base:   0.9rem;   /* was 0.78–0.85rem — body */
+}
+
+/* ── FIX 1: Global font-size floor — override all illegibly small text ── */
+/* Label classes */
+.stat-label, .bento-label, .sig-lbl, .bt-label, .sir-sig,
+.signal-lbl, .meter-title, .section-title, .plan-badge-label,
+.accordion-num, .accordion-badge, .chip, .live-label,
+.trust-item, .nav-item-active, .nav-item-idle,
+.data-ts, .sk-line, .tab-dot {
+    font-size: var(--text-2xs) !important;
+}
+/* Sub-labels and captions */
+.stat-sub, .bento-sub, .sig-sub, .sir-label, .wl-badge,
+.plan-badge-value, .freshness-badge, .disclaimer-pill,
+[data-testid="stMetricLabel"], .sc-toast-msg {
+    font-size: var(--text-xs) !important;
+}
+/* Body text */
+.bento-desc, .accordion-trigger, .accordion-body-inner div,
+.halal-card, .halal-card-fail, p, .stMarkdown p,
+.sc-toast-title, [data-testid="stTabs"] [role="tab"] {
+    font-size: var(--text-sm) !important;
+}
+/* Headings override — h2/h3 were 0.65rem */
+h2, h3 {
+    font-size: 0.78rem !important;
+}
+h4 {
+    font-size: 0.74rem !important;
+}
+/* Sidebar small text */
+[data-testid="stSidebar"] input {
+    font-size: var(--text-sm) !important;
+}
+.stat-row {
+    font-size: var(--text-xs) !important;
+}
+/* Metric label floor */
+[data-testid="stMetricLabel"] {
+    font-size: var(--text-2xs) !important;
+    letter-spacing: 0.1em !important;
 }
 
 /* ── GLOBAL ── */
@@ -3375,10 +3421,23 @@ with st.sidebar:
         if search_results:
             selected = st.selectbox("Select", search_results, label_visibility="collapsed")
             ticker   = selected.split(" — ")[0].strip()
-            st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.3);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#adc6ff;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">✓ {ticker}</div>', unsafe_allow_html=True)
+            # FIX 4: Confirmed ticker — green validation badge
+            st.markdown(f'<div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.3);border-left:3px solid #00e5b0;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#00e5b0;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">✓ {ticker} — symbol verified</div>', unsafe_allow_html=True)
         else:
             ticker = search_query.strip().upper()
-            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffd426;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.68rem;color:#ffd426;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
+            # FIX 4: Unknown ticker — amber warning with hint
+            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffd426;padding:.4rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#ffd426;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">⚠ {_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
+            # Probe yfinance lightly to confirm symbol exists
+            @st.cache_data(ttl=60)
+            def _quick_validate(sym):
+                try:
+                    info = yf.Ticker(sym).fast_info
+                    return getattr(info, "last_price", None) is not None or getattr(info, "quote_type", None) is not None
+                except Exception:
+                    return False
+            _valid = _quick_validate(ticker)
+            if not _valid and len(ticker) >= 1:
+                st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#ff5f5f;padding:.2rem 0 .3rem;">Symbol not found — check spelling. Indian stocks need .NS e.g. RELIANCE.NS</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="stat-row">{_L["ticker"]}</div>', unsafe_allow_html=True)
         ticker = st.text_input("Ticker", value=_wl_override or "AAPL", placeholder="AAPL, TSLA, MSFT…",
@@ -3456,19 +3515,22 @@ with st.sidebar:
             run_model_compare  = False
             show_conf_interval = False
             ci_bootstrap_n     = 100
+            # FIX 3: Visible upgrade CTA instead of silent gating
             st.markdown(f"""
-            <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.18);
-                 border-radius:.5rem;padding:.7rem .9rem;margin:.3rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                   letter-spacing:.1em;text-transform:uppercase;color:#ffd426;margin-bottom:.25rem;">
-                🔒 Pro Features
-              </div>
-              <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;line-height:1.5;">
-                Model Comparison · Bootstrap CI
+            <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07),rgba(77,142,255,0.04));
+                 border:1px solid rgba(255,212,38,0.25);border-radius:.75rem;
+                 padding:.9rem 1.1rem;margin:.3rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;font-weight:800;
+                   color:#ffd426;margin-bottom:.4rem;">🔒 Pro Features Locked</div>
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;
+                   line-height:1.6;margin-bottom:.5rem;">
+                <span style="color:#e4eafd;">Model Comparison</span> — XGB vs Prophet vs LR side-by-side<br>
+                <span style="color:#e4eafd;">Bootstrap CI</span> — 95% confidence interval ribbon on forecast<br>
+                <span style="color:#e4eafd;">30-day Outlook</span> — extended forecast horizon
               </div>
             </div>
             """, unsafe_allow_html=True)
-            if st.button("✦ Upgrade to unlock", use_container_width=True, key="upgrade_cta_features"):
+            if st.button("✦ Upgrade to Pro — Unlock Everything", use_container_width=True, key="upgrade_cta_features"):
                 st.session_state.show_upgrade_modal = True
                 st.rerun()
         run_halal_check = st.checkbox(_L["halal_check"], value=True)
@@ -3484,7 +3546,19 @@ with st.sidebar:
             compare_tickers = [t.strip().upper() for t in compare_tickers_raw.split(",") if t.strip()] if compare_tickers_raw.strip() else []
         else:
             compare_tickers = []
-            st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.68rem;color:#3e4558;">🔒 Pro feature — compare up to 5 tickers side by side</div>', unsafe_allow_html=True)
+            # FIX 3: Explicit locked feature card
+            st.markdown(f"""
+            <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.2);
+                 border-radius:.6rem;padding:.75rem .9rem;margin:.2rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;line-height:1.5;">
+                🔒 <span style="color:#adc6ff;font-weight:700;">Multi-stock compare</span> — 
+                run up to 5 tickers side-by-side with Pro.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("✦ Unlock Multi-Stock", use_container_width=True, key="upgrade_cta_multi"):
+                st.session_state.show_upgrade_modal = True
+                st.rerun()
     else:
         compare_tickers = []
 
@@ -3998,13 +4072,50 @@ else:
         st.error(f"⚠ '{ticker}' doesn't look like a valid ticker. Use formats like AAPL, RELIANCE.NS, ^GSPC")
         st.stop()
 
-    with st.spinner(_L["fetching"].format(ticker=ticker)):
-        df = fetch_data(ticker, start_date, end_date)
+    # ── FIX 2: Multi-step progress feedback ─────────────────────────────────────
+    _progress_placeholder = st.empty()
+
+    def _show_progress(step: int, total: int, label: str):
+        """Render an inline progress bar with step label."""
+        pct = int(step / total * 100)
+        _progress_placeholder.markdown(f"""
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:.75rem;
+             padding:1.1rem 1.4rem;margin:.5rem 0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+            <span style="font-family:var(--mono);font-size:0.78rem;color:var(--t1);font-weight:600;">
+              {label}
+            </span>
+            <span style="font-family:var(--mono);font-size:0.72rem;color:var(--accent);">
+              Step {step} / {total}
+            </span>
+          </div>
+          <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:{pct}%;background:linear-gradient(90deg,#4d8eff,#00e5b0);
+                 border-radius:3px;transition:width .4s ease;"></div>
+          </div>
+          <div style="display:flex;gap:1.2rem;margin-top:.8rem;flex-wrap:wrap;">
+            {"".join(
+              f'<span style="font-family:var(--mono);font-size:0.72rem;'
+              f'color:{"var(--emerald)" if i < step else "var(--accent)" if i == step else "var(--t4)"};">'
+              f'{"✓" if i < step else "●" if i == step else "○"} {lbl}</span>'
+              for i, lbl in enumerate([
+                "Fetching data", "Computing signals", "Building matrix",
+                "Training model", "Generating forecast"
+              ], 1)
+            )}
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    _show_progress(1, 5, f"📡 Fetching {ticker} price history...")
+    df = fetch_data(ticker, start_date, end_date)
 
     if df.empty:
+        _progress_placeholder.empty()
         st.error(f"⚠ No data found for '{ticker}'. Check the symbol — for Indian stocks use .NS suffix e.g. RELIANCE.NS, TCS.NS. For indices use ^ prefix e.g. ^GSPC")
         st.stop()
 
+    _progress_placeholder.empty()
     st.success(_L["days_loaded"].format(n=len(df), ticker=ticker))
 
     # Data freshness + trust row
@@ -4055,8 +4166,10 @@ else:
                     if _sb_add_watchlist(st.session_state.user.id, ticker):
                         st.session_state.watchlist.append(ticker)
                         st.rerun()
-        with st.spinner(_L["engineering"]):
-            df = add_technical_features(df)
+        with _progress_placeholder:
+            _show_progress(2, 5, "⚙️ Computing 20 technical signals...")
+        df = add_technical_features(df)
+        _progress_placeholder.empty()
         close_series = df['Close'].squeeze()
 
         # ── Candlestick Chart ──────────────────────────────────────────────────
@@ -4114,8 +4227,9 @@ else:
             This assistant analyses price and volume data only. It works best when combined with current news, earnings context, and your own market judgment. A single unexpected event can shift any technical outlook. <b style="color:#ff5f5f;">Not financial advice.</b>
             </div>""", unsafe_allow_html=True)
 
-        with st.spinner("Building feature matrix..."):
-            X, y = build_xgb_dataset(df, seq_len)
+        _show_progress(3, 5, "🔢 Building feature matrix...")
+        X, y = build_xgb_dataset(df, seq_len)
+        _progress_placeholder.empty()
 
         if len(X) < 50:
             st.error(_L["not_enough_data"])
@@ -4132,8 +4246,9 @@ else:
             m.fit(_X_train, _y_train, eval_set=[(_X_test, _y_test)], verbose=False)
             return m
 
-        with st.spinner("Training XGBoost model (cached after first run)..."):
-            model = train_xgb_cached(X_train, y_train, X_test, y_test, n_estimators, max_depth, learning_rate)
+        _show_progress(4, 5, "🤖 Training XGBoost model (cached after first run)...")
+        model = train_xgb_cached(X_train, y_train, X_test, y_test, n_estimators, max_depth, learning_rate)
+        _progress_placeholder.empty()
 
         preds  = model.predict(X_test)
         actual = y_test
@@ -4150,6 +4265,9 @@ else:
         confidence_score = max(0, min(100, r2_norm*0.40 + mape_norm*0.30 + dir_acc*0.20 + data_score*0.10))
         last_close = float(df['Close'].squeeze().iloc[-1])
 
+        _show_progress(5, 5, "📈 Generating signal intelligence & forecast...")
+        _progress_placeholder.empty()  # clear once all steps done
+
         # ── Model Performance ──────────────────────────────────────────────────
         st.subheader("Analysis Quality")
         c1, c2, c3, c4 = st.columns(4)
@@ -4160,6 +4278,21 @@ else:
         mape_label = ("🟢 Excellent" if mape<2 else "🟡 Good" if mape<5 else "🟠 Fair" if mape<10 else "🔴 Poor")
         r2_label   = ("🟢 Excellent" if r2>0.95 else "🟡 Good" if r2>0.85 else "🟠 Fair" if r2>0.70 else "🔴 Poor")
         st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
+
+        # FIX 5: Tab orientation cue — shown once after analysis runs
+        st.markdown(f"""
+        <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.15);
+             border-radius:.6rem;padding:.65rem 1.2rem;margin-bottom:.5rem;
+             display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+          <span style="font-family:IBM Plex Mono,monospace;font-size:0.78rem;
+               color:#00e5b0;font-weight:700;">✓ Analysis complete — {ticker}</span>
+          <span style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;">
+            <b style="color:#e4eafd;">Dashboard</b> → signals &amp; charts ·
+            <b style="color:#e4eafd;">Deep Analysis</b> → forecast &amp; backtest ·
+            <b style="color:#e4eafd;">Startup Hub</b> → macro, treasury &amp; reports
+          </span>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Tabs
         dash_tab, port_tab, mkt_tab, deep_tab, startup_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], _L["deep_analysis"], "🚀  Startup Hub"])
@@ -5045,9 +5178,25 @@ else:
             except Exception:
                 pass
 
+            # FIX 5: Tab orientation — numbered labels + "Start here" cue
+            st.markdown(f"""
+            <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.15);
+                 border-left:3px solid #4d8eff;border-radius:0 .6rem .6rem 0;
+                 padding:.65rem 1.2rem;margin-bottom:.75rem;
+                 display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+              <span style="font-family:IBM Plex Mono,monospace;font-size:0.78rem;
+                   color:#4d8eff;font-weight:700;">📍 Start here</span>
+              <span style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;">
+                Begin with <b style="color:#e4eafd;">01 Macro Risk</b> for market context,
+                then work across. <b style="color:#e4eafd;">05 Signal Alert</b> and
+                <b style="color:#e4eafd;">06 Report</b> need analysis to run first.
+              </span>
+            </div>
+            """, unsafe_allow_html=True)
+
             hub1, hub2, hub3, hub4, hub5, hub6 = st.tabs([
-                "🌡 Macro Risk", "🏦 Treasury", "🔭 Competitors",
-                "📊 Sector Bench", "🔔 Signal Alert", "📑 Investor Report"
+                "01 · 🌡 Macro", "02 · 🏦 Treasury", "03 · 🔭 Competitors",
+                "04 · 📊 Benchmarks", "05 · 🔔 Signal Alert", "06 · 📑 Report"
             ])
 
             # ── HUB 1: MACRO RISK SCANNER ─────────────────────────────────────────
@@ -5313,6 +5462,21 @@ else:
 
             # ── HUB 5: SIGNAL ALERT EMAIL ─────────────────────────────────────────
             with hub5:
+                # FIX 5: Context guard — show dependency message if no signal data yet
+                if _sh_comp is None:
+                    st.markdown("""
+                    <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2);
+                         border-left:3px solid #ffd426;border-radius:0 .6rem .6rem 0;
+                         padding:.85rem 1.3rem;margin-bottom:1rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:0.84rem;font-weight:700;
+                           color:#ffd426;margin-bottom:.3rem;">⚠ Analysis required</div>
+                      <div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.5;">
+                        Signal data isn't available yet. Run a full analysis from the sidebar first,
+                        then return here to send an email alert.
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                 st.markdown('''<div style="background:rgba(255,95,95,0.05);border:1px solid rgba(255,95,95,0.18);
                      border-left:4px solid #ff5f5f;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.25rem;">Signal Alert · Email Automation</div>
@@ -5374,6 +5538,21 @@ SMTP_PASS = "your-app-password"</pre>
 
             # ── HUB 6: INVESTOR REPORT ────────────────────────────────────────────
             with hub6:
+                # FIX 5: Context guard for report tab
+                if _sh_comp is None:
+                    st.markdown("""
+                    <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2);
+                         border-left:3px solid #ffd426;border-radius:0 .6rem .6rem 0;
+                         padding:.85rem 1.3rem;margin-bottom:1rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:0.84rem;font-weight:700;
+                           color:#ffd426;margin-bottom:.3rem;">⚠ Analysis required</div>
+                      <div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.5;">
+                        Signal and model data isn't ready. Run a full analysis first,
+                        then return here to download the investor report CSV.
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                 st.markdown('''<div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18);
                      border-left:4px solid #00e5b0;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.25rem;">Investor-Ready Report Generator</div>
