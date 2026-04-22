@@ -10,3 +10,4 @@ nltk==3.9.1
 textblob==0.18.0
 yfinance>=0.2.61
 prophet>=1.1.5
+fastapi uvicorn[standard]
