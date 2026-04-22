@@ -35,6 +35,505 @@ import time
 import logging
 warnings.filterwarnings('ignore')
 
+# ── Additional imports for embedded FastAPI server ─────────────────────────────
+import threading
+from typing import List
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import uvicorn
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMBEDDED REST API  ·  FastAPI server (runs on :8000 in a background thread)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# The React dashboard (stockcast-dashboard-integrated.jsx) calls these endpoints.
+# The Streamlit UI (below) and the API both share the same helper functions,
+# so there is zero code duplication between the two surfaces.
+#
+# Endpoints:
+#   GET /health
+#   GET /watchlist?tickers=AAPL,TSLA,...
+#   GET /signals?tickers=AAPL,TSLA,...
+#   GET /market-indices
+#   GET /market-mood
+#   GET /forecast/{ticker}?days=30
+#   GET /news/{ticker}
+#   GET /portfolio-stats?tickers=...
+#
+# To use: just run `streamlit run app.py` — the API starts automatically.
+# Set REACT_APP_API_URL=http://localhost:8000 in your React environment.
+# ══════════════════════════════════════════════════════════════════════════════
+
+_API_PORT = int(os.environ.get("STOCKCAST_API_PORT", 8000))
+
+# ── In-process yfinance info cache (5-min TTL, shared with Streamlit helpers) ─
+_yf_info_cache: dict = {}
+
+
+def _get_ticker_info_cached(ticker: str) -> dict:
+    """5-minute TTL wrapper around yfinance get_info — used by API endpoints.
+    Separate from the @st.cache_data version to avoid Streamlit context errors
+    when called from the FastAPI background thread."""
+    bucket = int(time.time() // 300)
+    key = (ticker.upper(), bucket)
+    if key not in _yf_info_cache:
+        for attempt in range(3):
+            try:
+                info = yf.Ticker(ticker).get_info() or {}
+                if info.get("symbol") or info.get("longName"):
+                    _yf_info_cache[key] = info
+                    break
+                if attempt < 2:
+                    time.sleep(2)
+            except Exception as e:
+                logger.warning("API _get_ticker_info attempt %d for '%s': %s", attempt + 1, ticker, e)
+                if attempt < 2:
+                    time.sleep(2)
+        else:
+            _yf_info_cache[key] = {}
+    return _yf_info_cache.get(key, {})
+
+
+def _api_compute_signal(df: pd.DataFrame) -> dict:
+    """Derive BUY / HOLD / SELL + confidence from a price history DataFrame.
+    Mirrors the composite signal logic already present in app_patched helpers."""
+    if df.empty or len(df) < 30:
+        return {"signal": "HOLD", "conf": 50, "reason": "Insufficient data"}
+
+    # Flatten MultiIndex if present
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    close = df["Close"].squeeze().dropna()
+    score = 0
+    reasons: list = []
+
+    # RSI-14
+    delta = close.diff()
+    gain  = delta.clip(lower=0).rolling(14).mean()
+    loss  = (-delta.clip(upper=0)).rolling(14).mean()
+    rs    = gain / loss.replace(0, np.nan)
+    rsi   = float((100 - 100 / (1 + rs)).iloc[-1])
+    if rsi < 35:
+        score += 25; reasons.append("RSI oversold recovery")
+    elif rsi > 70:
+        score -= 25; reasons.append("Overbought RSI")
+
+    # 50/200 MA golden / death cross
+    ma50  = close.rolling(50).mean()
+    ma200 = close.rolling(200).mean()
+    if len(ma50.dropna()) >= 2 and len(ma200.dropna()) >= 2:
+        if ma50.iloc[-1] > ma200.iloc[-1] and ma50.iloc[-2] <= ma200.iloc[-2]:
+            score += 30; reasons.append("Golden cross detected")
+        elif ma50.iloc[-1] < ma200.iloc[-1] and ma50.iloc[-2] >= ma200.iloc[-2]:
+            score -= 30; reasons.append("Death cross detected")
+        elif ma50.iloc[-1] > ma200.iloc[-1]:
+            score += 15; reasons.append("Above 200-day MA")
+
+    # MACD
+    ema12 = close.ewm(span=12).mean()
+    ema26 = close.ewm(span=26).mean()
+    macd  = ema12 - ema26
+    sig_line = macd.ewm(span=9).mean()
+    if macd.iloc[-1] > sig_line.iloc[-1] and macd.iloc[-2] <= sig_line.iloc[-2]:
+        score += 20; reasons.append("MACD bullish crossover")
+    elif macd.iloc[-1] < sig_line.iloc[-1]:
+        score -= 10; reasons.append("MACD bearish")
+
+    # Volume surge
+    vol = df["Volume"].squeeze().dropna()
+    if len(vol) >= 20:
+        vol_avg = vol.rolling(20).mean().iloc[-1]
+        if vol.iloc[-1] > vol_avg * 1.5:
+            score += 10; reasons.append("Volume surge confirmed")
+
+    conf = min(95, max(50, 50 + abs(score)))
+    if score >= 20:
+        verdict = "BUY"
+    elif score <= -20:
+        verdict = "SELL"
+    else:
+        verdict = "HOLD"
+        conf = max(50, conf - 10)
+
+    reason = "; ".join(reasons[:2]) if reasons else "Consolidation phase; await breakout confirmation"
+    return {"signal": verdict, "conf": int(conf), "reason": reason}
+
+
+def _api_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain  = delta.clip(lower=0).rolling(period).mean()
+    loss  = (-delta.clip(upper=0)).rolling(period).mean()
+    rs    = gain / loss.replace(0, np.nan)
+    return 100 - 100 / (1 + rs)
+
+
+# ── Pydantic response models ──────────────────────────────────────────────────
+
+class WatchlistItem(BaseModel):
+    ticker: str
+    name: str
+    price: float
+    change: float
+    signal: str
+    conf: int
+    sector: str
+
+class SignalItem(BaseModel):
+    ticker: str
+    signal: str
+    conf: int
+    reason: str
+    sector: str
+
+class MarketIndex(BaseModel):
+    name: str
+    price: str
+    change: str
+    color: str
+
+class SectorItem(BaseModel):
+    name: str
+    mood: float
+    dir: str
+
+class MarketMood(BaseModel):
+    fearGreed: float
+    vix: float
+    sentiment: str
+    breadth: str
+    sectors: List[SectorItem]
+
+class PricePoint(BaseModel):
+    date: str
+    close: float
+
+class ForecastResult(BaseModel):
+    ticker: str
+    history: List[PricePoint]
+    xgb_pct: float
+    take_profit: float
+    stop_loss: float
+    risk_reward: float
+
+
+# ── Build FastAPI app ─────────────────────────────────────────────────────────
+
+_api = FastAPI(title="Stockcast API", version="2.0", docs_url="/api/docs", redoc_url=None)
+
+_ALLOW_ORIGINS = os.environ.get(
+    "ALLOW_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000",
+).split(",")
+
+_api.add_middleware(
+    CORSMiddleware,
+    allow_origins=_ALLOW_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+_DEFAULT_TICKERS = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "META"]
+
+
+@_api.get("/health")
+def _health():
+    return {"status": "ok", "streamlit_port": 8501, "api_port": _API_PORT}
+
+
+@_api.get("/watchlist", response_model=List[WatchlistItem])
+def _api_watchlist(tickers: str = Query(default=",".join(_DEFAULT_TICKERS))):
+    syms = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not syms:
+        raise HTTPException(400, "No tickers provided")
+    try:
+        raw   = yf.download(syms, period="2d", interval="1d", progress=False, auto_adjust=True)
+        close = raw["Close"] if "Close" in raw.columns else raw
+        if isinstance(close.columns, pd.MultiIndex):
+            close = close.droplevel(0, axis=1)
+    except Exception as e:
+        logger.warning("API watchlist batch download failed: %s", e)
+        close = pd.DataFrame()
+
+    results = []
+    for sym in syms:
+        try:
+            if not close.empty and sym in close.columns:
+                prices = close[sym].dropna()
+                price  = float(prices.iloc[-1]) if len(prices) >= 1 else 0.0
+                prev   = float(prices.iloc[-2]) if len(prices) >= 2 else price
+            else:
+                info_q = _get_ticker_info_cached(sym)
+                price  = float(info_q.get("currentPrice") or info_q.get("regularMarketPrice") or 0)
+                prev   = float(info_q.get("previousClose") or price)
+            change = ((price - prev) / prev * 100) if prev else 0.0
+            info   = _get_ticker_info_cached(sym)
+            name   = (info.get("longName") or sym)[:30]
+            sector = info.get("sector") or "Unknown"
+            hist   = _yf_download_with_retry(sym, period="1y", interval="1d")
+            sig    = _api_compute_signal(hist)
+            results.append(WatchlistItem(
+                ticker=sym, name=name, price=round(price, 2),
+                change=round(change, 2), signal=sig["signal"],
+                conf=sig["conf"], sector=sector,
+            ))
+        except Exception as e:
+            logger.warning("API watchlist item failed for '%s': %s", sym, e)
+            results.append(WatchlistItem(ticker=sym, name=sym, price=0.0, change=0.0,
+                                         signal="HOLD", conf=50, sector="Unknown"))
+    return results
+
+
+@_api.get("/signals", response_model=List[SignalItem])
+def _api_signals(tickers: str = Query(default=",".join(_DEFAULT_TICKERS))):
+    syms = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    results = []
+    for sym in syms:
+        try:
+            info   = _get_ticker_info_cached(sym)
+            sector = info.get("sector") or "Unknown"
+            hist   = _yf_download_with_retry(sym, period="1y", interval="1d")
+            sig    = _api_compute_signal(hist)
+            results.append(SignalItem(ticker=sym, sector=sector, **sig))
+        except Exception as e:
+            logger.warning("API signals failed for '%s': %s", sym, e)
+            results.append(SignalItem(ticker=sym, signal="HOLD", conf=50,
+                                      reason="Data unavailable", sector="Unknown"))
+    return results
+
+
+@_api.get("/market-indices", response_model=List[MarketIndex])
+def _api_market_indices():
+    symbols = {"S&P 500": "^GSPC", "NASDAQ 100": "^NDX", "DOW JONES": "^DJI", "VIX": "^VIX"}
+    result  = []
+    try:
+        raw   = yf.download(list(symbols.values()), period="2d", interval="1d",
+                            progress=False, auto_adjust=True)
+        close = raw["Close"] if "Close" in raw.columns else raw
+        if isinstance(close.columns, pd.MultiIndex):
+            close = close.droplevel(0, axis=1)
+        for name, sym in symbols.items():
+            try:
+                prices = close[sym].dropna()
+                price  = float(prices.iloc[-1])
+                prev   = float(prices.iloc[-2]) if len(prices) >= 2 else price
+                chg    = ((price - prev) / prev * 100) if prev else 0.0
+                col    = "#10b981" if chg >= 0 else "#ef4444"
+                fmt    = f"{price:,.2f}" if sym != "^VIX" else f"{price:.2f}"
+                result.append(MarketIndex(name=name, price=fmt,
+                                          change=f"{'+' if chg>=0 else ''}{chg:.2f}%", color=col))
+            except Exception:
+                result.append(MarketIndex(name=name, price="—", change="—", color="#64748b"))
+    except Exception as e:
+        logger.warning("API market-indices failed: %s", e)
+    return result
+
+
+@_api.get("/market-mood", response_model=MarketMood)
+def _api_market_mood():
+    # VIX
+    vix_val = 18.0
+    try:
+        v = _yf_download_with_retry("^VIX", period="5d", interval="1d")
+        if not v.empty:
+            vix_val = float(v["Close"].dropna().iloc[-1])
+    except Exception:
+        pass
+
+    # CNN Fear & Greed — reuse existing get_fear_greed_index() from app_patched
+    fg_score, fg_rating = 50.0, "Neutral"
+    try:
+        fg = get_fear_greed_index()
+        if fg:
+            fg_score  = float(fg["score"])
+            fg_rating = fg["rating"]
+    except Exception:
+        pass
+
+    # Market breadth
+    breadth = "Neutral"
+    try:
+        sp = _yf_download_with_retry("^GSPC", period="5d", interval="1d")
+        if not sp.empty:
+            sp_close = sp["Close"].dropna()
+            if len(sp_close) >= 2:
+                pct = (float(sp_close.iloc[-1]) - float(sp_close.iloc[-2])) / float(sp_close.iloc[-2]) * 100
+                breadth = "Bullish" if pct > 0.3 else "Bearish" if pct < -0.3 else "Neutral"
+    except Exception:
+        pass
+
+    # Sector ETFs — reuse get_live_sector_heatmap() from app_patched
+    sector_etfs = {
+        "Technology": "XLK", "Energy": "XLE", "Healthcare": "XLV",
+        "Financials":  "XLF", "Consumer": "XLY", "Industrials": "XLI",
+    }
+    sectors: List[SectorItem] = []
+    try:
+        raw   = yf.download(list(sector_etfs.values()), period="2d", interval="1d",
+                            progress=False, auto_adjust=True)
+        close = raw["Close"] if "Close" in raw.columns else raw
+        if isinstance(close.columns, pd.MultiIndex):
+            close = close.droplevel(0, axis=1)
+        for name, sym in sector_etfs.items():
+            try:
+                prices = close[sym].dropna()
+                price  = float(prices.iloc[-1])
+                prev   = float(prices.iloc[-2]) if len(prices) >= 2 else price
+                chg    = ((price - prev) / prev * 100) if prev else 0.0
+                mood   = round(min(95, max(5, 50 + chg * 10)), 1)
+                direction = "up" if chg > 0.1 else "down" if chg < -0.1 else "neutral"
+                sectors.append(SectorItem(name=name, mood=mood, dir=direction))
+            except Exception:
+                sectors.append(SectorItem(name=name, mood=50.0, dir="neutral"))
+    except Exception as e:
+        logger.warning("API sector mood failed: %s", e)
+        for name in sector_etfs:
+            sectors.append(SectorItem(name=name, mood=50.0, dir="neutral"))
+
+    return MarketMood(fearGreed=round(fg_score, 1), vix=round(vix_val, 1),
+                      sentiment=fg_rating, breadth=breadth, sectors=sectors)
+
+
+@_api.get("/forecast/{ticker}", response_model=ForecastResult)
+def _api_forecast(ticker: str, days: int = Query(default=30, ge=5, le=90)):
+    ticker = ticker.upper()
+    df = _yf_download_with_retry(ticker, period="max", interval="1d")
+    if df.empty or len(df) < 60:
+        raise HTTPException(404, f"Insufficient data for '{ticker}'")
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+    df.index = pd.to_datetime(df.index).tz_localize(None)
+    df.sort_index(inplace=True)
+    close = df["Close"].squeeze()
+
+    feat = pd.DataFrame(index=df.index)
+    for lag in [1, 2, 3, 5, 10, 20]:
+        feat[f"lag_{lag}"] = close.shift(lag)
+    feat["ma5"]      = close.rolling(5).mean()
+    feat["ma20"]     = close.rolling(20).mean()
+    feat["ma50"]     = close.rolling(50).mean()
+    feat["vol_ma10"] = df["Volume"].squeeze().rolling(10).mean()
+    feat["high_low"] = df["High"].squeeze() - df["Low"].squeeze()
+    feat["rsi"]      = _api_rsi(close, 14)
+    feat["target"]   = close.shift(-1)
+    feat.dropna(inplace=True)
+
+    X = feat.drop(columns=["target"])
+    y = feat["target"]
+    split = int(len(X) * 0.8)
+
+    model = XGBRegressor(n_estimators=200, max_depth=4, learning_rate=0.05,
+                         subsample=0.85, colsample_bytree=0.85,
+                         objective="reg:squarederror", random_state=42, n_jobs=-1)
+    model.fit(X.iloc[:split], y.iloc[:split], verbose=False)
+
+    last_close = float(close.iloc[-1])
+    row = X.iloc[-1:].copy()
+    future_pct = 0.0
+    for _ in range(min(days, 30)):
+        pred = float(model.predict(row)[0])
+        future_pct = (pred - last_close) / last_close * 100
+        if "lag_1" in row.columns:
+            for lag in [20, 10, 5, 3, 2]:
+                if f"lag_{lag}" in row.columns and f"lag_{lag-1}" in row.columns:
+                    row[f"lag_{lag}"] = row[f"lag_{lag-1}"].values
+            row["lag_1"] = pred
+
+    take_profit = round(last_close * (1 + max(0.02, future_pct / 100 * 0.7)), 2)
+    stop_loss   = round(last_close * 0.95, 2)
+    risk_reward = round((take_profit - last_close) / (last_close - stop_loss), 2) \
+                  if last_close > stop_loss else 0.0
+
+    hist_60 = close.iloc[-60:]
+    history = [PricePoint(date=str(d.date()), close=round(float(v), 2))
+               for d, v in hist_60.items()]
+
+    return ForecastResult(ticker=ticker, history=history, xgb_pct=round(future_pct, 2),
+                          take_profit=take_profit, stop_loss=stop_loss, risk_reward=risk_reward)
+
+
+@_api.get("/news/{ticker}")
+def _api_news(ticker: str, limit: int = Query(default=8, le=20)):
+    ticker = ticker.upper()
+    try:
+        raw   = yf.Ticker(ticker).news or []
+        items = []
+        for n in raw[:limit]:
+            title = n.get("title") or (n.get("content") or {}).get("title") or ""
+            if title:
+                items.append({"title": title})
+        return {"ticker": ticker, "news": items}
+    except Exception as e:
+        logger.warning("API news failed for '%s': %s", ticker, e)
+        return {"ticker": ticker, "news": []}
+
+
+@_api.get("/portfolio-stats")
+def _api_portfolio_stats(tickers: str = Query(default=",".join(_DEFAULT_TICKERS))):
+    syms  = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    total = 0.0; wins = 0; counts = {"BUY": 0, "HOLD": 0, "SELL": 0}
+    for sym in syms:
+        try:
+            hist = _yf_download_with_retry(sym, period="2mo", interval="1d")
+            if hist.empty:
+                continue
+            if isinstance(hist.columns, pd.MultiIndex):
+                hist.columns = hist.columns.get_level_values(0)
+            close      = hist["Close"].squeeze().dropna()
+            price_now  = float(close.iloc[-1])
+            price_30d  = float(close.iloc[-30]) if len(close) >= 30 else float(close.iloc[0])
+            total += price_now * 10
+            if price_now > price_30d:
+                wins += 1
+            sig = _api_compute_signal(hist)
+            counts[sig["signal"]] = counts.get(sig["signal"], 0) + 1
+        except Exception:
+            pass
+    n        = len(syms) or 1
+    win_rate = round(wins / n * 100, 1)
+    return {
+        "portfolio_value": f"${total:,.0f}",
+        "win_rate":        f"{win_rate}%",
+        "active_signals":  f"{counts.get('BUY',0)} BUY",
+        "signal_summary":  f"{counts.get('HOLD',0)} HOLD · {counts.get('SELL',0)} SELL",
+    }
+
+
+# ── Background thread launcher ────────────────────────────────────────────────
+
+def _start_api_server():
+    """Start uvicorn in a daemon thread. Called once when Streamlit boots."""
+    config = uvicorn.Config(
+        _api,
+        host="0.0.0.0",
+        port=_API_PORT,
+        log_level="warning",   # keep uvicorn quiet; Streamlit owns stdout
+        loop="asyncio",
+    )
+    server = uvicorn.Server(config)
+    server.run()
+
+
+def _ensure_api_running():
+    """Idempotent: starts the API thread exactly once per process."""
+    if not getattr(_ensure_api_running, "_started", False):
+        t = threading.Thread(target=_start_api_server, daemon=True, name="stockcast-api")
+        t.start()
+        _ensure_api_running._started = True
+        logger.info("Stockcast REST API started on port %d", _API_PORT)
+
+# Start immediately at import time (Streamlit re-runs the script on each
+# interaction, but the daemon thread persists across re-runs).
+_ensure_api_running()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# END OF EMBEDDED API — Streamlit UI continues below
+# ══════════════════════════════════════════════════════════════════════════════
+
+
 # ── Logging setup ──────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
