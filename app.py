@@ -3547,115 +3547,16 @@ with st.sidebar:
                 _valid = _quick_validate(ticker)
                 if not _valid and len(ticker) >= 1:
                     st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#ff5f5f;padding:.2rem 0 .3rem;">Symbol not found — check spelling. Indian stocks need .NS e.g. RELIANCE.NS</div>', unsafe_allow_html=True)
+    # ── Defaults for non-analysis pages ──────────────────────────────────────
     else:
-        st.markdown(f'<div class="stat-row">{_L["ticker"]}</div>', unsafe_allow_html=True)
-        ticker = st.text_input("Ticker", value=_wl_override or "AAPL", placeholder="AAPL, TSLA, MSFT…",
-                               label_visibility="collapsed", key="direct_ticker").strip().upper() or "AAPL"
-        st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#4d8eff;letter-spacing:.07em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["active_ticker"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
-
-        # ⭐ Add to Watchlist
-        _in_wl = ticker in st.session_state.watchlist
-        _wl_full = len(st.session_state.watchlist) >= _get_limit("watchlist_stocks")
-        if _in_wl:
-            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#00e5b0;padding:.2rem 0;">⭐ {ticker} in watchlist</div>', unsafe_allow_html=True)
-        elif not _wl_full:
-            if st.button(f"⭐ Add {ticker} to Watchlist", use_container_width=True, key="sidebar_wl_add"):
-                if ticker not in st.session_state.watchlist:
-                    if _sb_add_watchlist(st.session_state.user.id, ticker):
-                        st.session_state.watchlist.append(ticker)
-                        st.rerun()
-
-        col1, col2 = st.columns(2)
-        with col1: start_date = st.date_input(_L["from"], value=pd.to_datetime("2018-01-01"))
-        with col2: end_date   = st.date_input(_L["to"],   value=pd.Timestamp.today())
-
-        st.markdown(f'<div class="stat-row">{_L["lookback"]}</div>', unsafe_allow_html=True)
-        seq_len     = st.slider("Lookback window", 10, 60, 30, label_visibility="collapsed")
-        st.markdown(f'<div class="stat-row">{_L["horizon"]}</div>', unsafe_allow_html=True)
-        _max_horizon = _get_limit("forecast_horizon")
-        future_days  = st.slider("Outlook horizon", 1, _max_horizon, min(7, _max_horizon), label_visibility="collapsed")
-
-        st.markdown("---")
-        ui_mode    = st.radio("Mode", [_L["beginner"], _L["pro"]], index=1, horizontal=True, label_visibility="collapsed")
-        is_beginner = (ui_mode == _L["beginner"])
-
-        fast_mode = st.checkbox(_L["fast_mode"], value=is_beginner)
-
-        if not is_beginner:
-            st.markdown(f'<div class="stat-row">{_L["xgb_params"]}</div>', unsafe_allow_html=True)
-            n_estimators  = st.slider("Trees", 100, 500, 200, step=50)
-            max_depth     = st.slider("Max Depth", 2, 8, 4)
-            learning_rate = st.select_slider("Learning Rate", options=[0.01, 0.05, 0.1, 0.2], value=0.05)
-        else:
-            n_estimators = 200; max_depth = 4; learning_rate = 0.05
-
-        alert_price = st.number_input(_L["alert_target"], min_value=0.0, value=0.0, step=1.0)
-
-        if not is_beginner:
-            st.markdown("---")
-            run_backtest        = st.checkbox(_L["enable_backtest"], value=True)
-            bt_initial_capital  = st.number_input(_L["init_capital"], min_value=1000, value=10000, step=1000)
-            bt_commission       = st.number_input(_L["commission"], min_value=0.0, value=1.0, step=0.5)
-            bt_signal_threshold = st.slider(_L["signal_thresh"], 0.5, 5.0, 1.0, step=0.5)
-        else:
-            run_backtest = False; bt_initial_capital = 10000; bt_commission = 1.0; bt_signal_threshold = 1.0
-
-        if not is_beginner:
-            st.markdown("---")
-            if _is_pro():
-                run_model_compare  = st.checkbox(_L["model_compare"], value=False)
-                show_conf_interval = st.checkbox(_L["conf_interval"], value=True) and not fast_mode
-                ci_bootstrap_n     = st.slider(_L["bootstrap_samples"], 50, 300, 100, step=50) if show_conf_interval else 100
-            else:
-                run_model_compare  = False; show_conf_interval = False; ci_bootstrap_n = 100
-                if st.button("✦ Upgrade for CI & Models", use_container_width=True, key="upgrade_cta_features"):
-                    st.session_state.show_upgrade_modal = True; st.rerun()
-            run_halal_check = st.checkbox(_L["halal_check"], value=True)
-        else:
-            run_model_compare = False; run_halal_check = True; show_conf_interval = False; ci_bootstrap_n = 100
-
-        if not is_beginner:
-            st.markdown("---")
-            if _is_pro():
-                compare_tickers_raw = st.text_input(_L["compare_tickers"], value="", placeholder="AAPL,TSLA,NVDA",
-                                                    label_visibility="collapsed", key="compare_input")
-                compare_tickers = [t.strip().upper() for t in compare_tickers_raw.split(",") if t.strip()] if compare_tickers_raw.strip() else []
-            else:
-                compare_tickers = []
-                if st.button("✦ Unlock Multi-Stock (Pro)", use_container_width=True, key="upgrade_cta_multi"):
-                    st.session_state.show_upgrade_modal = True; st.rerun()
-        else:
-            compare_tickers = []
-
-        st.markdown("---")
-        _at_limit = (not _is_pro_user) and (st.session_state.get("usage_count", 0) >= _get_limit("daily_analyses"))
-        if _at_limit:
-            if st.button("✦ Upgrade to Pro", use_container_width=True, key="upgrade_cta_run"):
-                st.session_state.show_upgrade_modal = True; st.rerun()
-        else:
-            if not _is_pro_user:
-                _rem = _get_limit("daily_analyses") - st.session_state.get("usage_count", 0)
-                st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#8a8fa0;text-align:center;margin-bottom:.3rem;">{_rem} {"analysis" if _rem == 1 else "analyses"} remaining today</div>', unsafe_allow_html=True)
-            if st.button(_L["run"], use_container_width=True, key="run_analysis_btn"):
-                st.session_state.run_pressed = True
-                if not _is_pro_user:
-                    new_count = st.session_state.get("usage_count", 0) + 1
-                    st.session_state.usage_count = new_count
-                    st.session_state.analyses_today = new_count
-                    _sb_increment_usage(st.session_state.user.id)
-                st.rerun()
-        run_btn = st.session_state.get("run_pressed", False) and not _at_limit
-
-    # ── Watchlist (shown on all pages in sidebar) ─────────────────────────────
-    if _ap != "analysis":
-        # Also define default analysis vars so they exist when analysis page loads
+        # Not on analysis page — set safe defaults so later code never hits NameError
         ticker = "AAPL"; start_date = pd.to_datetime("2018-01-01"); end_date = pd.Timestamp.today()
         seq_len = 30; future_days = 7; n_estimators = 200; max_depth = 4; learning_rate = 0.05
         fast_mode = True; run_backtest = False; bt_initial_capital = 10000; bt_commission = 1.0
         bt_signal_threshold = 1.0; run_model_compare = False; run_halal_check = True
         show_conf_interval = False; ci_bootstrap_n = 100; compare_tickers = []; alert_price = 0.0
-        is_beginner = True; run_btn = False; _at_limit = False
-        _wl_override = None
+        is_beginner = True; run_btn = False; _at_limit = False; _wl_override = None
+        alert_on_signal_change = True
 
     st.markdown('<div class="sc-nav-sep"></div>', unsafe_allow_html=True)
 
