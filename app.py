@@ -349,13 +349,18 @@ def _api_market_mood():
     except Exception:
         pass
 
-    # CNN Fear & Greed — reuse existing get_fear_greed_index() from app_patched
+    # CNN Fear & Greed — direct fetch (cannot call get_fear_greed_index() here
+    # because it is decorated with @st.cache_data which raises RuntimeError
+    # when invoked outside the Streamlit main thread).
     fg_score, fg_rating = 50.0, "Neutral"
     try:
-        fg = get_fear_greed_index()
-        if fg:
-            fg_score  = float(fg["score"])
-            fg_rating = fg["rating"]
+        r = requests.get(
+            "https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+            timeout=8, headers={"User-Agent": "Mozilla/5.0"},
+        )
+        d = r.json()
+        fg_score  = float(d["fear_and_greed"]["score"])
+        fg_rating = d["fear_and_greed"]["rating"].title()
     except Exception:
         pass
 
@@ -513,28 +518,46 @@ def _api_portfolio_stats(tickers: str = Query(default=",".join(_DEFAULT_TICKERS)
 # ── Background thread launcher ────────────────────────────────────────────────
 
 def _start_api_server():
-    """Start uvicorn in a daemon thread. Called once when Streamlit boots."""
+    """Start uvicorn in a daemon thread. Called once when Streamlit boots.
+    IMPORTANT: loop must NOT be 'asyncio' — Streamlit owns the main event loop.
+    Using 'none' tells uvicorn to create its own fresh loop inside this thread."""
+    import asyncio
+    # Give the thread its own event loop — required because Streamlit already
+    # owns the main-thread asyncio loop and uvicorn must not touch it.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     config = uvicorn.Config(
         _api,
         host="0.0.0.0",
         port=_API_PORT,
         log_level="warning",   # keep uvicorn quiet; Streamlit owns stdout
-        loop="asyncio",
+        loop="none",           # we set the loop manually above
     )
     server = uvicorn.Server(config)
-    server.run()
+    loop.run_until_complete(server.serve())
+
+
+# Global flag — persists across Streamlit re-runs within the same process.
+# We also check threading.enumerate() by name so that hot-reloads in local
+# dev (which reset module globals) don't accidentally spawn duplicate threads.
+_API_THREAD_STARTED = False
 
 
 def _ensure_api_running():
-    """Idempotent: starts the API thread exactly once per process."""
-    if not getattr(_ensure_api_running, "_started", False):
+    """Idempotent: starts the REST API thread exactly once per process."""
+    global _API_THREAD_STARTED
+    already_running = any(t.name == "stockcast-api" for t in threading.enumerate())
+    if not _API_THREAD_STARTED and not already_running:
         t = threading.Thread(target=_start_api_server, daemon=True, name="stockcast-api")
         t.start()
-        _ensure_api_running._started = True
+        _API_THREAD_STARTED = True
         logger.info("Stockcast REST API started on port %d", _API_PORT)
+    elif already_running:
+        _API_THREAD_STARTED = True  # re-sync flag after hot-reload
 
-# Start immediately at import time (Streamlit re-runs the script on each
-# interaction, but the daemon thread persists across re-runs).
+
+# Called at module load time. Streamlit re-executes the script on every
+# interaction, but _API_THREAD_STARTED keeps this idempotent.
 _ensure_api_running()
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -546,7 +569,6 @@ _ensure_api_running()
 
 def _yf_download_with_retry(ticker, retries=3, **kwargs):
     """Download yfinance data with retry logic for rate limiting."""
-    import logging
     last_exc = None
     for attempt in range(retries):
         try:
@@ -953,21 +975,20 @@ def _ensure_nltk_data():
                 logger.warning("Failed to download NLTK package '%s': %s", _nltk_pkg, e)
 
 # ── Supabase config ────────────────────────────────────────────────────────────
-# Credentials are loaded from Streamlit secrets (secrets.toml) or environment variables.
-# Never hardcode credentials in source code.
-# Set up: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management
+# Credentials are loaded from Streamlit secrets (secrets.toml) or env vars.
+# st.error / st.stop are deferred — they must not run before set_page_config.
 try:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-except (KeyError, FileNotFoundError):
+except (KeyError, FileNotFoundError, AttributeError):
     SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
     SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("⚠ Supabase credentials not found. Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets or environment variables.")
-    st.stop()
+_SUPABASE_MISSING = not SUPABASE_URL or not SUPABASE_KEY
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# supabase client — only created when credentials are present.
+# The Streamlit UI checks _SUPABASE_MISSING after set_page_config and halts there.
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if not _SUPABASE_MISSING else None
 
 # ── Portfolio Supabase helpers ─────────────────────────────────────────────────
 # Required Supabase tables (run once in your Supabase SQL editor):
@@ -1839,6 +1860,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# ── Deferred Supabase credential check ────────────────────────────────────────
+# Now safe to call st.error / st.stop — set_page_config has already run.
+if _SUPABASE_MISSING:
+    st.error("⚠ Supabase credentials not found. Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets or environment variables.")
+    st.stop()
 
 # ── Session state ──────────────────────────────────────────────────────────────
 if "lang" not in st.session_state:
