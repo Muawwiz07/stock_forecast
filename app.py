@@ -1652,8 +1652,28 @@ footer { display: none !important; }
 
 /* Run Analysis button — bigger, more prominent */
 [data-testid="stSidebar"] .stButton > button {
-    padding: 0.75rem 1.5rem !important;
-    font-size: 0.73rem !important;
+    background: transparent !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    color: #8a8fa0 !important;
+    font-family: var(--sans) !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    padding: 0.55rem 0.9rem !important;
+    margin-bottom: 2px !important;
+    border-radius: 0.5rem !important;
+    box-shadow: none !important;
+    letter-spacing: 0.01em !important;
+    text-transform: none !important;
+    transition: background 0.15s, border-color 0.15s, color 0.15s !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(77,142,255,0.08) !important;
+    border-color: rgba(77,142,255,0.25) !important;
+    color: #c8cedd !important;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 /* ── METRICS ── */
@@ -3462,56 +3482,35 @@ with st.sidebar:
         """, unsafe_allow_html=True)
 
     # ── Primary navigation ────────────────────────────────────────────────────
-    def _nav_btn(label, icon, page_key, badge=None, badge_cls=""):
-        _active = "active" if _ap == page_key else ""
-        _badge_html = f'<span class="sc-nav-badge {badge_cls}">{badge}</span>' if badge else ""
+    # Inject active-state highlight for current nav button (positional — buttons 1-6)
+    _nav_order = ["dashboard", "analysis", "portfolio", "markets", "crypto", "methodology"]
+    _active_idx = _nav_order.index(_ap) + 1 if _ap in _nav_order else 0
+    if _active_idx:
         st.markdown(f"""
-        <div class="sc-nav-item {_active}" id="nav-{page_key}"
-             onclick="window.parent.document.querySelectorAll('button[kind=secondary]')
-             .forEach(b=>b.textContent.trim()==='__nav_{page_key}__'&&b.click())">
-          <span class="sc-nav-icon">{icon}</span>
-          <span style="flex:1">{label}</span>
-          {_badge_html}
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button(f"__nav_{page_key}__", key=f"nav_btn_{page_key}",
-                     label_visibility="collapsed",
-                     use_container_width=False,
-                     help=f"Go to {label}"):
+        <style>
+        /* Active nav button — position {_active_idx} in sidebar button group */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"]:first-child
+            .stButton:nth-of-type({_active_idx}) > button {{
+            background: rgba(77,142,255,0.14) !important;
+            border-color: rgba(77,142,255,0.35) !important;
+            color: #adc6ff !important;
+            font-weight: 700 !important;
+        }}
+        </style>""", unsafe_allow_html=True)
+
+    def _nav(label, icon, page_key):
+        if st.button(f"{icon}  {label}", key=f"nav_{page_key}", use_container_width=True):
             st.session_state.active_page = page_key
-            # If going to analysis, preserve run_pressed state
             if page_key != "analysis":
-                pass
+                st.session_state.run_pressed = False
             st.rerun()
 
-    # Simpler approach — just use actual styled buttons via session state
-    def _nav(label, icon, page_key, badge=None, badge_cls=""):
-        _active = _ap == page_key
-        _bg = "rgba(77,142,255,0.15)" if _active else "transparent"
-        _border = "rgba(77,142,255,0.3)" if _active else "transparent"
-        _color = "#adc6ff" if _active else "#8a8fa0"
-        _badge_html = f'<span class="sc-nav-badge {badge_cls}" style="font-size:0.6rem;">{badge}</span>' if badge else ""
-        st.markdown(f"""
-        <div style="background:{_bg};border:1px solid {_border};border-radius:.5rem;
-             padding:.58rem .85rem;margin-bottom:2px;cursor:pointer;display:flex;
-             align-items:center;gap:.7rem;" onclick="">
-          <span style="font-size:1rem;flex-shrink:0;width:1.2rem;text-align:center;">{icon}</span>
-          <span style="font-family:Manrope,sans-serif;font-size:0.8rem;font-weight:{'700' if _active else '600'};
-               color:{_color};flex:1;">{label}</span>
-          {_badge_html}
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button(f"{'→ ' if _active else ''}{label}", key=f"nav_{page_key}",
-                     use_container_width=True):
-            st.session_state.active_page = page_key
-            st.rerun()
-
-    _nav("Dashboard",    "🖥",  "dashboard")
-    _nav("Analysis",     "📈",  "analysis")
-    _nav("Portfolio",    "💼",  "portfolio")
-    _nav("Markets",      "🌍",  "markets")
-    _nav("Crypto",       "₿",   "crypto")
-    _nav("Methodology",  "📖",  "methodology")
+    _nav("Dashboard",   "🖥",  "dashboard")
+    _nav("Analysis",    "📈",  "analysis")
+    _nav("Portfolio",   "💼",  "portfolio")
+    _nav("Markets",     "🌍",  "markets")
+    _nav("Crypto",      "₿",   "crypto")
+    _nav("Methodology", "📖",  "methodology")
 
     st.markdown('<div class="sc-nav-sep"></div>', unsafe_allow_html=True)
 
