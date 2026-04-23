@@ -35,6 +35,14 @@ import time
 import logging
 warnings.filterwarnings('ignore')
 
+# ── Logging setup (must come before API block which uses logger) ───────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("stockcast")
+
 # ── Additional imports for embedded FastAPI server ─────────────────────────────
 import threading
 from typing import List
@@ -533,14 +541,6 @@ _ensure_api_running()
 # END OF EMBEDDED API — Streamlit UI continues below
 # ══════════════════════════════════════════════════════════════════════════════
 
-
-# ── Logging setup ──────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logger = logging.getLogger("stockcast")
 
 # ── yfinance helpers ───────────────────────────────────────────────────────────
 
