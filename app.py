@@ -464,11 +464,8 @@ except (KeyError, FileNotFoundError):
     SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
     SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("⚠ Supabase credentials not found. Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets or environment variables.")
-    st.stop()
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+_SUPABASE_MISSING = not SUPABASE_URL or not SUPABASE_KEY
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if not _SUPABASE_MISSING else None
 
 # ── Portfolio Supabase helpers ─────────────────────────────────────────────────
 # Required Supabase tables (run once in your Supabase SQL editor):
@@ -1341,6 +1338,11 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Deferred credential check — st.error/st.stop now safe after set_page_config
+if _SUPABASE_MISSING:
+    st.error("⚠ Supabase credentials not found. Add SUPABASE_URL and SUPABASE_KEY to your Streamlit secrets or environment variables.")
+    st.stop()
+
 # ── Session state ──────────────────────────────────────────────────────────────
 if "lang" not in st.session_state:
     st.session_state.lang = "English"
@@ -1370,8 +1372,6 @@ if "show_upgrade_modal" not in st.session_state:
     st.session_state.show_upgrade_modal = False
 if "email_alerts_enabled" not in st.session_state:
     st.session_state.email_alerts_enabled = False
-if "active_page" not in st.session_state:
-    st.session_state.active_page = "dashboard"
 
 
 # ── Plotly theme ───────────────────────────────────────────────────────────────
@@ -1508,101 +1508,7 @@ html, body, [class*="css"], [data-testid="stApp"],
     pointer-events: none; z-index: 0;
 }
 
-/* ── NAV RAIL ── */
-.sc-nav-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.65rem 1rem;
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-family: var(--sans);
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--t3);
-    transition: all 0.15s ease;
-    margin-bottom: 2px;
-    border: 1px solid transparent;
-    user-select: none;
-    text-decoration: none;
-}
-.sc-nav-item:hover {
-    background: rgba(77,142,255,0.08);
-    color: var(--t2);
-    border-color: rgba(77,142,255,0.15);
-}
-.sc-nav-item.active {
-    background: linear-gradient(135deg, rgba(77,142,255,0.15), rgba(77,142,255,0.08));
-    color: var(--primary) !important;
-    border-color: rgba(77,142,255,0.3);
-    font-weight: 700;
-}
-.sc-nav-item.active .sc-nav-icon {
-    color: var(--accent) !important;
-}
-.sc-nav-icon {
-    font-size: 1rem;
-    flex-shrink: 0;
-    width: 1.2rem;
-    text-align: center;
-    opacity: 0.85;
-}
-.sc-nav-badge {
-    margin-left: auto;
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    font-weight: 700;
-    padding: 0.1rem 0.45rem;
-    border-radius: 100px;
-    background: rgba(77,142,255,0.15);
-    color: var(--accent);
-    border: 1px solid rgba(77,142,255,0.25);
-}
-.sc-nav-badge.live {
-    background: rgba(0,229,176,0.12);
-    color: var(--emerald);
-    border-color: rgba(0,229,176,0.25);
-    animation: chip-live-pulse 2.5s ease-in-out infinite;
-}
-.sc-nav-sep {
-    height: 1px;
-    background: var(--border);
-    margin: 0.65rem 0;
-    opacity: 0.6;
-}
-.sc-page-header {
-    padding: 0.5rem 0 1.4rem;
-    margin-bottom: 0.5rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-.sc-page-title {
-    font-family: var(--sans);
-    font-size: 1.6rem;
-    font-weight: 800;
-    color: var(--t1);
-    letter-spacing: -0.03em;
-    line-height: 1.2;
-}
-.sc-page-subtitle {
-    font-family: var(--sans);
-    font-size: 0.84rem;
-    color: var(--t3);
-    margin-top: 0.25rem;
-    font-weight: 500;
-    line-height: 1.5;
-}
-/* Hide default Streamlit hamburger / header */
-#MainMenu { visibility: hidden; }
-header[data-testid="stHeader"] { display: none !important; }
-footer { display: none !important; }
-
-/* ── NAV RAIL ── */
-
+/* ── SIDEBAR ── */
 [data-testid="stSidebar"],
 [data-testid="stSidebar"] > div:first-child {
     background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%) !important;
@@ -1652,28 +1558,8 @@ footer { display: none !important; }
 
 /* Run Analysis button — bigger, more prominent */
 [data-testid="stSidebar"] .stButton > button {
-    background: transparent !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    color: #8a8fa0 !important;
-    font-family: var(--sans) !important;
-    font-size: 0.82rem !important;
-    font-weight: 600 !important;
-    text-align: left !important;
-    justify-content: flex-start !important;
-    padding: 0.55rem 0.9rem !important;
-    margin-bottom: 2px !important;
-    border-radius: 0.5rem !important;
-    box-shadow: none !important;
-    letter-spacing: 0.01em !important;
-    text-transform: none !important;
-    transition: background 0.15s, border-color 0.15s, color 0.15s !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(77,142,255,0.08) !important;
-    border-color: rgba(77,142,255,0.25) !important;
-    color: #c8cedd !important;
-    transform: none !important;
-    box-shadow: none !important;
+    padding: 0.75rem 1.5rem !important;
+    font-size: 0.73rem !important;
 }
 
 /* ── METRICS ── */
@@ -3173,8 +3059,28 @@ if st.session_state.user is None:  # fallback guard (render_auth_gate calls st.s
     st.stop()
 
 
+# ── Safe user attribute helpers ───────────────────────────────────────────────
+# supabase-py ≥2.0 may store a Session object (user at .user.email/.user.id)
+# or a User object (email/.id directly). These helpers handle both safely.
+def _user_email() -> str:
+    u = st.session_state.user
+    if u is None:
+        return ""
+    if hasattr(u, "user") and u.user is not None:
+        return getattr(u.user, "email", "") or ""
+    return getattr(u, "email", "") or ""
+
+def _user_id() -> str:
+    u = st.session_state.user
+    if u is None:
+        return ""
+    if hasattr(u, "user") and u.user is not None:
+        return str(getattr(u.user, "id", "")) or ""
+    return str(getattr(u, "id", "")) or ""
+
+
 # ── Load user data from Supabase once per login session ──────────────────────
-_current_uid = st.session_state.user.id if st.session_state.user else None
+_current_uid = _user_id() if st.session_state.user else None
 if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_uid:
     _loaded = _sb_load_portfolio(_current_uid)
     st.session_state.portfolio = _loaded
@@ -3203,14 +3109,14 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
         and st.session_state.watchlist
     ):
         try:
-            _d_html = _build_digest_html(st.session_state.user.email, st.session_state.watchlist)
+            _d_html = _build_digest_html(_user_email(), st.session_state.watchlist)
             _d_sent = _send_email(
-                st.session_state.user.email,
+                _user_email(),
                 f"📈 Stockcast Daily Digest — {pd.Timestamp.now().strftime('%b %d, %Y')}",
                 _d_html,
             )
             if _d_sent:
-                logger.info("Daily digest sent to %s", st.session_state.user.email)
+                logger.info("Daily digest sent to %s", _user_email())
         except Exception as _de:
             logger.error("Daily digest send failed: %s", _de)
         finally:
@@ -3354,7 +3260,7 @@ if st.session_state.get("show_upgrade_modal"):
             # Once payment is confirmed by the provider webhook, call:
             #   _sb_set_plan(user_id, "pro")
             # For now, grant access immediately (testing only — remove before launch).
-            _sb_set_plan(st.session_state.user.id, "pro")
+            _sb_set_plan(_user_id(), "pro")
             st.session_state.show_upgrade_modal = False
             st.session_state._portfolio_loaded_for = None
             st.rerun()
@@ -3417,7 +3323,7 @@ else:
 # SIDEBAR
 # ═══════════════════════════════════════════════════════════════════
 with st.sidebar:
-    # Language selector (hidden label)
+    # Language selector
     _lang_choice = st.selectbox("🌐 Language", list(LANGUAGES.keys()),
                                 index=list(LANGUAGES.keys()).index(st.session_state.lang),
                                 key="lang_selector", label_visibility="collapsed")
@@ -3426,6 +3332,7 @@ with st.sidebar:
         st.rerun()
     _L = LANGUAGES[st.session_state.lang]
 
+    # Logo + User
     _usage_count  = st.session_state.get("usage_count", 0)
     _is_pro_user  = _is_pro()
     _daily_limit  = _get_limit("daily_analyses")
@@ -3435,139 +3342,289 @@ with st.sidebar:
         "#ff5f5f" if _usage_count >= _daily_limit else
         "#4d8eff" if _usage_count >= 2 else "#00e5b0"
     )
-    _ap = st.session_state.get("active_page", "dashboard")
 
-    # ── Logo ──────────────────────────────────────────────────────────────────
     st.markdown(f"""
-    <div style="padding:1.2rem 0.5rem 1rem;">
+    <div style="padding:1.5rem 1rem 0.9rem;">
       <div style="font-family:Manrope,sans-serif;font-size:1.45rem;font-weight:800;
            color:#e4eafd;letter-spacing:-.02em;line-height:1;">
         Stock<span style="color:#4d8eff;">cast</span>
       </div>
-      <div style="font-size:0.6rem;color:#3e4558;letter-spacing:.1em;text-transform:uppercase;
-           font-weight:700;margin-top:3px;">AI Stock Intelligence</div>
+      <div style="font-size:.52rem;color:#3e4558;letter-spacing:.1em;text-transform:uppercase;
+           font-weight:700;margin-top:3px;">by Muawwiz Ghani</div>
+    </div>
+    <div style="background:rgba(77,142,255,0.07);border:1px solid rgba(77,142,255,0.18);
+         border-left:3px solid #4d8eff;padding:.55rem 1rem;margin:.3rem 0 .5rem;
+         font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#adc6ff;letter-spacing:.04em;
+         border-radius:0 .5rem .5rem 0;display:flex;align-items:center;gap:.5rem;">
+      <span style="color:#3e4558;">👤</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        {_user_email()}
+      </span>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── User pill ─────────────────────────────────────────────────────────────
-    _plan_label = "✦ Pro" if _is_pro_user else "Free"
-    _plan_color = "#ffd426" if _is_pro_user else "#3e4558"
-    st.markdown(f"""
-    <div style="background:rgba(77,142,255,0.07);border:1px solid rgba(77,142,255,0.15);
-         border-radius:.6rem;padding:.5rem .85rem;margin-bottom:.8rem;
-         display:flex;align-items:center;justify-content:space-between;gap:.5rem;">
-      <div style="font-family:IBM Plex Mono,monospace;font-size:0.68rem;color:#adc6ff;
-           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
-        👤 {st.session_state.user.email}
-      </div>
-      <div style="font-family:Manrope,sans-serif;font-size:0.6rem;font-weight:800;
-           color:{_plan_color};letter-spacing:.06em;flex-shrink:0;">{_plan_label}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ── Usage bar (free plan only) ────────────────────────────────────────────
-    if not _is_pro_user:
+    if _is_pro_user:
+        # Pro badge
         st.markdown(f"""
-        <div class="plan-badge" style="margin-bottom:.6rem;">
+        <div style="background:linear-gradient(135deg,rgba(255,212,38,0.12),rgba(255,160,0,0.08));
+             border:1px solid rgba(255,212,38,0.35);border-radius:.6rem;padding:.65rem 1rem;
+             margin:.2rem 0 .5rem;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-family:Manrope,sans-serif;font-size:.56rem;font-weight:800;
+                 letter-spacing:.12em;text-transform:uppercase;color:#ffd426;">✦ Pro Plan</div>
+            <div style="font-family:Manrope,sans-serif;font-size:.68rem;color:#8a8fa0;margin-top:1px;">
+              Unlimited analyses · {_wl_limit} watchlist stocks
+            </div>
+          </div>
+          <div style="font-family:IBM Plex Mono,monospace;font-size:1rem;color:#ffd426;">∞</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Free plan bar
+        st.markdown(f"""
+        <div class="plan-badge">
           <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <div class="plan-badge-label">Daily Analyses</div>
-              <div class="plan-badge-value" style="color:{_usage_color};">{_usage_count}/{_daily_limit}</div>
+              <div class="plan-badge-label">Free Plan</div>
+              <div class="plan-badge-value" style="color:{_usage_color};">
+                {_usage_count} / {_daily_limit} today
+              </div>
             </div>
             <div class="usage-bar-bg">
-              <div class="usage-bar-fill" style="width:{_usage_pct}%;background:linear-gradient(90deg,{_usage_color},{_usage_color});"></div>
+              <div class="usage-bar-fill"
+                   style="width:{_usage_pct}%;background:linear-gradient(90deg,{_usage_color},{_usage_color});">
+              </div>
             </div>
           </div>
         </div>
         """, unsafe_allow_html=True)
+        if _usage_count >= _daily_limit:
+            st.markdown(f"""
+            <div style="background:rgba(255,95,95,0.07);border:1px solid rgba(255,95,95,0.2);
+                 border-left:3px solid #ff5f5f;padding:.65rem 1rem;margin:.2rem 0 .5rem;
+                 border-radius:0 .5rem .5rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
+                   letter-spacing:.1em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.25rem;">
+                🔒 Daily limit reached
+              </div>
+              <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;line-height:1.5;">
+                Resets at midnight. Upgrade for unlimited analyses.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    # ── Primary navigation ────────────────────────────────────────────────────
-    # Inject active-state highlight for current nav button (positional — buttons 1-6)
-    _nav_order = ["dashboard", "analysis", "portfolio", "markets", "crypto", "methodology"]
-    _active_idx = _nav_order.index(_ap) + 1 if _ap in _nav_order else 0
-    if _active_idx:
-        st.markdown(f"""
-        <style>
-        /* Active nav button — position {_active_idx} in sidebar button group */
-        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"]:first-child
-            .stButton:nth-of-type({_active_idx}) > button {{
-            background: rgba(77,142,255,0.14) !important;
-            border-color: rgba(77,142,255,0.35) !important;
-            color: #adc6ff !important;
-            font-weight: 700 !important;
-        }}
-        </style>""", unsafe_allow_html=True)
+    if st.button(_L.get("logout", "⏏  Logout"), use_container_width=True, key="logout_btn"):
+        try:
+            supabase.auth.sign_out()
+        except Exception as e:
+            logger.warning("Supabase sign_out failed (session already expired?): %s", e)
+        st.session_state.user = None
+        st.session_state.run_pressed = False
+        st.session_state.portfolio = []
+        st.session_state.portfolio_history = []
+        st.session_state._portfolio_loaded_for = None
+        st.rerun()
 
-    def _nav(label, icon, page_key):
-        if st.button(f"{icon}  {label}", key=f"nav_{page_key}", use_container_width=True):
-            st.session_state.active_page = page_key
-            if page_key != "analysis":
-                st.session_state.run_pressed = False
-            st.rerun()
+    st.markdown("---")
 
-    _nav("Dashboard",   "🖥",  "dashboard")
-    _nav("Analysis",    "📈",  "analysis")
-    _nav("Portfolio",   "💼",  "portfolio")
-    _nav("Markets",     "🌍",  "markets")
-    _nav("Crypto",      "₿",   "crypto")
-    _nav("Methodology", "📖",  "methodology")
+    # Ticker Search — respects watchlist click override
+    _wl_override = st.session_state.get("load_ticker_from_watchlist")
+    st.markdown(f'<div class="stat-row">{_L["search_label"]}</div>', unsafe_allow_html=True)
+    search_query = st.text_input("Search", placeholder="e.g. Apple, TSLA, Saudi Aramco…",
+                                 label_visibility="collapsed", key="search_input",
+                                 value=_wl_override or "")
+    # Clear watchlist override after consuming it
+    if _wl_override:
+        st.session_state.load_ticker_from_watchlist = None
 
-    st.markdown('<div class="sc-nav-sep"></div>', unsafe_allow_html=True)
-
-    # ── Analysis config (shown when on analysis page) ─────────────────────────
-    if _ap == "analysis":
-        st.markdown('<div style="font-family:Manrope,sans-serif;font-size:0.68rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;margin-bottom:.5rem;padding-left:.25rem;">Analysis Config</div>', unsafe_allow_html=True)
-
-        _wl_override = st.session_state.get("load_ticker_from_watchlist")
-        st.markdown(f'<div class="stat-row">{_L["search_label"]}</div>', unsafe_allow_html=True)
-        search_query = st.text_input("Search", placeholder="e.g. Apple, TSLA…",
-                                     label_visibility="collapsed", key="search_input",
-                                     value=_wl_override or "")
-        if _wl_override:
-            st.session_state.load_ticker_from_watchlist = None
-
-        ticker = "AAPL"
-        if search_query and len(search_query.strip()) >= 1:
-            search_results = search_tickers(search_query.strip())
-            if search_results:
-                selected = st.selectbox("Select", search_results, label_visibility="collapsed")
-                ticker   = selected.split(" — ")[0].strip()
-                st.markdown(f'<div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.3);border-left:3px solid #00e5b0;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#00e5b0;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">✓ {ticker} — verified</div>', unsafe_allow_html=True)
-            else:
-                ticker = search_query.strip().upper()
-                st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffd426;padding:.4rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#ffd426;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">⚠ {_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
-                @st.cache_data(ttl=60)
-                def _quick_validate(sym):
-                    try:
-                        info = yf.Ticker(sym).fast_info
-                        return getattr(info, "last_price", None) is not None or getattr(info, "quote_type", None) is not None
-                    except Exception:
-                        return False
-                _valid = _quick_validate(ticker)
-                if not _valid and len(ticker) >= 1:
-                    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#ff5f5f;padding:.2rem 0 .3rem;">Symbol not found — check spelling. Indian stocks need .NS e.g. RELIANCE.NS</div>', unsafe_allow_html=True)
-    # ── Defaults for non-analysis pages ──────────────────────────────────────
+    ticker = "AAPL"
+    if search_query and len(search_query.strip()) >= 1:
+        search_results = search_tickers(search_query.strip())
+        if search_results:
+            selected = st.selectbox("Select", search_results, label_visibility="collapsed")
+            ticker   = selected.split(" — ")[0].strip()
+            # FIX 4: Confirmed ticker — green validation badge
+            st.markdown(f'<div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.3);border-left:3px solid #00e5b0;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#00e5b0;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">✓ {ticker} — symbol verified</div>', unsafe_allow_html=True)
+        else:
+            ticker = search_query.strip().upper()
+            # FIX 4: Unknown ticker — amber warning with hint
+            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffd426;padding:.4rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#ffd426;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">⚠ {_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
+            # Probe yfinance lightly to confirm symbol exists
+            @st.cache_data(ttl=60)
+            def _quick_validate(sym):
+                try:
+                    info = yf.Ticker(sym).fast_info
+                    return getattr(info, "last_price", None) is not None or getattr(info, "quote_type", None) is not None
+                except Exception:
+                    return False
+            _valid = _quick_validate(ticker)
+            if not _valid and len(ticker) >= 1:
+                st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#ff5f5f;padding:.2rem 0 .3rem;">Symbol not found — check spelling. Indian stocks need .NS e.g. RELIANCE.NS</div>', unsafe_allow_html=True)
     else:
-        # Not on analysis page — set safe defaults so later code never hits NameError
-        ticker = "AAPL"; start_date = pd.to_datetime("2018-01-01"); end_date = pd.Timestamp.today()
-        seq_len = 30; future_days = 7; n_estimators = 200; max_depth = 4; learning_rate = 0.05
-        fast_mode = True; run_backtest = False; bt_initial_capital = 10000; bt_commission = 1.0
-        bt_signal_threshold = 1.0; run_model_compare = False; run_halal_check = True
-        show_conf_interval = False; ci_bootstrap_n = 100; compare_tickers = []; alert_price = 0.0
-        is_beginner = True; run_btn = False; _at_limit = False; _wl_override = None
-        alert_on_signal_change = True
+        st.markdown(f'<div class="stat-row">{_L["ticker"]}</div>', unsafe_allow_html=True)
+        ticker = st.text_input("Ticker", value=_wl_override or "AAPL", placeholder="AAPL, TSLA, MSFT…",
+                               label_visibility="collapsed", key="direct_ticker").strip().upper() or "AAPL"
+        st.markdown(f'<div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.2);border-left:3px solid #4d8eff;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#4d8eff;letter-spacing:.07em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">{_L["active_ticker"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="sc-nav-sep"></div>', unsafe_allow_html=True)
+    # ⭐ Add to Watchlist inline button
+    _in_wl = ticker in st.session_state.watchlist
+    _wl_full = len(st.session_state.watchlist) >= _get_limit("watchlist_stocks")
+    if _in_wl:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#00e5b0;padding:.2rem 0;">⭐ {ticker} is in your watchlist</div>', unsafe_allow_html=True)
+    elif _wl_full:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;padding:.2rem 0;">Watchlist full ({FREE_PLAN_WATCHLIST_LIMIT}/{FREE_PLAN_WATCHLIST_LIMIT})</div>', unsafe_allow_html=True)
+    else:
+        if st.button(f"⭐ Add {ticker} to Watchlist", use_container_width=True, key="sidebar_wl_add"):
+            if ticker not in st.session_state.watchlist:
+                if _sb_add_watchlist(_user_id(), ticker):
+                    st.session_state.watchlist.append(ticker)
+                    st.session_state["_wl_toast"] = ticker
+                    st.rerun()
 
-    # Watchlist panel
+    col1, col2 = st.columns(2)
+    with col1: start_date = st.date_input(_L["from"], value=pd.to_datetime("2018-01-01"))
+    with col2: end_date   = st.date_input(_L["to"],   value=pd.Timestamp.today())
+
+    st.markdown(f'<div class="stat-row">{_L["lookback"]}</div>', unsafe_allow_html=True)
+    seq_len     = st.slider("Lookback window", 10, 60, 30, label_visibility="collapsed")
+    st.markdown(f'<div class="stat-row">{_L["horizon"]}</div>', unsafe_allow_html=True)
+    _max_horizon = _get_limit("forecast_horizon")
+    future_days  = st.slider("Outlook horizon", 1, _max_horizon, min(7, _max_horizon), label_visibility="collapsed")
+    if not _is_pro() and _max_horizon < 30:
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;">🔒 Pro unlocks 30-day outlook</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    ui_mode    = st.radio("Mode", [_L["beginner"], _L["pro"]], index=1, horizontal=True, label_visibility="collapsed")
+    is_beginner = (ui_mode == _L["beginner"])
+    if is_beginner:
+        st.markdown(f'<div style="background:rgba(0,229,176,0.06);border-left:3px solid #00e5b0;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#00e5b0;font-weight:700;">{_L["simple_view"]}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="background:rgba(255,107,107,0.06);border-left:3px solid #ff5f5f;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#ff5f5f;font-weight:700;">{_L["pro_view"]}</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    fast_mode = st.checkbox(_L["fast_mode"], value=is_beginner)
+
+    if not is_beginner:
+        st.markdown(f'<div class="stat-row">{_L["xgb_params"]}</div>', unsafe_allow_html=True)
+        n_estimators  = st.slider("Trees", 100, 500, 200, step=50)
+        max_depth     = st.slider("Max Depth", 2, 8, 4)
+        learning_rate = st.select_slider("Learning Rate", options=[0.01, 0.05, 0.1, 0.2], value=0.05)
+    else:
+        n_estimators = 200; max_depth = 4; learning_rate = 0.05
+
+    st.markdown("---")
+    st.markdown(f'<div class="stat-row">{_L["alert_target"]}</div>', unsafe_allow_html=True)
+    alert_price = st.number_input("Alert price", min_value=0.0, value=0.0, step=1.0, label_visibility="collapsed")
+
+    if not is_beginner:
+        st.markdown("---")
+        st.markdown(f'<div class="stat-row">{_L["backtesting"]}</div>', unsafe_allow_html=True)
+        run_backtest        = st.checkbox(_L["enable_backtest"], value=True)
+        bt_initial_capital  = st.number_input(_L["init_capital"], min_value=1000, value=10000, step=1000)
+        bt_commission       = st.number_input(_L["commission"], min_value=0.0, value=1.0, step=0.5)
+        bt_signal_threshold = st.slider(_L["signal_thresh"], 0.5, 5.0, 1.0, step=0.5)
+    else:
+        run_backtest = False; bt_initial_capital = 10000; bt_commission = 1.0; bt_signal_threshold = 1.0
+
+    if not is_beginner:
+        st.markdown("---")
+        st.markdown(f'<div class="stat-row">{_L["extra_features"]}</div>', unsafe_allow_html=True)
+        if _is_pro():
+            run_model_compare  = st.checkbox(_L["model_compare"], value=False)
+            show_conf_interval = st.checkbox(_L["conf_interval"], value=True) and not fast_mode
+            ci_bootstrap_n     = st.slider(_L["bootstrap_samples"], 50, 300, 100, step=50) if show_conf_interval else 100
+        else:
+            run_model_compare  = False
+            show_conf_interval = False
+            ci_bootstrap_n     = 100
+            # FIX 3: Visible upgrade CTA instead of silent gating
+            st.markdown(f"""
+            <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07),rgba(77,142,255,0.04));
+                 border:1px solid rgba(255,212,38,0.25);border-radius:.75rem;
+                 padding:.9rem 1.1rem;margin:.3rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;font-weight:800;
+                   color:#ffd426;margin-bottom:.4rem;">🔒 Pro Features Locked</div>
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;
+                   line-height:1.6;margin-bottom:.5rem;">
+                <span style="color:#e4eafd;">Model Comparison</span> — XGB vs Prophet vs LR side-by-side<br>
+                <span style="color:#e4eafd;">Bootstrap CI</span> — 95% confidence interval ribbon on forecast<br>
+                <span style="color:#e4eafd;">30-day Outlook</span> — extended forecast horizon
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("✦ Upgrade to Pro — Unlock Everything", use_container_width=True, key="upgrade_cta_features"):
+                st.session_state.show_upgrade_modal = True
+                st.rerun()
+        run_halal_check = st.checkbox(_L["halal_check"], value=True)
+    else:
+        run_model_compare = False; run_halal_check = True; show_conf_interval = False; ci_bootstrap_n = 100
+
+    if not is_beginner:
+        st.markdown("---")
+        st.markdown(f'<div class="stat-row">{_L["multi_stock"]}</div>', unsafe_allow_html=True)
+        if _is_pro():
+            compare_tickers_raw = st.text_input(_L["compare_tickers"], value="", placeholder="e.g. AAPL,TSLA,NVDA",
+                                                label_visibility="collapsed", key="compare_input")
+            compare_tickers = [t.strip().upper() for t in compare_tickers_raw.split(",") if t.strip()] if compare_tickers_raw.strip() else []
+        else:
+            compare_tickers = []
+            # FIX 3: Explicit locked feature card
+            st.markdown(f"""
+            <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.2);
+                 border-radius:.6rem;padding:.75rem .9rem;margin:.2rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;line-height:1.5;">
+                🔒 <span style="color:#adc6ff;font-weight:700;">Multi-stock compare</span> — 
+                run up to 5 tickers side-by-side with Pro.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("✦ Unlock Multi-Stock", use_container_width=True, key="upgrade_cta_multi"):
+                st.session_state.show_upgrade_modal = True
+                st.rerun()
+    else:
+        compare_tickers = []
+
+    st.markdown("---")
+    _at_limit = (not _is_pro_user) and (st.session_state.get("usage_count", 0) >= _get_limit("daily_analyses"))
+    if _at_limit:
+        st.markdown(f"""
+        <div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);
+             padding:.75rem 1rem;border-radius:.5rem;text-align:center;margin-bottom:.4rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#ff5f5f;
+               font-weight:700;letter-spacing:.08em;text-transform:uppercase;">
+            🔒 Daily limit reached
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;margin-top:.3rem;">
+            {_get_limit("daily_analyses")}/{_get_limit("daily_analyses")} analyses used today
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("✦ Upgrade to Pro", use_container_width=True, key="upgrade_cta_run"):
+            st.session_state.show_upgrade_modal = True
+            st.rerun()
+    else:
+        if not _is_pro_user:
+            _rem = _get_limit("daily_analyses") - st.session_state.get("usage_count", 0)
+            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#8a8fa0;text-align:center;margin-bottom:.3rem;">{_rem} {"analysis" if _rem == 1 else "analyses"} remaining today</div>', unsafe_allow_html=True)
+        if st.button(_L["run"], use_container_width=True):
+            st.session_state.run_pressed = True
+            if not _is_pro_user:
+                new_count = st.session_state.get("usage_count", 0) + 1
+                st.session_state.usage_count = new_count
+                st.session_state.analyses_today = new_count
+                _sb_increment_usage(_user_id())
+    run_btn = st.session_state.get("run_pressed", False) and not _at_limit
+
+    # Watchlist
+    st.markdown("---")
     _wl_count    = len(st.session_state.watchlist)
     _wl_plan_lim = _get_limit("watchlist_stocks")
     _wl_at_limit = _wl_count >= _wl_plan_lim
     _wl_ct_color = '#ffd426' if _is_pro_user else ('#ff5f5f' if _wl_at_limit else '#3e4558')
     st.markdown(f'''
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
-      <div style="font-family:Manrope,sans-serif;font-size:0.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;">{_L["watchlist"]}</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:{_wl_ct_color};">{_wl_count}/{_wl_plan_lim}</div>
+      <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;">{_L["watchlist"]}</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:{_wl_ct_color};">{_wl_count}/{_wl_plan_lim}</div>
     </div>
     ''', unsafe_allow_html=True)
 
@@ -3579,10 +3636,18 @@ with st.sidebar:
             add_clicked = st.button("＋", use_container_width=True, key="wl_add_btn")
         if add_clicked and add_ticker_input:
             if add_ticker_input not in st.session_state.watchlist:
+                # Re-check limit at add time (prevents race condition)
                 if len(st.session_state.watchlist) < _wl_plan_lim:
-                    if _sb_add_watchlist(st.session_state.user.id, add_ticker_input):
+                    if _sb_add_watchlist(_user_id(), add_ticker_input):
                         st.session_state.watchlist.append(add_ticker_input)
                         st.rerun()
+                else:
+                    st.warning(f"Watchlist limit reached ({_wl_plan_lim} stocks on your plan).")
+    else:
+        if _is_pro_user:
+            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#8a8fa0;margin-bottom:.4rem;">Pro limit: {_wl_plan_lim} stocks</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;margin-bottom:.4rem;">Free limit reached · <span style="color:#4d8eff;">Upgrade for {PLAN_LIMITS["pro"]["watchlist_stocks"]} stocks</span></div>', unsafe_allow_html=True)
 
     if st.session_state.get("_wl_toast"):
         _wt = st.session_state.pop("_wl_toast")
@@ -3592,10 +3657,10 @@ with st.sidebar:
         for wl_sym in list(st.session_state.watchlist):
             wc1, wc2, wc3 = st.columns([2, 2, 1])
             with wc1:
+                # Clickable — loads that ticker into the analysis
                 if st.button(wl_sym, key=f"wl_load_{wl_sym}", use_container_width=True):
                     st.session_state.load_ticker_from_watchlist = wl_sym
                     st.session_state.run_pressed = False
-                    st.session_state.active_page = "analysis"
                     st.rerun()
             with wc2:
                 try:
@@ -3606,10 +3671,10 @@ with st.sidebar:
                     _sign = "▲" if _chg >= 0 else "▼"
                     st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:{_col};padding:.4rem 0;text-align:right;">{_sign} ${_px:.2f}</div>', unsafe_allow_html=True)
                 except Exception:
-                    st.markdown('<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;padding:.4rem 0;text-align:right;">—</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;padding:.4rem 0;text-align:right;">—</div>', unsafe_allow_html=True)
             with wc3:
                 if st.button("✕", key=f"wl_del_{wl_sym}", use_container_width=True):
-                    _sb_remove_watchlist(st.session_state.user.id, wl_sym)
+                    _sb_remove_watchlist(_user_id(), wl_sym)
                     st.session_state.watchlist.remove(wl_sym)
                     if wl_sym in st.session_state.alert_signals:
                         del st.session_state.alert_signals[wl_sym]
@@ -3617,45 +3682,75 @@ with st.sidebar:
     else:
         st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#252f47;padding:.3rem 0;">{_L["no_stocks_saved"]}</div>', unsafe_allow_html=True)
 
-    # Alerts
-    st.markdown('<div class="sc-nav-sep"></div>', unsafe_allow_html=True)
+    st.markdown("---")
+    # ── Alerts section ──────────────────────────────────────────────────────
+    st.markdown('<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;margin-bottom:.6rem;">🔔 Alerts</div>', unsafe_allow_html=True)
+
+    # In-session signal change alert
     alert_on_signal_change = st.checkbox(_L["alert_signal_change"], value=True, key="signal_alert_chk")
-    _email_on = st.session_state.get("email_alerts_enabled", False)
-    _toggle_label = "🔕 Turn Off Email Alerts" if _email_on else "📧 Daily Email Digest"
+
+    # Daily email digest toggle — pre-compute ALL variables before markdown
+    _email_on     = st.session_state.get("email_alerts_enabled", False)
+    _email_status = "ON" if _email_on else "OFF"
+    _email_color  = "#00e5b0" if _email_on else "#3e4558"
+    _email_bg     = "rgba(0,229,176,0.06)" if _email_on else "rgba(77,142,255,0.05)"
+    _email_border = "rgba(0,229,176,0.2)" if _email_on else "rgba(77,142,255,0.15)"
+    _pro_badge    = "✦ Pro · delivered 6AM daily" if _is_pro() else "Free · weekdays 7AM UTC"
+
+    st.markdown(
+        f'<div style="background:{_email_bg};border:1px solid {_email_border};'
+        f'border-radius:.6rem;padding:.8rem 1rem;margin:.4rem 0;">'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;">'
+        f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;color:#e4eafd;">📧 Daily Email Digest</div>'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:{_email_color};font-weight:700;">{_email_status}</div>'
+        f'</div>'
+        f'<div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#8a8fa0;margin-top:.3rem;line-height:1.5;">'
+        f'Get watchlist signals in your inbox every morning.<br>'
+        f'<span style="color:#3e4558;">{_pro_badge} · {_user_email()}</span>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
+
+    _toggle_label = "🔕 Turn Off Email Alerts" if _email_on else "📧 Enable Daily Email Digest"
     if st.button(_toggle_label, use_container_width=True, key="email_alert_toggle"):
         new_val = not _email_on
-        _ok = _sb_set_email_alerts(st.session_state.user.id, new_val)
-        if new_val and _ok:
-            st.success(f"✓ Digest enabled — {st.session_state.user.email}")
+        _ok = _sb_set_email_alerts(_user_id(), new_val)
+        if new_val:
+            _current_email = _user_email()
+            if _ok:
+                st.success(f"✓ Daily digest enabled — emails will be sent to {_current_email} on weekdays.")
+            else:
+                st.warning(
+                    f"⚠ Preference saved locally for this session. "
+                    "Run the Supabase SQL setup script to persist across logins. "
+                    "(ALTER TABLE user_usage ADD COLUMN IF NOT EXISTS email_alerts_enabled BOOLEAN NOT NULL DEFAULT FALSE;)"
+                )
+        else:
+            st.info("Email alerts turned off.")
         st.rerun()
 
-    # Bottom: logout + upgrade
-    st.markdown('<div class="sc-nav-sep"></div>', unsafe_allow_html=True)
-    if not _is_pro():
-        if st.button("✦ Upgrade to Pro — $9/mo", use_container_width=True, key="upgrade_cta_sidebar_bottom"):
-            st.session_state.show_upgrade_modal = True; st.rerun()
-    if st.button(_L.get("logout", "⏏  Logout"), use_container_width=True, key="logout_btn"):
-        try:
-            supabase.auth.sign_out()
-        except Exception as e:
-            logger.warning("Supabase sign_out failed: %s", e)
-        st.session_state.user = None
-        st.session_state.run_pressed = False
-        st.session_state.portfolio = []
-        st.session_state.portfolio_history = []
-        st.session_state._portfolio_loaded_for = None
-        st.rerun()
+    # Plan management
+    st.markdown("---")
+    if _is_pro():
+        st.markdown(
+            '<div style="background:linear-gradient(90deg,rgba(255,212,38,0.08),rgba(77,142,255,0.05));'
+            'border:1px solid rgba(255,212,38,0.25);border-radius:.5rem;padding:.55rem .9rem;'
+            'font-family:Manrope,sans-serif;font-size:.63rem;font-weight:700;color:#ffd426;'
+            'text-align:center;letter-spacing:.04em;">✦ Pro Plan Active</div>',
+            unsafe_allow_html=True
+        )
+    else:
+        if st.button("✦ Upgrade to Pro", use_container_width=True, key="upgrade_cta_sidebar_bottom"):
+            st.session_state.show_upgrade_modal = True
+            st.rerun()
 
 
 # ═══════════════════════════════════════════════════════════════════
-# MAIN CONTENT — Page routing
+# MAIN CONTENT — Landing or Analysis
 # ═══════════════════════════════════════════════════════════════════
-_ap = st.session_state.get("active_page", "dashboard")
-
 if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
-    if _ap == "dashboard":
-        st.markdown(f"""
+    st.markdown(f"""
     <div style="margin-bottom:1.5rem;padding-top:.5rem;">
       <div style="font-family:var(--sans);font-size:1.75rem;font-weight:800;color:#e4eafd;
            letter-spacing:-.03em;line-height:1.2;">
@@ -3667,8 +3762,8 @@ if not run_btn:
     """, unsafe_allow_html=True)
 
     # ── Onboarding card — only for new users ──────────────────────────────────
-    if _ap == "dashboard" and st.session_state.get("show_onboarding", False):
-        _user_first = st.session_state.user.email.split("@")[0].title()
+    if st.session_state.get("show_onboarding", False):
+        _user_first = _user_email().split("@")[0].title()
         st.markdown(f"""
         <div style="background:linear-gradient(135deg,rgba(77,142,255,0.1) 0%,rgba(0,229,176,0.06) 100%);
              border:1px solid rgba(77,142,255,0.25);border-radius:1rem;padding:1.8rem 2rem;
@@ -3737,226 +3832,239 @@ if not run_btn:
             st.session_state.show_onboarding = False
             st.rerun()
 
-    # Market summary cards and dashboard content
-    if _ap == "dashboard":
-        live_indices = get_live_market_indices()
-        _idx_map = {name: (price, pct, col) for name, price, pct, col in live_indices}
-        _sp  = _idx_map.get("S&P 500",    ("—","—","#3e4558"))
-        _nd  = _idx_map.get("NASDAQ 100", ("—","—","#adc6ff"))
-        _vix = _idx_map.get("VIX",        ("—","—","#00e5b0"))
-        _fg_data = get_fear_greed_index()
-        if _fg_data and _fg_data.get("score"):
-            _fg_score = _fg_data["score"]
-            _fg_val = f"{_fg_score:.0f}"
-            _fg_sub = _fg_data["rating"]
-            _fg_color = "#00e5b0" if _fg_score >= 55 else ("#ff5f5f" if _fg_score <= 45 else "#ffd426")
-        else:
-            try:
-                _vix_val = float(_vix[0].replace(",","")) if _vix[0] != "—" else None
-            except Exception:
-                _vix_val = None
-            if _vix_val is not None:
-                if _vix_val < 15:
-                    _fg_val, _fg_sub, _fg_color = "Greed", "Low VIX → Risk-on", "#00e5b0"
-                elif _vix_val > 25:
-                    _fg_val, _fg_sub, _fg_color = "Fear", "High VIX → Risk-off", "#ff5f5f"
-                else:
-                    _fg_val, _fg_sub, _fg_color = "Neutral", "Moderate VIX", "#ffd426"
+    # Market summary cards — live data
+    live_indices = get_live_market_indices()
+    _idx_map = {name: (price, pct, col) for name, price, pct, col in live_indices}
+    _sp  = _idx_map.get("S&P 500",    ("—","—","#3e4558"))
+    _nd  = _idx_map.get("NASDAQ 100", ("—","—","#adc6ff"))
+    _vix = _idx_map.get("VIX",        ("—","—","#00e5b0"))
+    _fg_data = get_fear_greed_index()
+    if _fg_data and _fg_data.get("score"):
+        _fg_score = _fg_data["score"]
+        _fg_val = f"{_fg_score:.0f}"
+        _fg_sub = _fg_data["rating"]
+        _fg_color = "#00e5b0" if _fg_score >= 55 else ("#ff5f5f" if _fg_score <= 45 else "#ffd426")
+    else:
+        # Fallback: estimate from VIX — VIX < 15 → greed, > 25 → fear
+        try:
+            _vix_val = float(_vix[0].replace(",","")) if _vix[0] != "—" else None
+        except Exception:
+            _vix_val = None
+        if _vix_val is not None:
+            if _vix_val < 15:
+                _fg_val, _fg_sub, _fg_color = "Greed", "Low VIX → Risk-on", "#00e5b0"
+            elif _vix_val > 25:
+                _fg_val, _fg_sub, _fg_color = "Fear", "High VIX → Risk-off", "#ff5f5f"
             else:
-                _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#3e4558"
+                _fg_val, _fg_sub, _fg_color = "Neutral", "Moderate VIX", "#ffd426"
+        else:
+            _fg_val, _fg_sub, _fg_color = "N/A", "Data unavailable", "#3e4558"
 
-        def _sk_val(v, color=None):
-            if v == "—":
-                return '<div class="skeleton sk-line value" style="width:65%;margin:.3rem auto;"></div>'
-            s = f"color:{color};" if color else ""
-            return f'<div class="stat-value" style="{s}">{v}</div>'
+    def _sk_val(v, color=None):
+        if v == "—":
+            return '<div class="skeleton sk-line value" style="width:65%;margin:.3rem auto;"></div>'
+        s = f"color:{color};" if color else ""
+        return f'<div class="stat-value" style="{s}">{v}</div>'
 
+    st.markdown(f"""
+    <div class="stat-grid" style="margin-bottom:.5rem;">
+      <div class="stat-card">
+        <div class="stat-label">S&amp;P 500 · Market Pulse
+          <span class="chip live dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Live</span>
+        </div>
+        {_sk_val(_sp[0])}
+        <div class="stat-sub" style="color:{_sp[2]};font-weight:700;font-size:.7rem;">{_sp[1]}</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#adc6ff;">
+        <div class="stat-label">NASDAQ 100 · Tech Momentum
+          <span class="chip info dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Tech</span>
+        </div>
+        {_sk_val(_nd[0], "#adc6ff")}
+        <div class="stat-sub" style="color:{_nd[2]};font-weight:700;font-size:.7rem;">{_nd[1]}</div>
+      </div>
+      <div class="stat-card" style="border-top-color:{_fg_color};">
+        <div class="stat-label">Fear &amp; Greed · Sentiment</div>
+        <div class="stat-value" style="color:{_fg_color};">{_fg_val}</div>
+        <div class="stat-sub" style="color:{_fg_color};font-size:.7rem;">{_fg_sub}</div>
+      </div>
+      <div class="stat-card" style="border-top-color:#00e5b0;">
+        <div class="stat-label">VIX · Volatility Index</div>
+        {_sk_val(_vix[0], "#00e5b0")}
+        <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Watchlist live prices if any
+    if st.session_state.watchlist:
+        st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+        st.subheader(_L["watchlist_live"])
+        wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
+        for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
+            with wl_cols[i % 4]:
+                try:
+                    _fi   = av_get_quote(wl_sym)
+                    _px   = _fi["price"]
+                    _chg  = _fi["change_pct"]
+                    _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
+                    _sign = "▲" if _chg >= 0 else "▼"
+                    _wl_chip = "buy" if _chg >= 0 else "sell"
+                    st.markdown(f"""
+                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
+                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.6rem;">
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;margin-bottom:.3rem;">{wl_sym}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;margin:.3rem 0;">${_px:.2f}</div>
+                      <div style="display:flex;justify-content:center;margin-top:.4rem;">
+                        <span class="chip {_wl_chip} dot" style="font-size:.58rem;">{_sign} {_chg:+.2f}%</span>
+                      </div>
+                    </div>""", unsafe_allow_html=True)
+                except Exception as e:
+                    logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
+                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
+
+    # How it works
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+    st.subheader(_L["how_it_works"])
+    _hw_items = [
+        ("01","#4d8eff","hw1_title","hw1_body"),
+        ("02","#00e5b0","hw2_title","hw2_body"),
+        ("03","#ffd426","hw3_title","hw3_body"),
+    ]
+    # How it works — st.columns (reliable on all devices)
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+    st.subheader(_L["how_it_works"])
+    hw1, hw2, hw3 = st.columns(3)
+    for _col, _num, _color, _tk, _bk in [
+        (hw1, "01", "#4d8eff", "hw1_title", "hw1_body"),
+        (hw2, "02", "#00e5b0", "hw2_title", "hw2_body"),
+        (hw3, "03", "#ffd426", "hw3_title", "hw3_body"),
+    ]:
+        _t = _L[_tk].replace("'", "&#39;")
+        _b = _L[_bk].replace("'", "&#39;")
+        with _col:
+            st.markdown(
+                f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
+                f'border:1px solid #252f47;border-top:2px solid {_color};'
+                f'padding:1.3rem 1.4rem;border-radius:.6rem;min-height:140px;">'
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
+                f'font-weight:700;color:{_color};margin-bottom:.5rem;">{_num}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.68rem;'
+                f'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;'
+                f'font-weight:700;margin-bottom:.4rem;">{_t}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.78rem;'
+                f'color:#8a8fa0;line-height:1.6;">{_b}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
+    st.subheader(_L["platform_features"])
+    st.markdown("""
+    <div class="bento-grid">
+      <div class="bento-cell accent-blue col-8">
+        <div class="bento-icon">📈</div>
+        <div class="bento-label">AI Price Outlook</div>
+        <div class="bento-value" style="font-size:1.25rem;color:var(--accent);">XGBoost Engine</div>
+        <div class="bento-desc">Projects next-day price across 20 technical signals with 95% bootstrap confidence intervals to quantify uncertainty.</div>
+        <div class="chip-group" style="margin-top:.8rem;">
+          <span class="chip ai dot">XGBoost</span>
+          <span class="chip info dot">20 Signals</span>
+          <span class="chip info dot">Bootstrap CI</span>
+        </div>
+      </div>
+      <div class="bento-cell accent-green col-4 row-2">
+        <div class="bento-icon">⭐</div>
+        <div class="bento-label">Watchlist + Alerts</div>
+        <div class="bento-value" style="color:var(--emerald);">Live</div>
+        <div class="bento-sub">Real-time signal banners</div>
+        <div class="bento-desc">Save stocks, see live prices on your dashboard, get instant alerts when AI signals flip BUY ↔ SELL.</div>
+        <div style="margin-top:.7rem;"><span class="chip live dot">Live Prices</span></div>
+      </div>
+      <div class="bento-cell accent-green col-4">
+        <div class="bento-icon">⚙</div>
+        <div class="bento-label">Explainable Signals</div>
+        <div class="bento-desc">RSI · MACD · Bollinger · MA Cross · Volume — each scored and explained in plain language.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip buy dot">BUY</span><span class="chip sell dot">SELL</span><span class="chip hold dot">HOLD</span>
+        </div>
+      </div>
+      <div class="bento-cell accent-yellow col-5">
+        <div class="bento-icon">📊</div>
+        <div class="bento-label">Strategy Simulator</div>
+        <div class="bento-desc">Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, and equity curve vs buy-and-hold.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip warn dot">Sharpe</span><span class="chip warn dot">Drawdown</span><span class="chip warn dot">Win Rate</span>
+        </div>
+      </div>
+      <div class="bento-cell accent-purple col-3">
+        <div class="bento-icon">☪</div>
+        <div class="bento-label">Shariah Screen</div>
+        <div class="bento-value" style="font-size:1rem;color:var(--primary);">AAOIFI</div>
+        <div class="bento-sub">Standard No.21</div>
+        <div class="bento-desc" style="font-size:.72rem;">Business activity, debt, cash ratios — auto-screened.</div>
+      </div>
+      <div class="bento-cell accent-green col-4">
+        <div class="bento-icon">📰</div>
+        <div class="bento-label">News Sentiment NLP</div>
+        <div class="bento-desc">Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip ai dot">TextBlob</span><span class="chip live dot">Live News</span>
+        </div>
+      </div>
+      <div class="bento-cell accent-purple col-4">
+        <div class="bento-icon">🔬</div>
+        <div class="bento-label">Model Comparison</div>
+        <div class="bento-desc">XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip pro dot">Pro</span><span class="chip ai dot">3 Models</span>
+        </div>
+      </div>
+      <div class="bento-cell accent-yellow col-4">
+        <div class="bento-icon">🏦</div>
+        <div class="bento-label">Portfolio Tracker</div>
+        <div class="bento-desc">Track holdings, unrealised P&L, sector allocation, cost basis, and transaction history.</div>
+        <div class="chip-group" style="margin-top:.7rem;">
+          <span class="chip info dot">P&amp;L</span><span class="chip info dot">Sectors</span>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
+
+    # Upgrade CTA — only for free users
+    if not _is_pro():
         st.markdown(f"""
-        <div class="stat-grid" style="margin-bottom:.5rem;">
-          <div class="stat-card">
-            <div class="stat-label">S&amp;P 500 · Market Pulse
-              <span class="chip live dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Live</span>
-            </div>
-            {_sk_val(_sp[0])}
-            <div class="stat-sub" style="color:{_sp[2]};font-weight:700;font-size:.7rem;">{_sp[1]}</div>
+        <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07) 0%,rgba(77,142,255,0.05) 100%);
+             border:1px solid rgba(255,212,38,0.2);border-radius:1rem;
+             padding:1.6rem 2rem;margin-top:1.5rem;text-align:center;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;letter-spacing:.16em;
+               text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Stockcast Pro</div>
+          <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;
+               color:#e4eafd;letter-spacing:-.01em;margin-bottom:.4rem;">
+            Unlock unlimited analyses &amp; advanced signals
           </div>
-          <div class="stat-card" style="border-top-color:#adc6ff;">
-            <div class="stat-label">NASDAQ 100 · Tech Momentum
-              <span class="chip info dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Tech</span>
-            </div>
-            {_sk_val(_nd[0], "#adc6ff")}
-            <div class="stat-sub" style="color:{_nd[2]};font-weight:700;font-size:.7rem;">{_nd[1]}</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;
+               margin-bottom:1.2rem;line-height:1.6;">
+            Prophet + XGBoost combo · Bootstrap CI · Multi-stock · 50 watchlist stocks
           </div>
-          <div class="stat-card" style="border-top-color:{_fg_color};">
-            <div class="stat-label">Fear &amp; Greed · Sentiment</div>
-            <div class="stat-value" style="color:{_fg_color};">{_fg_val}</div>
-            <div class="stat-sub" style="color:{_fg_color};font-size:.7rem;">{_fg_sub}</div>
-          </div>
-          <div class="stat-card" style="border-top-color:#00e5b0;">
-            <div class="stat-label">VIX · Volatility Index</div>
-            {_sk_val(_vix[0], "#00e5b0")}
-            <div class="stat-sub" style="color:{_vix[2]};font-size:.7rem;">{_vix[1]} · {_L.get("low_volatility","Low volatility")}</div>
+          <div style="display:inline-flex;gap:.6rem;align-items:center;
+               font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#ffd426;">
+            $9<span style="font-size:.8rem;color:#8a8fa0;font-weight:400;">/month</span>
           </div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button("✦ Upgrade to Pro — Unlock Everything", use_container_width=True, key="upgrade_cta_dashboard"):
+            st.session_state.show_upgrade_modal = True
+            st.rerun()
 
-        # Watchlist live prices if any
-        if st.session_state.watchlist:
-            st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-            st.subheader(_L["watchlist_live"])
-            wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
-            for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
-                with wl_cols[i % 4]:
-                    try:
-                        _fi   = av_get_quote(wl_sym)
-                        _px   = _fi["price"]
-                        _chg  = _fi["change_pct"]
-                        _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
-                        _sign = "▲" if _chg >= 0 else "▼"
-                        _wl_chip = "buy" if _chg >= 0 else "sell"
-                        st.markdown(f"""
-                        <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
-                             border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.6rem;">
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;margin-bottom:.3rem;">{wl_sym}</div>
-                          <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;margin:.3rem 0;">${_px:.2f}</div>
-                          <div style="display:flex;justify-content:center;margin-top:.4rem;">
-                            <span class="chip {_wl_chip} dot" style="font-size:.58rem;">{_sign} {_chg:+.2f}%</span>
-                          </div>
-                        </div>""", unsafe_allow_html=True)
-                    except Exception as e:
-                        logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
-                        st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
-
-        # How it works
-        st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-        st.subheader(_L["how_it_works"])
-        hw1, hw2, hw3 = st.columns(3)
-        for _col, _num, _color, _tk, _bk in [
-            (hw1, "01", "#4d8eff", "hw1_title", "hw1_body"),
-            (hw2, "02", "#00e5b0", "hw2_title", "hw2_body"),
-            (hw3, "03", "#ffd426", "hw3_title", "hw3_body"),
-        ]:
-            _t = _L[_tk].replace("'", "&#39;")
-            _b = _L[_bk].replace("'", "&#39;")
-            with _col:
-                st.markdown(
-                    f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
-                    f'border:1px solid #252f47;border-top:2px solid {_color};'
-                    f'padding:1.3rem 1.4rem;border-radius:.6rem;min-height:140px;">'
-                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
-                    f'font-weight:700;color:{_color};margin-bottom:.5rem;">{_num}</div>'
-                    f'<div style="font-family:Manrope,sans-serif;font-size:.68rem;'
-                    f'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;'
-                    f'font-weight:700;margin-bottom:.4rem;">{_t}</div>'
-                    f'<div style="font-family:Manrope,sans-serif;font-size:.78rem;'
-                    f'color:#8a8fa0;line-height:1.6;">{_b}</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-
-        st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-        st.subheader(_L["platform_features"])
-        st.markdown("""
-        <div class="bento-grid">
-          <div class="bento-cell accent-blue col-8">
-            <div class="bento-icon">📈</div>
-            <div class="bento-label">AI Price Outlook</div>
-            <div class="bento-value" style="font-size:1.25rem;color:var(--accent);">XGBoost Engine</div>
-            <div class="bento-desc">Projects next-day price across 20 technical signals with 95% bootstrap confidence intervals to quantify uncertainty.</div>
-            <div class="chip-group" style="margin-top:.8rem;">
-              <span class="chip ai dot">XGBoost</span>
-              <span class="chip info dot">20 Signals</span>
-              <span class="chip info dot">Bootstrap CI</span>
-            </div>
-          </div>
-          <div class="bento-cell accent-green col-4 row-2">
-            <div class="bento-icon">⭐</div>
-            <div class="bento-label">Watchlist + Alerts</div>
-            <div class="bento-value" style="color:var(--emerald);">Live</div>
-            <div class="bento-sub">Real-time signal banners</div>
-            <div class="bento-desc">Save stocks, see live prices on your dashboard, get instant alerts when AI signals flip BUY ↔ SELL.</div>
-            <div style="margin-top:.7rem;"><span class="chip live dot">Live Prices</span></div>
-          </div>
-          <div class="bento-cell accent-green col-4">
-            <div class="bento-icon">⚙</div>
-            <div class="bento-label">Explainable Signals</div>
-            <div class="bento-desc">RSI · MACD · Bollinger · MA Cross · Volume — each scored and explained in plain language.</div>
-            <div class="chip-group" style="margin-top:.7rem;">
-              <span class="chip buy dot">BUY</span><span class="chip sell dot">SELL</span><span class="chip hold dot">HOLD</span>
-            </div>
-          </div>
-          <div class="bento-cell accent-yellow col-5">
-            <div class="bento-icon">📊</div>
-            <div class="bento-label">Strategy Simulator</div>
-            <div class="bento-desc">Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, and equity curve vs buy-and-hold.</div>
-            <div class="chip-group" style="margin-top:.7rem;">
-              <span class="chip warn dot">Sharpe</span><span class="chip warn dot">Drawdown</span><span class="chip warn dot">Win Rate</span>
-            </div>
-          </div>
-          <div class="bento-cell accent-purple col-3">
-            <div class="bento-icon">☪</div>
-            <div class="bento-label">Shariah Screen</div>
-            <div class="bento-value" style="font-size:1rem;color:var(--primary);">AAOIFI</div>
-            <div class="bento-sub">Standard No.21</div>
-            <div class="bento-desc" style="font-size:.72rem;">Business activity, debt, cash ratios — auto-screened.</div>
-          </div>
-          <div class="bento-cell accent-green col-4">
-            <div class="bento-icon">📰</div>
-            <div class="bento-label">News Sentiment NLP</div>
-            <div class="bento-desc">Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.</div>
-            <div class="chip-group" style="margin-top:.7rem;">
-              <span class="chip ai dot">TextBlob</span><span class="chip live dot">Live News</span>
-            </div>
-          </div>
-          <div class="bento-cell accent-purple col-4">
-            <div class="bento-icon">🔬</div>
-            <div class="bento-label">Model Comparison</div>
-            <div class="bento-desc">XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
-            <div class="chip-group" style="margin-top:.7rem;">
-              <span class="chip pro dot">Pro</span><span class="chip ai dot">3 Models</span>
-            </div>
-          </div>
-          <div class="bento-cell accent-yellow col-4">
-            <div class="bento-icon">🏦</div>
-            <div class="bento-label">Portfolio Tracker</div>
-            <div class="bento-desc">Track holdings, unrealised P&L, sector allocation, cost basis, and transaction history.</div>
-            <div class="chip-group" style="margin-top:.7rem;">
-              <span class="chip info dot">P&amp;L</span><span class="chip info dot">Sectors</span>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Upgrade CTA — only for free users
-        if not _is_pro():
-            st.markdown(f"""
-            <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07) 0%,rgba(77,142,255,0.05) 100%);
-                 border:1px solid rgba(255,212,38,0.2);border-radius:1rem;
-                 padding:1.6rem 2rem;margin-top:1.5rem;text-align:center;">
-              <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;letter-spacing:.16em;
-                   text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Stockcast Pro</div>
-              <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;
-                   color:#e4eafd;letter-spacing:-.01em;margin-bottom:.4rem;">
-                Unlock unlimited analyses &amp; advanced signals
-              </div>
-              <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;
-                   margin-bottom:1.2rem;line-height:1.6;">
-                Prophet + XGBoost combo · Bootstrap CI · Multi-stock · 50 watchlist stocks
-              </div>
-              <div style="display:inline-flex;gap:.6rem;align-items:center;
-                   font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#ffd426;">
-                $9<span style="font-size:.8rem;color:#8a8fa0;font-weight:400;">/month</span>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("✦ Upgrade to Pro — Unlock Everything", use_container_width=True, key="upgrade_cta_dashboard"):
-                st.session_state.show_upgrade_modal = True
-                st.rerun()
-
-elif _ap == "analysis" and run_btn:
+else:
     # ═══════════════════════════════════════════════════════════════
     # ANALYSIS ENGINE
     # ═══════════════════════════════════════════════════════════════
+    if st.sidebar.button(_L.get("back", "← Back to Dashboard"), use_container_width=True, key="back_btn"):
+        st.session_state.run_pressed = False
+        st.rerun()
     # ── Breadcrumb bar ────────────────────────────────────────────────────────
     st.markdown(f"""
     <div class="breadcrumb-bar">
@@ -4060,8 +4168,13 @@ elif _ap == "analysis" and run_btn:
     </div>
     """, unsafe_allow_html=True)
 
-    if True:
-        # ⭐ Add to Watchlist — prominent action at top of analysis
+    tab_analysis, tab_methodology = st.tabs([_L["analysis_tab"], _L["methodology_tab"]])
+
+    with tab_methodology:
+        render_methodology_page(seq_len_val=seq_len, ci_n=ci_bootstrap_n, show_ci=show_conf_interval)
+
+    with tab_analysis:
+        # ⭐ Add to Watchlist — prominent action at top of analysis tab
         _in_wl_main = ticker in st.session_state.watchlist
         _wl_full_main = len(st.session_state.watchlist) >= _get_limit("watchlist_stocks")
         _, _wl_col2 = st.columns([3, 1])
@@ -4072,7 +4185,7 @@ elif _ap == "analysis" and run_btn:
                 st.markdown(f'<div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;text-align:center;">Watchlist full</div>', unsafe_allow_html=True)
             else:
                 if st.button(f"⭐ Add to Watchlist", key="forecast_wl_add", use_container_width=True):
-                    if _sb_add_watchlist(st.session_state.user.id, ticker):
+                    if _sb_add_watchlist(_user_id(), ticker):
                         st.session_state.watchlist.append(ticker)
                         st.rerun()
         with _progress_placeholder:
@@ -4203,20 +4316,11 @@ elif _ap == "analysis" and run_btn:
         </div>
         """, unsafe_allow_html=True)
 
-        # ── Section nav within analysis page ────────────────────────────────
-        st.markdown(f"""
-        <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.15);
-             border-radius:.6rem;padding:.65rem 1.2rem;margin-bottom:1rem;
-             display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
-          <span style="font-family:IBM Plex Mono,monospace;font-size:0.78rem;
-               color:#00e5b0;font-weight:700;">✓ Analysis complete — {ticker}</span>
-          <span style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;">
-            Use the sidebar nav to switch to <b style="color:#e4eafd;">Portfolio</b> or <b style="color:#e4eafd;">Markets</b>
-          </span>
-        </div>
-        """, unsafe_allow_html=True)
+        # Tabs
+        dash_tab, port_tab, mkt_tab, deep_tab, startup_tab = st.tabs([_L["dashboard_tab"], _L["portfolio"], _L["markets"], _L["deep_analysis"], "🚀  Startup Hub"])
 
-        if True:  # dash_tab content — always shown in analysis
+        # ──────────────────────────────────────────────────────────────────────
+        with dash_tab:
             _dash_close = float(df["Close"].squeeze().iloc[-1])
             _dash_prev  = float(df["Close"].squeeze().iloc[-2]) if len(df)>1 else _dash_close
             _dash_chg   = _dash_close - _dash_prev
@@ -4272,9 +4376,7 @@ elif _ap == "analysis" and run_btn:
             st.plotly_chart(fig_imp, use_container_width=True)
 
         # ──────────────────────────────────────────────────────────────────────
-        # Inner analysis sub-sections (no tabs — rendered sequentially)
-        # Portfolio and Markets are now dedicated pages via sidebar nav
-        if False:  # port_tab placeholder — content rendered on Portfolio page
+        with port_tab:
             st.markdown("""
             <div class="wi-header" style="margin-top:0;margin-bottom:1.2rem;">
               <div>
@@ -4330,7 +4432,7 @@ elif _ap == "analysis" and run_btn:
                                 "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
                             }
                             st.session_state.portfolio.append(_new_holding)
-                            _sb_upsert_holding(st.session_state.user.id, _new_holding)
+                            _sb_upsert_holding(_user_id(), _new_holding)
                             _date = pd.Timestamp.today().strftime("%b %d")
                             _hist_record = {
                                 "date": _date, "type": "BUY", "ticker": add_sym,
@@ -4338,7 +4440,7 @@ elif _ap == "analysis" and run_btn:
                                 "amount": -(add_qty * add_cost)
                             }
                             st.session_state.portfolio_history.insert(0, _hist_record)
-                            _sb_insert_history(st.session_state.user.id, _hist_record)
+                            _sb_insert_history(_user_id(), _hist_record)
                             st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
                             st.rerun()
 
@@ -4364,7 +4466,7 @@ elif _ap == "analysis" and run_btn:
                                     h["pl_pct"] = ((_q["price"] - h["avg_cost"]) / h["avg_cost"] * 100)
                             except Exception as e:
                                 logger.warning("refresh_prices: failed to update '%s': %s", h.get("ticker"), e)
-                        _sb_update_prices(st.session_state.user.id, st.session_state.portfolio)
+                        _sb_update_prices(_user_id(), st.session_state.portfolio)
                         st.rerun()
 
                 with _ab2:
@@ -4562,7 +4664,7 @@ elif _ap == "analysis" and run_btn:
                     if hc6.button("✕", key=f"pt_del_{h['ticker']}", use_container_width=True):
                         _del_ticker = h["ticker"]
                         st.session_state.portfolio = [x for x in st.session_state.portfolio if x["ticker"] != _del_ticker]
-                        _sb_delete_holding(st.session_state.user.id, _del_ticker)
+                        _sb_delete_holding(_user_id(), _del_ticker)
                         st.rerun()
 
                 # ── Market value bar chart ────────────────────────────────────
@@ -4642,7 +4744,7 @@ elif _ap == "analysis" and run_btn:
                         </div>""", unsafe_allow_html=True)
 
         # ──────────────────────────────────────────────────────────────────────
-        if False:  # mkt_tab placeholder — content rendered on Markets page
+        with mkt_tab:
             st.markdown(f"""
             <div style="margin-bottom:1.2rem;">
               <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.02em;color:#e4eafd;">Market <span style="color:#4d8eff;">Intelligence</span></div>
@@ -4722,7 +4824,7 @@ elif _ap == "analysis" and run_btn:
                 """, unsafe_allow_html=True)
 
         # ──────────────────────────────────────────────────────────────────────
-        if True:  # deep_tab content — shown inline in analysis page
+        with deep_tab:
             # Price alert
             if alert_price > 0:
                 diff = alert_price - last_close
@@ -5078,10 +5180,9 @@ elif _ap == "analysis" and run_btn:
 
 
         # ══════════════════════════════════════════════════════════════════════
+        # 🚀  STARTUP HUB
         # ══════════════════════════════════════════════════════════════════════
-        # 🚀  STARTUP HUB (analysis sub-section)
-        # ══════════════════════════════════════════════════════════════════════
-        if True:  # startup_tab content — shown inline in analysis page
+        with startup_tab:
             st.markdown("""
             <div style="margin-bottom:1.4rem;">
               <div style="font-family:Manrope,sans-serif;font-size:1.9rem;font-weight:800;
@@ -5431,18 +5532,18 @@ elif _ap == "analysis" and run_btn:
                             ("AI Forecast",f"{_sa_xp:+.2f}%","#adc6ff"),
                             ("Take Profit",f"${_sa_tp:.2f}","#00e5b0"),("Stop Loss",f"${_sa_sl:.2f}","#ff5f5f"),
                             ("Risk/Reward",f"{_sa_rr:.2f}×","#ffd426")])}
-                          <div style="margin-top:.7rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">📬 {st.session_state.user.email}</div>
+                          <div style="margin-top:.7rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">📬 {_user_email()}</div>
                         </div>''', unsafe_allow_html=True)
 
                     if st.button(f"📧 Send Signal Alert — {ticker}", key="hub_send_email", use_container_width=True):
                         _html_e = _build_signal_email_html(
-                            st.session_state.user.email, ticker,
+                            _user_email(), ticker,
                             _sa_sig, last_close, _sa_sco, _sa_tp, _sa_sl, _sa_rr, _sa_xp)
-                        _ok = _send_email(st.session_state.user.email,
+                        _ok = _send_email(_user_email(),
                             f"Stockcast Signal · {ticker} — {_sa_sig} · {pd.Timestamp.now().strftime('%b %d')}",
                             _html_e)
                         if _ok:
-                            st.success(f"✓ Signal alert sent to {st.session_state.user.email}")
+                            st.success(f"✓ Signal alert sent to {_user_email()}")
                         else:
                             st.warning("⚠ Email not sent — configure SMTP_HOST, SMTP_USER, SMTP_PASS in Streamlit secrets.")
                 else:
@@ -5521,308 +5622,6 @@ SMTP_PASS = "your-app-password"</pre>
                     mime="text/csv", use_container_width=True, key="hub_investor_dl")
                 st.caption("⚠ For educational and research purposes only. Not financial advice.")
 
-# ── Analysis page — not run yet ───────────────────────────────────────────────
-if _ap == "analysis" and not run_btn:
-    st.markdown(f"""
-    <div class="sc-page-header">
-      <div>
-        <div class="sc-page-title">Analysis <span style="color:#4d8eff;">Engine</span></div>
-        <div class="sc-page-subtitle">Configure a ticker in the sidebar and run analysis to see AI signals, forecasts and backtests.</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown(f"""
-    <div style="background:linear-gradient(135deg,rgba(77,142,255,0.08),rgba(0,229,176,0.04));
-         border:1px solid rgba(77,142,255,0.2);border-radius:1rem;padding:2rem;max-width:600px;">
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;letter-spacing:.14em;
-           text-transform:uppercase;color:#4d8eff;margin-bottom:.5rem;font-weight:700;">Ready</div>
-      <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;
-           color:#e4eafd;margin-bottom:.5rem;">Select a ticker &amp; run analysis</div>
-      <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#8a8fa0;line-height:1.6;margin-bottom:1rem;">
-        Search for a company or ticker in the sidebar, configure your parameters, then click <b style="color:#4d8eff;">Run Analysis</b>.
-      </div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-        {"".join(f'<span class="chip info">{t}</span>' for t in ["AAPL","TSLA","NVDA","MSFT","GOOGL","AMZN","META","SPY"])}
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ── Portfolio page ─────────────────────────────────────────────────────────────
-elif _ap == "portfolio":
-    _L = LANGUAGES[st.session_state.lang]
-    st.markdown(f"""
-    <div class="sc-page-header">
-      <div>
-        <div class="sc-page-title">Portfolio <span style="color:#00e5b0;">Command Center</span></div>
-        <div class="sc-page-subtitle">Track holdings, monitor P&amp;L, and manage positions in real time.</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ── Add new holding ────────────────────────────────────────────────────────
-    MAX_HOLDINGS = 500
-    current_count = len(st.session_state.portfolio)
-    with st.expander(_L["add_holding"], expanded=True):
-        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#3e4558;margin-bottom:.6rem;">Holdings: {current_count} / {MAX_HOLDINGS}</div>', unsafe_allow_html=True)
-        with st.form(key="pt_add_form_page", clear_on_submit=True):
-            pa1, pa2, pa3 = st.columns(3)
-            with pa1: add_sym  = st.text_input("Ticker", placeholder="e.g. AAPL", key="pt_sym_page")
-            with pa2: add_qty  = st.number_input("Quantity", min_value=0.0001, value=1.0, step=0.5, key="pt_qty_page")
-            with pa3: add_cost = st.number_input("Avg Buy Price ($)", min_value=0.01, value=100.0, step=0.5, key="pt_cost_page")
-            submitted_page = st.form_submit_button(_L["add_to_portfolio"], use_container_width=True)
-        if submitted_page:
-            add_sym = add_sym.strip().upper()
-            if not add_sym:
-                st.warning("Please enter a ticker symbol.")
-            elif len(st.session_state.portfolio) >= MAX_HOLDINGS:
-                st.warning(f"Maximum {MAX_HOLDINGS} holdings reached.")
-            elif any(h["ticker"] == add_sym for h in st.session_state.portfolio):
-                st.warning(_L["already_in_portfolio"].format(sym=add_sym))
-            else:
-                with st.spinner(_L["loading_prices"].format(sym=add_sym)):
-                    _q_add = av_get_quote(add_sym)
-                    _live_px = _q_add["price"] if _q_add["price"] > 0 else add_cost
-                    try:
-                        _info_add = get_ticker_full(add_sym)
-                        _name = _info_add.get("longName", add_sym)
-                        _sector = _info_add.get("sector", "Unknown") + " • " + _info_add.get("industry", "")
-                    except Exception:
-                        _name = add_sym; _sector = "Unknown"
-                _pl = (_live_px - add_cost) * add_qty
-                _pl_pct = ((_live_px - add_cost) / add_cost * 100) if add_cost > 0 else 0
-                _new_holding = {"ticker": add_sym, "name": _name, "sector": _sector,
-                                "qty": add_qty, "avg_cost": add_cost,
-                                "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct}
-                st.session_state.portfolio.append(_new_holding)
-                _sb_upsert_holding(st.session_state.user.id, _new_holding)
-                _hist_record = {"date": pd.Timestamp.today().strftime("%b %d"), "type": "BUY",
-                                "ticker": add_sym, "shares": add_qty, "price": add_cost,
-                                "amount": -(add_qty * add_cost)}
-                st.session_state.portfolio_history.insert(0, _hist_record)
-                _sb_insert_history(st.session_state.user.id, _hist_record)
-                st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
-                st.rerun()
-
-    port = st.session_state.portfolio
-    if not port:
-        st.info(_L["no_holdings"])
-    else:
-        import io as _io
-        _ab1, _ab2, _ab3 = st.columns([2, 2, 4])
-        with _ab1:
-            if st.button(_L["refresh_prices"], key="pt_refresh_page", use_container_width=True):
-                av_get_quote.clear(); get_ticker_full.clear()
-                for h in st.session_state.portfolio:
-                    try:
-                        _q = av_get_quote(h["ticker"])
-                        if _q["price"] > 0:
-                            h["current_price"] = _q["price"]
-                            h["pl"]     = (_q["price"] - h["avg_cost"]) * h["qty"]
-                            h["pl_pct"] = ((_q["price"] - h["avg_cost"]) / h["avg_cost"] * 100)
-                    except Exception: pass
-                _sb_update_prices(st.session_state.user.id, st.session_state.portfolio)
-                st.rerun()
-        with _ab2:
-            _csv_rows = [{"Ticker": h["ticker"], "Name": h.get("name", h["ticker"]),
-                          "Sector": (h.get("sector") or "Unknown").split(" •")[0].strip(),
-                          "Quantity": h["qty"], "Avg Cost ($)": h["avg_cost"],
-                          "Current Price ($)": h["current_price"],
-                          "Market Value ($)": round(h["qty"] * h["current_price"], 2),
-                          "P&L ($)": round(h["pl"], 2), "P&L (%)": round(h["pl_pct"], 2)} for h in port]
-            _csv_buf = _io.StringIO(); pd.DataFrame(_csv_rows).to_csv(_csv_buf, index=False)
-            st.download_button(label="⬇ Export Holdings CSV", data=_csv_buf.getvalue(),
-                               file_name=f"stockcast_portfolio_{pd.Timestamp.today().strftime('%Y%m%d')}.csv",
-                               mime="text/csv", use_container_width=True, key="pt_csv_page")
-        with _ab3:
-            _hist_all = st.session_state.portfolio_history
-            if _hist_all:
-                _hist_buf = _io.StringIO(); pd.DataFrame(_hist_all).to_csv(_hist_buf, index=False)
-                st.download_button(label="⬇ Export Transaction History CSV", data=_hist_buf.getvalue(),
-                                   file_name=f"stockcast_transactions_{pd.Timestamp.today().strftime('%Y%m%d')}.csv",
-                                   mime="text/csv", use_container_width=True, key="pt_csv_hist_page")
-
-        total_value    = sum(h["qty"] * h["current_price"] for h in port)
-        total_invested = sum(h["qty"] * h["avg_cost"]       for h in port)
-        total_pl       = total_value - total_invested
-        total_pl_pct   = (total_pl / total_invested * 100) if total_invested > 0 else 0
-        winners        = [h for h in port if h["pl"] >= 0]
-        win_rate       = len(winners) / len(port) * 100
-        p1, p2, p3, p4, p5 = st.columns(5)
-        p1.metric(_L["total_value"], f"${total_value:,.2f}")
-        p2.metric(_L["total_pl"], f"${total_pl:+,.2f}", delta=f"{total_pl_pct:+.1f}%")
-        p3.metric(_L["invested"], f"${total_invested:,.2f}")
-        p4.metric(_L["holdings"], str(len(port)))
-        p5.metric("Win Rate", f"{win_rate:.0f}%", delta=f"{len(winners)}/{len(port)} profitable")
-
-        _sorted_pct = sorted(port, key=lambda h: h["pl_pct"], reverse=True)
-        _best = _sorted_pct[0]; _worst = _sorted_pct[-1]
-        _bw1, _bw2 = st.columns(2)
-        with _bw1:
-            st.markdown(f"""<div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.2);
-                 border-left:4px solid #00e5b0;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
-                   text-transform:uppercase;color:#00e5b0;font-weight:700;margin-bottom:.3rem;">🏆 Best Performer</div>
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div><div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#e4eafd;">{_best["ticker"]}</div>
-                  <div style="font-size:.7rem;color:#8a8fa0;">{(_best.get("name") or _best["ticker"])[:30]}</div></div>
-                <div style="text-align:right;">
-                  <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#00e5b0;">+{_best["pl_pct"]:.2f}%</div>
-                  <div style="font-size:.7rem;color:#00e5b0;">+${_best["pl"]:,.2f}</div></div>
-              </div></div>""", unsafe_allow_html=True)
-        with _bw2:
-            _ws = "+" if _worst["pl"] >= 0 else ""
-            st.markdown(f"""<div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.2);
-                 border-left:4px solid #ff5f5f;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
-                   text-transform:uppercase;color:#ff5f5f;font-weight:700;margin-bottom:.3rem;">📉 Worst Performer</div>
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div><div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#e4eafd;">{_worst["ticker"]}</div>
-                  <div style="font-size:.7rem;color:#8a8fa0;">{(_worst.get("name") or _worst["ticker"])[:30]}</div></div>
-                <div style="text-align:right;">
-                  <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#ff5f5f;">{_worst["pl_pct"]:+.2f}%</div>
-                  <div style="font-size:.7rem;color:#ff5f5f;">{_ws}${abs(_worst["pl"]):,.2f}</div></div>
-              </div></div>""", unsafe_allow_html=True)
-
-        # P&L chart
-        st.subheader("📈 Portfolio P&L Over Time")
-        with st.spinner("Building P&L history..."):
-            try:
-                _syms = [h["ticker"] for h in port]
-                _qtys = {h["ticker"]: h["qty"] for h in port}
-                _costs = {h["ticker"]: h["avg_cost"] for h in port}
-                _raw_hist = yf.download(_syms, period="1y", interval="1d", progress=False, auto_adjust=True)
-                _close_h = _raw_hist["Close"] if "Close" in _raw_hist.columns else _raw_hist
-                if isinstance(_close_h.columns, pd.MultiIndex):
-                    _close_h = _close_h.droplevel(0, axis=1)
-                if isinstance(_close_h, pd.Series):
-                    _close_h = _close_h.to_frame(name=_syms[0])
-                _port_val = pd.Series(0.0, index=_close_h.index)
-                _port_cost = 0.0
-                for sym in _syms:
-                    if sym in _close_h.columns:
-                        _port_val += _close_h[sym].ffill() * _qtys[sym]
-                        _port_cost += _costs[sym] * _qtys[sym]
-                _port_pl = _port_val - _port_cost
-                fig_pl = go.Figure()
-                fig_pl.add_trace(go.Scatter(x=_port_pl.index, y=_port_pl.values, name="Unrealised P&L ($)",
-                    line=dict(color="#4d8eff", width=1.8), fill="tozeroy", fillcolor="rgba(77,142,255,0.08)"))
-                fig_pl.add_hline(y=0, line_dash="dash", line_color="#3e4558", line_width=1)
-                _pl_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k != "yaxis"}
-                fig_pl.update_layout(**_pl_layout, title=dict(text="Portfolio Unrealised P&L — Last 12 Months",
-                    font=dict(color=C_GREEN, size=12)), height=300,
-                    yaxis=dict(**PLOTLY_LAYOUT["yaxis"], title="P&L ($)", tickprefix="$"))
-                st.plotly_chart(fig_pl, use_container_width=True)
-            except Exception as _e:
-                st.info(f"P&L chart unavailable: {_e}")
-
-        # Holdings table
-        st.subheader(_L["holdings_label"])
-        for h in port:
-            _mv = h["qty"] * h["current_price"]
-            _iv = h["qty"] * h["avg_cost"]
-            _c = "#00e5b0" if h["pl"] >= 0 else "#ff5f5f"
-            _hc1, _hc2, _hc3, _hc4 = st.columns([3, 2, 2, 1])
-            with _hc1:
-                st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.85rem;font-weight:700;color:#e4eafd;">{h["ticker"]}</div><div style="font-size:.7rem;color:#8a8fa0;">{(h.get("name") or h["ticker"])[:28]}</div>', unsafe_allow_html=True)
-            with _hc2:
-                st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;color:#e4eafd;">${h["current_price"]:.2f}</div><div style="font-size:.68rem;color:#8a8fa0;">{h["qty"]} shares · ${_mv:,.0f}</div>', unsafe_allow_html=True)
-            with _hc3:
-                st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;color:{_c};">{h["pl"]:+,.2f} ({h["pl_pct"]:+.1f}%)</div><div style="font-size:.68rem;color:#8a8fa0;">Cost ${_iv:,.0f}</div>', unsafe_allow_html=True)
-            with _hc4:
-                if st.button("✕", key=f"pt_del_page_{h['ticker']}", use_container_width=True):
-                    _sb_delete_holding(st.session_state.user.id, h["ticker"])
-                    st.session_state.portfolio = [x for x in st.session_state.portfolio if x["ticker"] != h["ticker"]]
-                    st.rerun()
-            st.markdown('<hr style="margin:.3rem 0;border-color:#1e2740;">', unsafe_allow_html=True)
-
-# ── Markets page ───────────────────────────────────────────────────────────────
-elif _ap == "markets":
-    _L = LANGUAGES[st.session_state.lang]
-    st.markdown(f"""
-    <div class="sc-page-header">
-      <div>
-        <div class="sc-page-title">Market <span style="color:#4d8eff;">Intelligence</span></div>
-        <div class="sc-page-subtitle">Live global indices, sector heatmap, and institutional sentiment — updated every 2 minutes.</div>
-      </div>
-      <span class="chip live dot">Live</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    with st.spinner("Loading live market data..."):
-        mkt_data = get_live_market_indices()
-    _mc1, _mc2 = st.columns(2)
-    _mc3, _mc4 = st.columns(2)
-    for _mcol, (name, price, chg, col) in zip([_mc1, _mc2, _mc3, _mc4], mkt_data):
-        with _mcol:
-            st.markdown(f"""
-            <div style="background:linear-gradient(145deg,#0f1727,#0a1020);border:1px solid #252f47;
-                 border-top:2px solid {col};border-radius:.75rem;padding:1.2rem 1.4rem;margin-bottom:.4rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;letter-spacing:.14em;
-                   text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">{name}</div>
-              <div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:#e4eafd;">{price}</div>
-              <div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:{col};font-weight:700;margin-top:.3rem;">{chg}</div>
-            </div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#8a8fa0;margin-bottom:.75rem;">{_L.get("sector_heatmap","Sector Heatmap · Live")}</div>', unsafe_allow_html=True)
-    with st.spinner("Loading sector data..."):
-        sector_data = get_live_sector_heatmap()
-    _sh_cols = st.columns(5)
-    for i, (sname, spct, scol) in enumerate(sector_data):
-        with _sh_cols[i % 5]:
-            st.markdown(f"""
-            <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
-                 border-radius:.6rem;padding:.9rem 1rem;text-align:center;margin-bottom:.4rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:700;color:#3e4558;
-                   text-transform:uppercase;letter-spacing:.1em;margin-bottom:.3rem;">{sname}</div>
-              <div style="font-family:IBM Plex Mono,monospace;font-size:1rem;font-weight:700;color:{scol};">{spct}</div>
-            </div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    fg_data = get_fear_greed_index()
-    if fg_data:
-        _fg_s = fg_data["score"]; _fg_r = fg_data["rating"]
-        _fg_c = "#00e5b0" if _fg_s >= 55 else ("#ff5f5f" if _fg_s <= 45 else "#ffd426")
-        st.markdown(f"""
-        <div style="background:linear-gradient(145deg,#0f1727,#0a1020);border:1px solid #252f47;
-             border-top:2px solid {_fg_c};border-radius:.75rem;padding:1.4rem 1.6rem;max-width:400px;">
-          <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;letter-spacing:.14em;
-               text-transform:uppercase;color:#3e4558;margin-bottom:.6rem;">{_L.get("fear_greed","Fear & Greed Index · Live")}</div>
-          <div style="font-family:IBM Plex Mono,monospace;font-size:3rem;font-weight:700;color:{_fg_c};line-height:1;">{_fg_s:.0f}</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.85rem;color:{_fg_c};font-weight:700;margin-top:.4rem;">{_fg_r}</div>
-          <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;margin-top:.8rem;overflow:hidden;">
-            <div style="height:100%;width:{_fg_s}%;background:linear-gradient(90deg,#ff5f5f,#ffd426,#00e5b0);border-radius:3px;"></div>
-          </div>
-        </div>""", unsafe_allow_html=True)
-
-# ── Methodology page ───────────────────────────────────────────────────────────
-elif _ap == "methodology":
-    st.markdown(f"""
-    <div class="sc-page-header">
-      <div>
-        <div class="sc-page-title">How the AI <span style="color:#4d8eff;">Works</span></div>
-        <div class="sc-page-subtitle">Technical documentation — data pipeline, model architecture, signal generation, and limitations.</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-    render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True)
-
-# ── Crypto page ────────────────────────────────────────────────────────────────
-elif _ap == "crypto":
-    try:
-        from crypto import render_crypto_page
-        render_crypto_page()
-    except ImportError:
-        st.markdown(f"""
-        <div class="sc-page-header">
-          <div>
-            <div class="sc-page-title">Crypto <span style="color:#ffd426;">Analysis</span></div>
-            <div class="sc-page-subtitle">AI-powered cryptocurrency forecasting — Bitcoin, Ethereum and more.</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.info("ℹ Crypto module (crypto.py) not found in the same directory as app.py. Place crypto.py alongside app.py to enable this page.")
-
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div style="text-align:center;margin-top:4rem;padding:2rem 1rem;border-top:1px solid #1e2740;">
@@ -5844,7 +5643,7 @@ st.markdown(f"""
     <span class="disclaimer-pill">⚠ Stockcast is for educational and research purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a licensed financial advisor.</span>
   </div>
   <div style="font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#1e2740;letter-spacing:.08em;margin-top:.6rem;">
-    © 2026 Stockcast · Built by Muawwiz Ghani · v2.0
+    © 2026 Stockcast · Built by Muawwiz Ghani ·
   </div>
 </div>
 """, unsafe_allow_html=True)
