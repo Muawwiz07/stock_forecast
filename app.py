@@ -1,4 +1,3 @@
-
 # =============================================================================
 # Copyright (c) 2026 Stockcast. All Rights Reserved.
 #
@@ -4245,9 +4244,9 @@ with st.sidebar:
         new_val = not _email_on
         _ok = _sb_set_email_alerts(_user_id(), new_val)
         if new_val:
-            _user_email = _user_email()
+            _current_email = _user_email()
             if _ok:
-                st.success(f"✓ Daily digest enabled — emails will be sent to {_user_email} on weekdays.")
+                st.success(f"✓ Daily digest enabled — emails will be sent to {_current_email} on weekdays.")
             else:
                 st.warning(
                     f"⚠ Preference saved locally for this session. "
