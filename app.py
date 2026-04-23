@@ -3583,8 +3583,32 @@ if st.session_state.user is None:  # fallback guard (render_auth_gate calls st.s
     st.stop()
 
 
+# ── Safe user attribute helpers ───────────────────────────────────────────────
+# supabase-py ≥2.0 may store either a User object (with .email/.id directly)
+# or a Session object (where the user is at .user.email/.user.id).
+# These helpers handle both shapes and never raise AttributeError.
+
+def _user_email() -> str:
+    u = st.session_state.user
+    if u is None:
+        return ""
+    # Session object (supabase-py ≥2.0 sign_in_with_password returns Session)
+    if hasattr(u, "user") and u.user is not None:
+        return getattr(u.user, "email", "") or ""
+    # User object stored directly
+    return getattr(u, "email", "") or ""
+
+def _user_id() -> str:
+    u = st.session_state.user
+    if u is None:
+        return ""
+    if hasattr(u, "user") and u.user is not None:
+        return str(getattr(u.user, "id", "")) or ""
+    return str(getattr(u, "id", "")) or ""
+
+
 # ── Load user data from Supabase once per login session ──────────────────────
-_current_uid = st.session_state.user.id if st.session_state.user else None
+_current_uid = _user_id() if st.session_state.user else None
 if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_uid:
     _loaded = _sb_load_portfolio(_current_uid)
     st.session_state.portfolio = _loaded
@@ -3613,14 +3637,14 @@ if _current_uid and st.session_state.get("_portfolio_loaded_for") != _current_ui
         and st.session_state.watchlist
     ):
         try:
-            _d_html = _build_digest_html(st.session_state.user.email, st.session_state.watchlist)
+            _d_html = _build_digest_html(_user_email(), st.session_state.watchlist)
             _d_sent = _send_email(
-                st.session_state.user.email,
+                _user_email(),
                 f"📈 Stockcast Daily Digest — {pd.Timestamp.now().strftime('%b %d, %Y')}",
                 _d_html,
             )
             if _d_sent:
-                logger.info("Daily digest sent to %s", st.session_state.user.email)
+                logger.info("Daily digest sent to %s", _user_email())
         except Exception as _de:
             logger.error("Daily digest send failed: %s", _de)
         finally:
@@ -3764,7 +3788,7 @@ if st.session_state.get("show_upgrade_modal"):
             # Once payment is confirmed by the provider webhook, call:
             #   _sb_set_plan(user_id, "pro")
             # For now, grant access immediately (testing only — remove before launch).
-            _sb_set_plan(st.session_state.user.id, "pro")
+            _sb_set_plan(_user_id(), "pro")
             st.session_state.show_upgrade_modal = False
             st.session_state._portfolio_loaded_for = None
             st.rerun()
@@ -3862,7 +3886,7 @@ with st.sidebar:
          border-radius:0 .5rem .5rem 0;display:flex;align-items:center;gap:.5rem;">
       <span style="color:#3e4558;">👤</span>
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-        {st.session_state.user.email}
+        {_user_email()}
       </span>
     </div>
     """, unsafe_allow_html=True)
@@ -3980,7 +4004,7 @@ with st.sidebar:
     else:
         if st.button(f"⭐ Add {ticker} to Watchlist", use_container_width=True, key="sidebar_wl_add"):
             if ticker not in st.session_state.watchlist:
-                if _sb_add_watchlist(st.session_state.user.id, ticker):
+                if _sb_add_watchlist(_user_id(), ticker):
                     st.session_state.watchlist.append(ticker)
                     st.session_state["_wl_toast"] = ticker
                     st.rerun()
@@ -4116,7 +4140,7 @@ with st.sidebar:
                 new_count = st.session_state.get("usage_count", 0) + 1
                 st.session_state.usage_count = new_count
                 st.session_state.analyses_today = new_count
-                _sb_increment_usage(st.session_state.user.id)
+                _sb_increment_usage(_user_id())
     run_btn = st.session_state.get("run_pressed", False) and not _at_limit
 
     # Watchlist
@@ -4142,7 +4166,7 @@ with st.sidebar:
             if add_ticker_input not in st.session_state.watchlist:
                 # Re-check limit at add time (prevents race condition)
                 if len(st.session_state.watchlist) < _wl_plan_lim:
-                    if _sb_add_watchlist(st.session_state.user.id, add_ticker_input):
+                    if _sb_add_watchlist(_user_id(), add_ticker_input):
                         st.session_state.watchlist.append(add_ticker_input)
                         st.rerun()
                 else:
@@ -4178,7 +4202,7 @@ with st.sidebar:
                     st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;padding:.4rem 0;text-align:right;">—</div>', unsafe_allow_html=True)
             with wc3:
                 if st.button("✕", key=f"wl_del_{wl_sym}", use_container_width=True):
-                    _sb_remove_watchlist(st.session_state.user.id, wl_sym)
+                    _sb_remove_watchlist(_user_id(), wl_sym)
                     st.session_state.watchlist.remove(wl_sym)
                     if wl_sym in st.session_state.alert_signals:
                         del st.session_state.alert_signals[wl_sym]
@@ -4210,7 +4234,7 @@ with st.sidebar:
         f'</div>'
         f'<div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#8a8fa0;margin-top:.3rem;line-height:1.5;">'
         f'Get watchlist signals in your inbox every morning.<br>'
-        f'<span style="color:#3e4558;">{_pro_badge} · {st.session_state.user.email}</span>'
+        f'<span style="color:#3e4558;">{_pro_badge} · {_user_email()}</span>'
         f'</div></div>',
         unsafe_allow_html=True
     )
@@ -4218,9 +4242,9 @@ with st.sidebar:
     _toggle_label = "🔕 Turn Off Email Alerts" if _email_on else "📧 Enable Daily Email Digest"
     if st.button(_toggle_label, use_container_width=True, key="email_alert_toggle"):
         new_val = not _email_on
-        _ok = _sb_set_email_alerts(st.session_state.user.id, new_val)
+        _ok = _sb_set_email_alerts(_user_id(), new_val)
         if new_val:
-            _user_email = st.session_state.user.email
+            _user_email = _user_email()
             if _ok:
                 st.success(f"✓ Daily digest enabled — emails will be sent to {_user_email} on weekdays.")
             else:
@@ -4267,7 +4291,7 @@ if not run_btn:
 
     # ── Onboarding card — only for new users ──────────────────────────────────
     if st.session_state.get("show_onboarding", False):
-        _user_first = st.session_state.user.email.split("@")[0].title()
+        _user_first = _user_email().split("@")[0].title()
         st.markdown(f"""
         <div style="background:linear-gradient(135deg,rgba(77,142,255,0.1) 0%,rgba(0,229,176,0.06) 100%);
              border:1px solid rgba(77,142,255,0.25);border-radius:1rem;padding:1.8rem 2rem;
@@ -4689,7 +4713,7 @@ else:
                 st.markdown(f'<div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);border-radius:.5rem;padding:.5rem .8rem;font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;text-align:center;">Watchlist full</div>', unsafe_allow_html=True)
             else:
                 if st.button(f"⭐ Add to Watchlist", key="forecast_wl_add", use_container_width=True):
-                    if _sb_add_watchlist(st.session_state.user.id, ticker):
+                    if _sb_add_watchlist(_user_id(), ticker):
                         st.session_state.watchlist.append(ticker)
                         st.rerun()
         with _progress_placeholder:
@@ -4936,7 +4960,7 @@ else:
                                 "current_price": _live_px, "pl": _pl, "pl_pct": _pl_pct
                             }
                             st.session_state.portfolio.append(_new_holding)
-                            _sb_upsert_holding(st.session_state.user.id, _new_holding)
+                            _sb_upsert_holding(_user_id(), _new_holding)
                             _date = pd.Timestamp.today().strftime("%b %d")
                             _hist_record = {
                                 "date": _date, "type": "BUY", "ticker": add_sym,
@@ -4944,7 +4968,7 @@ else:
                                 "amount": -(add_qty * add_cost)
                             }
                             st.session_state.portfolio_history.insert(0, _hist_record)
-                            _sb_insert_history(st.session_state.user.id, _hist_record)
+                            _sb_insert_history(_user_id(), _hist_record)
                             st.success(_L["added_success"].format(sym=add_sym, price=_live_px))
                             st.rerun()
 
@@ -4970,7 +4994,7 @@ else:
                                     h["pl_pct"] = ((_q["price"] - h["avg_cost"]) / h["avg_cost"] * 100)
                             except Exception as e:
                                 logger.warning("refresh_prices: failed to update '%s': %s", h.get("ticker"), e)
-                        _sb_update_prices(st.session_state.user.id, st.session_state.portfolio)
+                        _sb_update_prices(_user_id(), st.session_state.portfolio)
                         st.rerun()
 
                 with _ab2:
@@ -5168,7 +5192,7 @@ else:
                     if hc6.button("✕", key=f"pt_del_{h['ticker']}", use_container_width=True):
                         _del_ticker = h["ticker"]
                         st.session_state.portfolio = [x for x in st.session_state.portfolio if x["ticker"] != _del_ticker]
-                        _sb_delete_holding(st.session_state.user.id, _del_ticker)
+                        _sb_delete_holding(_user_id(), _del_ticker)
                         st.rerun()
 
                 # ── Market value bar chart ────────────────────────────────────
@@ -6036,18 +6060,18 @@ else:
                             ("AI Forecast",f"{_sa_xp:+.2f}%","#adc6ff"),
                             ("Take Profit",f"${_sa_tp:.2f}","#00e5b0"),("Stop Loss",f"${_sa_sl:.2f}","#ff5f5f"),
                             ("Risk/Reward",f"{_sa_rr:.2f}×","#ffd426")])}
-                          <div style="margin-top:.7rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">📬 {st.session_state.user.email}</div>
+                          <div style="margin-top:.7rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">📬 {_user_email()}</div>
                         </div>''', unsafe_allow_html=True)
 
                     if st.button(f"📧 Send Signal Alert — {ticker}", key="hub_send_email", use_container_width=True):
                         _html_e = _build_signal_email_html(
-                            st.session_state.user.email, ticker,
+                            _user_email(), ticker,
                             _sa_sig, last_close, _sa_sco, _sa_tp, _sa_sl, _sa_rr, _sa_xp)
-                        _ok = _send_email(st.session_state.user.email,
+                        _ok = _send_email(_user_email(),
                             f"Stockcast Signal · {ticker} — {_sa_sig} · {pd.Timestamp.now().strftime('%b %d')}",
                             _html_e)
                         if _ok:
-                            st.success(f"✓ Signal alert sent to {st.session_state.user.email}")
+                            st.success(f"✓ Signal alert sent to {_user_email()}")
                         else:
                             st.warning("⚠ Email not sent — configure SMTP_HOST, SMTP_USER, SMTP_PASS in Streamlit secrets.")
                 else:
