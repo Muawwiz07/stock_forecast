@@ -255,25 +255,42 @@ def render_auth_gate(supabase):
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Ticker tape ────────────────────────────────────────────────────────────
-    st.markdown("""
-    <div class="sc-ticker-wrap"><div class="sc-ticker">
-        <span><span class="sym">AAPL</span> 189.42 <span class="up">▲ 0.8%</span></span>
-        <span><span class="sym">MSFT</span> 415.60 <span class="up">▲ 1.2%</span></span>
-        <span><span class="sym">TSLA</span> 172.11 <span class="down">▼ 0.5%</span></span>
-        <span><span class="sym">GOOG</span> 174.95 <span class="up">▲ 0.3%</span></span>
-        <span><span class="sym">AMZN</span> 185.22 <span class="up">▲ 0.9%</span></span>
-        <span><span class="sym">NVDA</span> 873.50 <span class="down">▼ 1.1%</span></span>
-        <span><span class="sym">META</span> 512.33 <span class="up">▲ 0.6%</span></span>
-        <span><span class="sym">AAPL</span> 189.42 <span class="up">▲ 0.8%</span></span>
-        <span><span class="sym">MSFT</span> 415.60 <span class="up">▲ 1.2%</span></span>
-        <span><span class="sym">TSLA</span> 172.11 <span class="down">▼ 0.5%</span></span>
-        <span><span class="sym">GOOG</span> 174.95 <span class="up">▲ 0.3%</span></span>
-        <span><span class="sym">AMZN</span> 185.22 <span class="up">▲ 0.9%</span></span>
-        <span><span class="sym">NVDA</span> 873.50 <span class="down">▼ 1.1%</span></span>
-        <span><span class="sym">META</span> 512.33 <span class="up">▲ 0.6%</span></span>
-    </div></div>
-    """, unsafe_allow_html=True)
+    # ── Ticker tape — live via yfinance, graceful fallback ─────────────────────
+    _tape_syms = ["AAPL", "MSFT", "TSLA", "GOOG", "AMZN", "NVDA", "META", "JPM", "V", "BRK-B"]
+    _tape_items = []
+    try:
+        import yfinance as _yf
+        _td = _yf.download(_tape_syms, period="2d", interval="1d", progress=False, auto_adjust=True)
+        _closes = _td["Close"]
+        for _s in _tape_syms:
+            try:
+                _row = _closes[_s].dropna()
+                if len(_row) >= 2:
+                    _px  = float(_row.iloc[-1])
+                    _prev= float(_row.iloc[-2])
+                    _chg = (_px - _prev) / _prev * 100
+                    _cls = "up" if _chg >= 0 else "down"
+                    _arr = "▲" if _chg >= 0 else "▼"
+                    _tape_items.append(
+                        f'<span><span class="sym">{_s}</span> {_px:.2f} '
+                        f'<span class="{_cls}">{_arr} {abs(_chg):.2f}%</span></span>'
+                    )
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    if not _tape_items:  # fallback — static labels, no prices
+        _tape_items = [
+            f'<span><span class="sym">{s}</span> <span class="up">Market data loading…</span></span>'
+            for s in ["AAPL", "MSFT", "TSLA", "GOOG", "AMZN", "NVDA", "META"]
+        ]
+
+    _tape_html = "".join(_tape_items * 2)  # duplicate for seamless CSS scroll loop
+    st.markdown(
+        f'<div class="sc-ticker-wrap"><div class="sc-ticker">{_tape_html}</div></div>',
+        unsafe_allow_html=True
+    )
 
     # ── Card open ──────────────────────────────────────────────────────────────
     st.markdown('<div class="sc-card">', unsafe_allow_html=True)
@@ -390,7 +407,7 @@ def render_auth_gate(supabase):
     st.markdown("""
     <div class="sc-footer">
         Secured with Supabase · Alpha Vantage &amp; Yahoo Finance<br>
-        <span class="mono">StockCast v1.0 · © 2024 All rights reserved</span>
+        <span class="mono">StockCast · © 2025 All rights reserved</span>
     </div>
     """, unsafe_allow_html=True)
 
