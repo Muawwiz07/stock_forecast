@@ -3743,38 +3743,42 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Free plan bar
+        # Free plan meter — segmented pill display
+        _seg_html = ""
+        for _si in range(_daily_limit):
+            _seg_color = _usage_color if _si < _usage_count else "#1e2740"
+            _seg_html += f'<div style="flex:1;height:6px;background:{_seg_color};border-radius:3px;transition:background .3s;"></div>'
+
+        _limit_banner = ""
+        if _usage_count >= _daily_limit:
+            _limit_banner = f"""
+            <div style="background:rgba(255,95,95,0.07);border:1px solid rgba(255,95,95,0.2);
+                 border-left:3px solid #ff5f5f;padding:.55rem .9rem;margin:.3rem 0;
+                 border-radius:0 .5rem .5rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:.72rem;font-weight:800;
+                   color:#ff5f5f;margin-bottom:.2rem;">🔒 Daily limit reached</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;line-height:1.4;">
+                Resets at midnight UTC · Upgrade for unlimited.
+              </div>
+            </div>"""
+        elif _usage_count > 0:
+            _rem = _daily_limit - _usage_count
+            _limit_banner = f'<div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#8a8fa0;margin-top:.3rem;">{_rem} {"analysis" if _rem==1 else "analyses"} remaining today</div>'
+
         st.markdown(f"""
         <div class="plan-badge">
           <div style="flex:1;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <div class="plan-badge-label">Free Plan</div>
-              <div class="plan-badge-value" style="color:{_usage_color};">
-                {_usage_count} / {_daily_limit} today
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div class="plan-badge-label">Free Plan · Daily Usage</div>
+              <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:{_usage_color};font-weight:700;">
+                {_usage_count}/{_daily_limit}
               </div>
             </div>
-            <div class="usage-bar-bg">
-              <div class="usage-bar-fill"
-                   style="width:{_usage_pct}%;background:linear-gradient(90deg,{_usage_color},{_usage_color});">
-              </div>
-            </div>
+            <div style="display:flex;gap:3px;margin-bottom:.3rem;">{_seg_html}</div>
           </div>
         </div>
+        {_limit_banner}
         """, unsafe_allow_html=True)
-        if _usage_count >= _daily_limit:
-            st.markdown(f"""
-            <div style="background:rgba(255,95,95,0.07);border:1px solid rgba(255,95,95,0.2);
-                 border-left:3px solid #ff5f5f;padding:.65rem 1rem;margin:.2rem 0 .5rem;
-                 border-radius:0 .5rem .5rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:.58rem;font-weight:800;
-                   letter-spacing:.1em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.25rem;">
-                🔒 Daily limit reached
-              </div>
-              <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;line-height:1.5;">
-                Resets at midnight. Upgrade for unlimited analyses.
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
 
     if st.button(_L.get("logout", "⏏  Logout"), use_container_width=True, key="logout_btn"):
         try:
@@ -3966,9 +3970,6 @@ with st.sidebar:
             st.session_state.show_upgrade_modal = True
             st.rerun()
     else:
-        if not _is_pro_user:
-            _rem = _get_limit("daily_analyses") - st.session_state.get("usage_count", 0)
-            st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#8a8fa0;text-align:center;margin-bottom:.3rem;">{_rem} {"analysis" if _rem == 1 else "analyses"} remaining today</div>', unsafe_allow_html=True)
         if st.button(_L["run"], use_container_width=True):
             st.session_state.run_pressed = True
             if not _is_pro_user:
@@ -4258,13 +4259,34 @@ if not run_btn:
     </div>
     """, unsafe_allow_html=True)
 
-    # Watchlist live prices if any
+    # Watchlist live prices if any — enhanced cards with signal badges
     if st.session_state.watchlist:
         st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-        st.subheader(_L["watchlist_live"])
-        wl_cols = st.columns(min(len(st.session_state.watchlist), 4))
-        for i, wl_sym in enumerate(st.session_state.watchlist[:4]):
-            with wl_cols[i % 4]:
+
+        # Header row with count
+        _wl_total = len(st.session_state.watchlist)
+        _wl_plan_max = _get_limit("watchlist_stocks")
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
+               letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;">
+            ⭐ {_L["watchlist_live"]}
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <span class="chip live dot" style="font-size:.5rem;padding:.18rem .55rem;">Live</span>
+            <span style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#3e4558;">
+              {_wl_total}/{_wl_plan_max}
+            </span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Show all watchlist items in rows of 4
+        _wl_display = st.session_state.watchlist
+        _n_cols = min(len(_wl_display), 4)
+        wl_cols = st.columns(_n_cols)
+        for i, wl_sym in enumerate(_wl_display):
+            with wl_cols[i % _n_cols]:
                 try:
                     _fi   = av_get_quote(wl_sym)
                     _px   = _fi["price"]
@@ -4272,28 +4294,114 @@ if not run_btn:
                     _col  = "#00e5b0" if _chg >= 0 else "#ff5f5f"
                     _sign = "▲" if _chg >= 0 else "▼"
                     _wl_chip = "buy" if _chg >= 0 else "sell"
+                    # Compute quick signal for badge
+                    try:
+                        _wl_hist = _yf_download_with_retry(wl_sym, period="3mo", interval="1d")
+                        _wl_sig  = _api_compute_signal(_wl_hist)
+                        _sig_txt  = _wl_sig["signal"]
+                        _sig_conf = _wl_sig["conf"]
+                        _sig_chip = "buy" if _sig_txt == "BUY" else "sell" if _sig_txt == "SELL" else "hold"
+                        _sig_icon = "▲" if _sig_txt == "BUY" else "▼" if _sig_txt == "SELL" else "◆"
+                    except Exception:
+                        _sig_txt, _sig_conf, _sig_chip, _sig_icon = "—", 0, "hold", "◆"
                     st.markdown(f"""
                     <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
-                         border-top:2px solid {_col};padding:1rem 1.2rem;text-align:center;border-radius:.6rem;">
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;color:#3e4558;text-transform:uppercase;margin-bottom:.3rem;">{wl_sym}</div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;margin:.3rem 0;">${_px:.2f}</div>
-                      <div style="display:flex;justify-content:center;margin-top:.4rem;">
-                        <span class="chip {_wl_chip} dot" style="font-size:.58rem;">{_sign} {_chg:+.2f}%</span>
+                         border-top:2px solid {_col};padding:1.1rem 1.2rem;border-radius:.75rem;
+                         transition:border-color .2s;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;">
+                        <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;
+                             color:#3e4558;text-transform:uppercase;font-weight:700;">{wl_sym}</div>
+                        <span class="chip {_sig_chip}" style="font-size:.5rem;padding:.18rem .5rem;">
+                          {_sig_icon} {_sig_txt}
+                        </span>
+                      </div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.25rem;font-weight:700;
+                           color:#e4eafd;margin:.25rem 0 .5rem;">${_px:.2f}</div>
+                      <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span class="chip {_wl_chip} dot" style="font-size:.52rem;padding:.18rem .5rem;">
+                          {_sign} {abs(_chg):.2f}%
+                        </span>
+                        <span style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#3e4558;">
+                          conf {_sig_conf}%
+                        </span>
                       </div>
                     </div>""", unsafe_allow_html=True)
+                    # Small gap between rows
+                    if i < len(_wl_display) - 1:
+                        st.markdown('<div style="margin-bottom:.5rem;"></div>', unsafe_allow_html=True)
                 except Exception as e:
                     logger.debug("Dashboard watchlist: could not load quote for '%s': %s", wl_sym, e)
-                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.5rem;">{wl_sym}<br>—</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:1rem;text-align:center;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;border-radius:.75rem;">{wl_sym}<br><span style="color:#252f47;">—</span></div>', unsafe_allow_html=True)
+
+        # Watchlist signal summary table (all tickers, full row)
+        if len(st.session_state.watchlist) > 0:
+            st.markdown("<br>", unsafe_allow_html=True)
+            _wl_rows_html = ""
+            for _ws in st.session_state.watchlist:
+                try:
+                    _wq   = av_get_quote(_ws)
+                    _wpx  = _wq["price"]
+                    _wchg = _wq["change_pct"]
+                    _wcol = "#00e5b0" if _wchg >= 0 else "#ff5f5f"
+                    _warr = "▲" if _wchg >= 0 else "▼"
+                    # Quick signal
+                    try:
+                        _wh  = _yf_download_with_retry(_ws, period="3mo", interval="1d")
+                        _wsig = _api_compute_signal(_wh)
+                        _wst  = _wsig["signal"]
+                        _wsc  = _wsig["conf"]
+                        _wsr  = _wsig.get("reason", "")[:55]
+                    except Exception:
+                        _wst, _wsc, _wsr = "—", 0, "—"
+                    _wsig_col  = "#00e5b0" if _wst == "BUY" else "#ff5f5f" if _wst == "SELL" else "#ffd426"
+                    _wsig_bg   = "rgba(0,229,176,0.08)" if _wst == "BUY" else "rgba(255,95,95,0.08)" if _wst == "SELL" else "rgba(255,212,38,0.08)"
+                    _conf_bar  = f'<div style="display:inline-block;width:{_wsc}px;max-width:80px;height:3px;background:{_wsig_col};border-radius:2px;vertical-align:middle;margin-left:5px;opacity:.6;"></div>'
+                    _wl_rows_html += f"""
+                    <tr style="border-bottom:1px solid #1e2740;">
+                      <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.72rem;font-weight:700;color:#adc6ff;letter-spacing:.06em;">{_ws}</td>
+                      <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.75rem;font-weight:700;color:#e4eafd;">${_wpx:,.2f}</td>
+                      <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_wcol};font-weight:700;">{_warr} {abs(_wchg):.2f}%</td>
+                      <td style="padding:.6rem .9rem;">
+                        <span style="background:{_wsig_bg};border:1px solid {_wsig_col}44;border-radius:100px;
+                             padding:.2rem .65rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;
+                             font-weight:800;color:{_wsig_col};letter-spacing:.06em;">{_wst}</span>
+                      </td>
+                      <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">
+                        {_wsc}%{_conf_bar}
+                      </td>
+                      <td style="padding:.6rem .9rem;font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{_wsr}</td>
+                    </tr>"""
+                except Exception:
+                    _wl_rows_html += f"""
+                    <tr style="border-bottom:1px solid #1e2740;">
+                      <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.72rem;font-weight:700;color:#adc6ff;">{_ws}</td>
+                      <td colspan="5" style="padding:.6rem .9rem;font-family:Manrope,sans-serif;font-size:.7rem;color:#3e4558;">Unable to fetch data</td>
+                    </tr>"""
+            st.markdown(f"""
+            <div style="background:#0a1120;border:1px solid #1e2740;border-radius:.75rem;overflow:hidden;margin-bottom:1rem;">
+              <div style="padding:.75rem 1.1rem;background:#0f1727;border-bottom:1px solid #1e2740;
+                   display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-family:Manrope,sans-serif;font-size:.62rem;font-weight:800;letter-spacing:.12em;
+                     text-transform:uppercase;color:#4d8eff;">Signal Overview</div>
+                <span class="chip live dot" style="font-size:.5rem;padding:.18rem .55rem;">Live</span>
+              </div>
+              <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                  <tr style="border-bottom:1px solid #252f47;background:#090e1c;">
+                    <th style="padding:.5rem .9rem;text-align:left;font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;">Ticker</th>
+                    <th style="padding:.5rem .9rem;text-align:left;font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;">Price</th>
+                    <th style="padding:.5rem .9rem;text-align:left;font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;">Change</th>
+                    <th style="padding:.5rem .9rem;text-align:left;font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;">Signal</th>
+                    <th style="padding:.5rem .9rem;text-align:left;font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;">Conf.</th>
+                    <th style="padding:.5rem .9rem;text-align:left;font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>{_wl_rows_html}</tbody>
+              </table>
+            </div>
+            """, unsafe_allow_html=True)
 
     # How it works
-    st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
-    st.subheader(_L["how_it_works"])
-    _hw_items = [
-        ("01","#4d8eff","hw1_title","hw1_body"),
-        ("02","#00e5b0","hw2_title","hw2_body"),
-        ("03","#ffd426","hw3_title","hw3_body"),
-    ]
-    # How it works — st.columns (reliable on all devices)
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["how_it_works"])
     hw1, hw2, hw3 = st.columns(3)
