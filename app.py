@@ -529,6 +529,103 @@ def av_get_overview(ticker_sym):
         logger.error("av_get_overview failed for '%s': %s", ticker_sym, e, exc_info=True)
         return {}
 
+@st.cache_data(ttl=3600)
+def get_fundamentals_rich(ticker_sym: str) -> dict:
+    """Return enriched fundamental data for the valuation panel.
+
+    Pulls from a single get_ticker_full() call so no extra yfinance round-trips.
+    Returns an empty dict if data unavailable — callers must guard for missing keys.
+    """
+    try:
+        info = get_ticker_full(ticker_sym)
+        if not info:
+            return {}
+
+        def _f(k, d=None):
+            v = info.get(k, d)
+            try: return float(v) if v not in (None, "None", "", "N/A") else d
+            except: return d
+
+        # Analyst price targets
+        target_mean   = _f("targetMeanPrice")
+        target_high   = _f("targetHighPrice")
+        target_low    = _f("targetLowPrice")
+        current_price = _f("currentPrice") or _f("regularMarketPrice") or 0
+
+        upside_pct = (
+            ((target_mean - current_price) / current_price * 100)
+            if target_mean and current_price else None
+        )
+
+        # Revenue / earnings growth
+        rev_growth_yoy = _f("revenueGrowth")   # trailing 12m YoY
+        earn_growth_yoy = _f("earningsGrowth")  # trailing 12m YoY
+
+        # Per-share metrics
+        eps_ttm     = _f("trailingEps")
+        eps_fwd     = _f("forwardEps")
+        pe_trailing = _f("trailingPE")
+        pe_forward  = _f("forwardPE")
+        pb          = _f("priceToBook")
+        ps_ttm      = _f("priceToSalesTrailing12Months")
+        peg         = _f("pegRatio")
+        ev_ebitda   = _f("enterpriseToEbitda")
+        roe         = _f("returnOnEquity")
+        roa         = _f("returnOnAssets")
+        profit_margin = _f("profitMargins")
+        gross_margin  = _f("grossMargins")
+        op_margin     = _f("operatingMargins")
+        div_yield     = _f("dividendYield")
+        payout_ratio  = _f("payoutRatio")
+        beta          = _f("beta")
+        float_shares  = _f("floatShares")
+        short_ratio   = _f("shortRatio")      # days to cover
+        short_pct_float = _f("shortPercentOfFloat")
+        insider_pct   = _f("heldPercentInsiders")
+        inst_pct      = _f("heldPercentInstitutions")
+        num_analysts  = int(info.get("numberOfAnalystOpinions") or 0)
+        rec           = info.get("recommendationKey", "")  # strong_buy / buy / hold / sell
+
+        return {
+            "name":           info.get("longName", ticker_sym),
+            "sector":         info.get("sector", "Unknown"),
+            "industry":       info.get("industry", "Unknown"),
+            "description":    (info.get("longBusinessSummary") or "")[:400],
+            "current_price":  current_price,
+            "target_mean":    target_mean,
+            "target_high":    target_high,
+            "target_low":     target_low,
+            "upside_pct":     upside_pct,
+            "num_analysts":   num_analysts,
+            "recommendation": rec,
+            "rev_growth_yoy": rev_growth_yoy,
+            "earn_growth_yoy":earn_growth_yoy,
+            "eps_ttm":        eps_ttm,
+            "eps_fwd":        eps_fwd,
+            "pe_trailing":    pe_trailing,
+            "pe_forward":     pe_forward,
+            "pb":             pb,
+            "ps_ttm":         ps_ttm,
+            "peg":            peg,
+            "ev_ebitda":      ev_ebitda,
+            "roe":            roe,
+            "roa":            roa,
+            "profit_margin":  profit_margin,
+            "gross_margin":   gross_margin,
+            "op_margin":      op_margin,
+            "div_yield":      div_yield,
+            "payout_ratio":   payout_ratio,
+            "beta":           beta,
+            "float_shares":   float_shares,
+            "short_ratio":    short_ratio,
+            "short_pct_float":short_pct_float,
+            "insider_pct":    insider_pct,
+            "inst_pct":       inst_pct,
+        }
+    except Exception as e:
+        logger.error("get_fundamentals_rich failed for '%s': %s", ticker_sym, e)
+        return {}
+
 @st.cache_data(ttl=300)
 def av_search(query):
     """Search tickers — returns empty list (yfinance has no search API; app falls back to POPULAR_TICKERS)."""
@@ -3126,13 +3223,46 @@ def add_technical_features(df):
     df['Close_Open_Pct'] = (close - df['Open'].squeeze()) / df['Open'].squeeze()
     tr = pd.concat([high - low, (high - close.shift()).abs(), (low - close.shift()).abs()], axis=1).max(axis=1)
     df['ATR'] = tr.rolling(14).mean()
+
+    # ── Extra indicators ──────────────────────────────────────────────────────
+    # Stochastic %K / %D (14,3)
+    low14  = low.rolling(14).min()
+    high14 = high.rolling(14).max()
+    df['Stoch_K'] = (close - low14) / (high14 - low14 + 1e-10) * 100
+    df['Stoch_D'] = df['Stoch_K'].rolling(3).mean()
+
+    # On-Balance Volume (OBV)
+    obv = (np.sign(close.diff()) * volume).fillna(0).cumsum()
+    df['OBV'] = obv
+    df['OBV_EMA'] = obv.ewm(span=20, adjust=False).mean()
+
+    # Williams %R (14)
+    df['Williams_R'] = (high14 - close) / (high14 - low14 + 1e-10) * -100
+
+    # Commodity Channel Index (CCI 20)
+    tp = (high + low + close) / 3
+    df['CCI'] = (tp - tp.rolling(20).mean()) / (0.015 * tp.rolling(20).std().replace(0, 1e-10))
+
+    # Average Directional Index (ADX 14) — simplified
+    plus_dm  = (high.diff().clip(lower=0)).where(high.diff() > (-low.diff()), 0)
+    minus_dm = (-low.diff().clip(upper=0)).where((-low.diff()) > high.diff(), 0)
+    atr14    = tr.rolling(14).mean().replace(0, 1e-10)
+    plus_di  = 100 * plus_dm.rolling(14).mean()  / atr14
+    minus_di = 100 * minus_dm.rolling(14).mean() / atr14
+    dx       = (abs(plus_di - minus_di) / (plus_di + minus_di + 1e-10)) * 100
+    df['ADX']      = dx.rolling(14).mean()
+    df['Plus_DI']  = plus_di
+    df['Minus_DI'] = minus_di
+
     return df
 
 FEATURE_COLS = [
     'MA5','MA10','MA20','MA50','MA200','EMA12','EMA26',
     'RSI','MACD','MACD_Signal','MACD_Hist',
     'BB_Width','BB_Pct','Returns','Returns_5d','Volatility','Momentum',
-    'Volume_Ratio','High_Low_Pct','Close_Open_Pct','ATR'
+    'Volume_Ratio','High_Low_Pct','Close_Open_Pct','ATR',
+    # ── New indicators ──────────────────────────────────
+    'Stoch_K','Stoch_D','OBV','OBV_EMA','Williams_R','CCI','ADX','Plus_DI','Minus_DI',
 ]
 
 def build_xgb_dataset(df, seq_len):
@@ -3165,45 +3295,92 @@ def compute_composite_signal(df, last_close, forecast_price, preds, actual):
     vol_r = float(df['Volume_Ratio'].squeeze().iloc[-1])
     mom   = float(df['Momentum'].squeeze().iloc[-1])
     atr   = float(df['ATR'].squeeze().iloc[-1])
+
+    # New indicators (safe access — may be absent on short histories)
+    stoch_k  = float(df['Stoch_K'].squeeze().iloc[-1])  if 'Stoch_K'   in df.columns else 50.0
+    stoch_d  = float(df['Stoch_D'].squeeze().iloc[-1])  if 'Stoch_D'   in df.columns else 50.0
+    will_r   = float(df['Williams_R'].squeeze().iloc[-1]) if 'Williams_R' in df.columns else -50.0
+    adx      = float(df['ADX'].squeeze().iloc[-1])       if 'ADX'       in df.columns else 25.0
+    plus_di  = float(df['Plus_DI'].squeeze().iloc[-1])   if 'Plus_DI'   in df.columns else 25.0
+    minus_di = float(df['Minus_DI'].squeeze().iloc[-1])  if 'Minus_DI'  in df.columns else 25.0
+
     signals = {}
     xgb_pct = (forecast_price - last_close) / last_close * 100
-    if   xgb_pct >  1.5: signals['AI Outlook'] = ('BUY',  min(35, abs(xgb_pct)*6), xgb_pct, 'positive')
-    elif xgb_pct < -1.5: signals['AI Outlook'] = ('SELL', -min(35, abs(xgb_pct)*6), xgb_pct, 'negative')
-    else:                 signals['AI Outlook'] = ('HOLD', 0, xgb_pct, 'neutral')
-    if   rsi < 30: signals['RSI (14)'] = ('BUY',  20, rsi, 'positive')
-    elif rsi > 70: signals['RSI (14)'] = ('SELL', -20, rsi, 'negative')
-    elif rsi < 45: signals['RSI (14)'] = ('BUY',   8, rsi, 'positive')
-    elif rsi > 55: signals['RSI (14)'] = ('SELL',  -8, rsi, 'negative')
-    else:          signals['RSI (14)'] = ('HOLD',   0, rsi, 'neutral')
+
+    # 1. AI Outlook
+    if   xgb_pct >  1.5: signals['AI Outlook']    = ('BUY',  min(35, abs(xgb_pct)*6), xgb_pct, 'positive')
+    elif xgb_pct < -1.5: signals['AI Outlook']    = ('SELL', -min(35, abs(xgb_pct)*6), xgb_pct, 'negative')
+    else:                 signals['AI Outlook']    = ('HOLD', 0, xgb_pct, 'neutral')
+
+    # 2. RSI
+    if   rsi < 30: signals['RSI (14)']   = ('BUY',  20, rsi, 'positive')
+    elif rsi > 70: signals['RSI (14)']   = ('SELL', -20, rsi, 'negative')
+    elif rsi < 45: signals['RSI (14)']   = ('BUY',   8, rsi, 'positive')
+    elif rsi > 55: signals['RSI (14)']   = ('SELL',  -8, rsi, 'negative')
+    else:          signals['RSI (14)']   = ('HOLD',   0, rsi, 'neutral')
+
+    # 3. MACD Cross
     prev_hist = float(df['MACD_Hist'].squeeze().iloc[-2]) if len(df) > 2 else 0
     if   macd_h > 0 and prev_hist <= 0: signals['MACD Cross'] = ('BUY',  20, macd_h, 'positive')
     elif macd_h < 0 and prev_hist >= 0: signals['MACD Cross'] = ('SELL', -20, macd_h, 'negative')
     elif macd > macd_s:                 signals['MACD Cross'] = ('BUY',  10, macd_h, 'positive')
     elif macd < macd_s:                 signals['MACD Cross'] = ('SELL', -10, macd_h, 'negative')
     else:                               signals['MACD Cross'] = ('HOLD',  0, macd_h, 'neutral')
+
+    # 4. Bollinger %B
     if   bb_pct < 0.1: signals['Bollinger %B'] = ('BUY',  10, bb_pct, 'positive')
     elif bb_pct > 0.9: signals['Bollinger %B'] = ('SELL', -10, bb_pct, 'negative')
     else:              signals['Bollinger %B'] = ('HOLD',   0, bb_pct, 'neutral')
+
+    # 5. MA Cross (Golden/Death)
     if   ma50 > ma200 and close.iloc[-1] > ma50: signals['MA Cross'] = ('BUY',  15, ma50-ma200, 'positive')
     elif ma50 < ma200 and close.iloc[-1] < ma50: signals['MA Cross'] = ('SELL', -15, ma50-ma200, 'negative')
     else:                                         signals['MA Cross'] = ('HOLD',  0, ma50-ma200, 'neutral')
+
+    # 6. Volume Confirmation
     if   vol_r > 1.5 and xgb_pct > 0: signals['Volume'] = ('BUY',  10, vol_r, 'positive')
     elif vol_r > 1.5 and xgb_pct < 0: signals['Volume'] = ('SELL', -10, vol_r, 'negative')
     else:                              signals['Volume'] = ('HOLD',   0, vol_r, 'neutral')
+
+    # 7. Stochastic %K/%D  ← NEW
+    if   stoch_k < 20 and stoch_k > stoch_d: signals['Stochastic'] = ('BUY',  12, stoch_k, 'positive')
+    elif stoch_k > 80 and stoch_k < stoch_d: signals['Stochastic'] = ('SELL', -12, stoch_k, 'negative')
+    elif stoch_k < 30:                        signals['Stochastic'] = ('BUY',   6, stoch_k, 'positive')
+    elif stoch_k > 70:                        signals['Stochastic'] = ('SELL',  -6, stoch_k, 'negative')
+    else:                                     signals['Stochastic'] = ('HOLD',   0, stoch_k, 'neutral')
+
+    # 8. Williams %R  ← NEW
+    if   will_r < -80: signals['Williams %R'] = ('BUY',  10, will_r, 'positive')
+    elif will_r > -20: signals['Williams %R'] = ('SELL', -10, will_r, 'negative')
+    else:              signals['Williams %R'] = ('HOLD',   0, will_r, 'neutral')
+
+    # 9. ADX trend strength  ← NEW
+    if adx > 25:
+        if plus_di > minus_di: signals['ADX Trend'] = ('BUY',  8, adx, 'positive')
+        else:                  signals['ADX Trend'] = ('SELL', -8, adx, 'negative')
+    else:
+        signals['ADX Trend'] = ('HOLD', 0, adx, 'neutral')
+
     total_score = sum(s[1] for s in signals.values())
     if   total_score >= 25: verdict = "⬆ STRONG BUY";   verdict_short = "BUY"
     elif total_score >= 10: verdict = "↑ BUY";           verdict_short = "BUY"
     elif total_score <= -25:verdict = "⬇ STRONG SELL";  verdict_short = "SELL"
     elif total_score <= -10:verdict = "↓ SELL";          verdict_short = "SELL"
     else:                   verdict = "◆ HOLD";          verdict_short = "HOLD"
-    stop_loss   = last_close - 2 * atr
-    take_profit = last_close + 3 * atr
+
+    # ATR-scaled TP/SL — 1.5× ATR stop, 2.5× ATR target for better R:R discipline
+    volatility_mult = 1.0 + min(0.5, float(df['Volatility'].squeeze().dropna().iloc[-1]) * 10)
+    stop_loss   = last_close - 1.5 * atr * volatility_mult
+    take_profit = last_close + 2.5 * atr * volatility_mult
     risk_reward = (take_profit - last_close) / max(last_close - stop_loss, 0.01)
+
     return {
         'signals': signals, 'verdict': verdict, 'verdict_short': verdict_short,
         'total_score': total_score, 'xgb_pct': xgb_pct, 'rsi': rsi,
         'stop_loss': stop_loss, 'take_profit': take_profit, 'risk_reward': risk_reward,
         'vol_ratio': vol_r, 'atr': atr,
+        'stoch_k': stoch_k, 'stoch_d': stoch_d,
+        'williams_r': will_r, 'adx': adx,
     }
 
 def run_backtest_engine(actual_prices, predicted_prices, initial_capital, commission, threshold_pct):
@@ -3881,7 +4058,15 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown(f'<div class="stat-row">{_L["alert_target"]}</div>', unsafe_allow_html=True)
-    alert_price = st.number_input("Alert price", min_value=0.0, value=0.0, step=1.0, label_visibility="collapsed")
+    # Restore per-ticker saved alert price
+    _ap_key = f"alert_price_{ticker}"
+    _ap_saved = st.session_state.get(_ap_key, 0.0)
+    alert_price = st.number_input("Alert price", min_value=0.0, value=float(_ap_saved), step=1.0, label_visibility="collapsed", key="alert_price_input")
+    # Save back so it persists when user switches tickers and returns
+    if alert_price != _ap_saved:
+        st.session_state[_ap_key] = alert_price
+    if alert_price > 0:
+        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#ffd426;margin-top:.25rem;">🔔 Target set: ${alert_price:.2f}</div>', unsafe_allow_html=True)
 
     if not is_beginner:
         st.markdown("---")
@@ -4686,29 +4871,52 @@ else:
         fig_candle.update_yaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
         st.plotly_chart(fig_candle, use_container_width=True)
 
-        # ── RSI + MACD ──────────────────────────────────────────────────────────
+        # ── Technical Indicators — 4-panel ──────────────────────────────────────
         st.subheader(_L["tech_indicators"])
-        fig_tech = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.5, 0.5], vertical_spacing=0.08,
-                                 subplot_titles=["RSI (14)", "MACD (12/26/9)"])
+        fig_tech = make_subplots(
+            rows=4, cols=1, shared_xaxes=True,
+            row_heights=[0.28, 0.26, 0.24, 0.22],
+            vertical_spacing=0.04,
+            subplot_titles=["RSI (14)", "MACD (12/26/9)", "Stochastic %K/%D (14,3)", "Williams %R (14)"]
+        )
+        # Row 1: RSI
         fig_tech.add_trace(go.Scatter(x=df.index, y=df['RSI'].squeeze(), name="RSI", line=dict(color=C_ACCENT, width=1.5)), row=1, col=1)
         fig_tech.add_hline(y=70, line_dash="dash", line_color=C_RED,    row=1, col=1)
         fig_tech.add_hline(y=30, line_dash="dash", line_color=C_EMERALD, row=1, col=1)
         fig_tech.add_hrect(y0=70, y1=100, fillcolor="rgba(255,107,107,0.04)", line_width=0, row=1, col=1)
         fig_tech.add_hrect(y0=0,  y1=30,  fillcolor="rgba(0,229,176,0.04)",  line_width=0, row=1, col=1)
+        # Row 2: MACD
         fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD'].squeeze(), name="MACD", line=dict(color=C_ACCENT, width=1.2)), row=2, col=1)
         fig_tech.add_trace(go.Scatter(x=df.index, y=df['MACD_Signal'].squeeze(), name="Signal", line=dict(color=C_GREEN, width=1.2)), row=2, col=1)
         macd_hist   = df['MACD_Hist'].squeeze()
         hist_colors = [C_EMERALD if v >= 0 else C_RED for v in macd_hist]
         fig_tech.add_trace(go.Bar(x=df.index, y=macd_hist, name="Histogram", marker_color=hist_colors, opacity=0.65), row=2, col=1)
+        # Row 3: Stochastic
+        if 'Stoch_K' in df.columns and 'Stoch_D' in df.columns:
+            fig_tech.add_trace(go.Scatter(x=df.index, y=df['Stoch_K'].squeeze(), name="%K", line=dict(color=C_ACCENT, width=1.2)), row=3, col=1)
+            fig_tech.add_trace(go.Scatter(x=df.index, y=df['Stoch_D'].squeeze(), name="%D", line=dict(color=C_YELLOW, width=1.0, dash='dot')), row=3, col=1)
+            fig_tech.add_hline(y=80, line_dash="dash", line_color=C_RED,    row=3, col=1)
+            fig_tech.add_hline(y=20, line_dash="dash", line_color=C_EMERALD, row=3, col=1)
+            fig_tech.add_hrect(y0=80, y1=100, fillcolor="rgba(255,107,107,0.04)", line_width=0, row=3, col=1)
+            fig_tech.add_hrect(y0=0,  y1=20,  fillcolor="rgba(0,229,176,0.04)",  line_width=0, row=3, col=1)
+        # Row 4: Williams %R
+        if 'Williams_R' in df.columns:
+            fig_tech.add_trace(go.Scatter(x=df.index, y=df['Williams_R'].squeeze(), name="Williams %R", line=dict(color="#adc6ff", width=1.2)), row=4, col=1)
+            fig_tech.add_hline(y=-20, line_dash="dash", line_color=C_RED,    row=4, col=1)
+            fig_tech.add_hline(y=-80, line_dash="dash", line_color=C_EMERALD, row=4, col=1)
+            fig_tech.add_hrect(y0=-20, y1=0,    fillcolor="rgba(255,107,107,0.04)", line_width=0, row=4, col=1)
+            fig_tech.add_hrect(y0=-100,y1=-80,  fillcolor="rgba(0,229,176,0.04)",  line_width=0, row=4, col=1)
         subplot_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis','yaxis')}
-        fig_tech.update_layout(**subplot_layout, height=500)
+        fig_tech.update_layout(**subplot_layout, height=680)
         fig_tech.update_xaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
         fig_tech.update_yaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
-        fig_tech.update_yaxes(range=[0, 100], row=1, col=1)
+        fig_tech.update_yaxes(range=[0, 100],   row=1, col=1)
+        fig_tech.update_yaxes(range=[0, 100],   row=3, col=1)
+        fig_tech.update_yaxes(range=[-100, 0],  row=4, col=1)
         st.plotly_chart(fig_tech, use_container_width=True)
 
         # ── XGBoost Model ──────────────────────────────────────────────────────
-        st.markdown('<div class="model-badge">🤖 Powered by XGBoost · 20 Technical Signals + Lag Window</div>', unsafe_allow_html=True)
+        st.markdown('<div class="model-badge">🤖 Powered by XGBoost · 28 Technical Signals (RSI · MACD · Stochastic · Williams %R · ADX · OBV · CCI + Lag Window)</div>', unsafe_allow_html=True)
 
         with st.expander("📖 How this assistant works — methodology & limitations", expanded=False):
             st.markdown(f"""<div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.7;">
@@ -4762,15 +4970,37 @@ else:
         _progress_placeholder.empty()  # clear once all steps done
 
         # ── Model Performance ──────────────────────────────────────────────────
-        st.subheader("Analysis Quality")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("RMSE",  f"${rmse:.2f}")
-        c2.metric("MAE",   f"${mae:.2f}")
-        c3.metric("MAPE",  f"{mape:.2f}%")
-        c4.metric("R²",    f"{r2:.4f}")
         mape_label = ("🟢 Excellent" if mape<2 else "🟡 Good" if mape<5 else "🟠 Fair" if mape<10 else "🔴 Poor")
         r2_label   = ("🟢 Excellent" if r2>0.95 else "🟡 Good" if r2>0.85 else "🟠 Fair" if r2>0.70 else "🔴 Poor")
-        st.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;padding:.65rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;"><span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span><span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span></div>', unsafe_allow_html=True)
+        dir_acc_label = ("🟢 Strong" if dir_acc>=60 else "🟡 Moderate" if dir_acc>=50 else "🔴 Weak")
+        st.markdown(f"""
+        <div class="stat-grid" style="margin-bottom:.5rem;">
+          <div class="stat-card">
+            <div class="stat-label">RMSE</div>
+            <div class="stat-value" style="color:#adc6ff;">${rmse:.2f}</div>
+            <div class="stat-sub">Root mean sq error</div>
+          </div>
+          <div class="stat-card" style="border-top-color:#ffd426;">
+            <div class="stat-label">MAPE</div>
+            <div class="stat-value" style="color:#ffd426;">{mape:.2f}%</div>
+            <div class="stat-sub">{mape_label}</div>
+          </div>
+          <div class="stat-card" style="border-top-color:#00e5b0;">
+            <div class="stat-label">R² Score</div>
+            <div class="stat-value" style="color:#00e5b0;">{r2:.4f}</div>
+            <div class="stat-sub">{r2_label}</div>
+          </div>
+          <div class="stat-card" style="border-top-color:#4d8eff;">
+            <div class="stat-label">Directional Accuracy</div>
+            <div class="stat-value" style="color:#4d8eff;">{dir_acc:.1f}%</div>
+            <div class="stat-sub">{dir_acc_label}</div>
+          </div>
+        </div>
+        <div style="background:#0f1727;border:1px solid #252f47;padding:.55rem 1.2rem;font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#3e4558;display:flex;gap:2rem;flex-wrap:wrap;border-radius:.5rem;margin-bottom:.5rem;">
+          <span>MAPE: {mape_label} · &lt;2% excellent · &lt;5% good · &lt;10% fair</span>
+          <span>R²: {r2_label} · &gt;0.95 excellent · &gt;0.85 good · &gt;0.70 fair</span>
+          <span>MAE: ${mae:.2f} · Dir Acc: {dir_acc:.1f}%</span>
+        </div>""", unsafe_allow_html=True)
 
         # FIX 5: Tab orientation cue — shown once after analysis runs
         st.markdown(f"""
@@ -5366,11 +5596,22 @@ else:
             _trc  = "buy" if xgb_pct>=0 else "sell"
             _trl  = f"{'Up' if xgb_pct>=0 else 'Down'} {abs(xgb_pct):.1f}%"
 
+            _stoch_k = composite.get('stoch_k', 50.0)
+            _will_r  = composite.get('williams_r', -50.0)
+            _adx_val = composite.get('adx', 25.0)
+            _stoch_c = "sell" if _stoch_k > 80 else "buy" if _stoch_k < 20 else "hold"
+            _will_c  = "sell" if _will_r > -20 else "buy" if _will_r < -80 else "hold"
+            _adx_lbl = "Strong Trend" if _adx_val > 25 else "Weak/Ranging"
+            _adx_c   = "buy" if (_adx_val > 25 and xgb_pct > 0) else "sell" if (_adx_val > 25 and xgb_pct < 0) else "hold"
+
             st.markdown(f"""
-            <div class="chip-group" style="margin-bottom:.75rem;">
+            <div class="chip-group" style="margin-bottom:.75rem;flex-wrap:wrap;gap:.35rem;">
               <span class="chip {_chs} dot" style="font-size:.68rem;padding:.35rem .9rem;">{verdict_short}</span>
-              <span class="chip {_rsic} dot">{_rsil}</span>
+              <span class="chip {_rsic} dot">RSI {rsi_val:.0f} · {_rsil}</span>
               <span class="chip {_trc} dot">{_trl} Outlook</span>
+              <span class="chip {_stoch_c} dot">Stoch {_stoch_k:.0f}</span>
+              <span class="chip {_will_c} dot">W%R {_will_r:.0f}</span>
+              <span class="chip {_adx_c} dot">ADX {_adx_val:.0f} · {_adx_lbl}</span>
               <span class="chip live dot">Live</span>
               <span class="chip ai dot">XGBoost</span>
             </div>
@@ -5379,18 +5620,18 @@ else:
                 <div class="signal-lbl">{_L["composite_signal"]}</div>
                 <div class="signal-action {verdict_css}">{verdict}</div>
                 <div class="signal-pct">{sign}{xgb_pct:.2f}% {_L["forecast_lbl"]}</div>
-                <div class="signal-lbl" style="margin-top:8px;">{_L["score_lbl"]}: <span style="color:{score_color};font-size:.9rem;font-weight:800;">{total_score:+.0f}</span> / ±100</div>
+                <div class="signal-lbl" style="margin-top:8px;">{_L["score_lbl"]}: <span style="color:{score_color};font-size:.9rem;font-weight:800;">{total_score:+.0f}</span> / ±135</div>
               </div>
               <div class="signal-details">
                 <div class="sig-card positive">
                   <div class="sig-lbl">{_L["take_profit_lbl"]}</div>
                   <div class="sig-val">${take_profit:.2f}</div>
-                  <div class="sig-sub">+{((take_profit-last_close)/last_close*100):.1f}% · 3× ATR</div>
+                  <div class="sig-sub">+{((take_profit-last_close)/last_close*100):.1f}% · 2.5× ATR</div>
                 </div>
                 <div class="sig-card negative">
                   <div class="sig-lbl">{_L["stop_loss_lbl"]}</div>
                   <div class="sig-val">${stop_loss:.2f}</div>
-                  <div class="sig-sub">{((stop_loss-last_close)/last_close*100):.1f}% · 2× ATR</div>
+                  <div class="sig-sub">{((stop_loss-last_close)/last_close*100):.1f}% · 1.5× ATR</div>
                 </div>
                 <div class="sig-card {rr_color}">
                   <div class="sig-lbl">{_L["risk_reward_lbl"]}</div>
@@ -5401,6 +5642,16 @@ else:
                   <div class="sig-lbl">{_L["rsi_lbl"]}</div>
                   <div class="sig-val">{rsi_val:.1f}</div>
                   <div class="sig-sub">{_L["oversold_zone"] if rsi_val<30 else _L["overbought_zone"] if rsi_val>70 else _L["neutral_zone"]}</div>
+                </div>
+                <div class="sig-card {'positive' if _stoch_k < 50 else 'negative'}">
+                  <div class="sig-lbl">Stochastic %K</div>
+                  <div class="sig-val">{_stoch_k:.1f}</div>
+                  <div class="sig-sub">{"Oversold Zone" if _stoch_k<20 else "Overbought Zone" if _stoch_k>80 else "Neutral"}</div>
+                </div>
+                <div class="sig-card {'positive' if _will_r < -50 else 'negative'}">
+                  <div class="sig-lbl">Williams %R</div>
+                  <div class="sig-val">{_will_r:.1f}</div>
+                  <div class="sig-sub">{"Oversold Zone" if _will_r<-80 else "Overbought Zone" if _will_r>-20 else "Neutral"}</div>
                 </div>
               </div>
             </div>
@@ -5418,6 +5669,129 @@ else:
                   <span class="sir-sig {sig_action.lower()}">{sig_action}</span>
                 </div>""", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
+
+            # ── Trust & credibility strip ─────────────────────────────────────
+            st.markdown(f"""
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;
+                 padding:.55rem 1rem;background:#080e1c;border:1px solid #1a2236;
+                 border-radius:.5rem;margin:.6rem 0 1.2rem;">
+              <span style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#3e4558;font-weight:700;text-transform:uppercase;letter-spacing:.1em;">Data sources</span>
+              <span style="font-size:.6rem;color:#3e4558;">·</span>
+              <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#8a8fa0;">Yahoo Finance (OHLCV)</span>
+              <span style="font-size:.6rem;color:#3e4558;">·</span>
+              <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#8a8fa0;">yfinance API (Fundamentals)</span>
+              <span style="font-size:.6rem;color:#3e4558;">·</span>
+              <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#8a8fa0;">CNN Fear &amp; Greed (Sentiment)</span>
+              <span style="font-size:.6rem;color:#3e4558;">·</span>
+              <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#ffd426;">⚠ Not financial advice</span>
+              <span style="margin-left:auto;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;">9 signals · XGBoost · ATR-scaled TP/SL</span>
+            </div>
+            """, unsafe_allow_html=True)
+            with st.expander("📊 Fundamentals & Valuation — " + ticker, expanded=False):
+                with st.spinner("Loading fundamental data..."):
+                    _fund = get_fundamentals_rich(ticker)
+                if not _fund:
+                    st.info("Fundamental data unavailable for this ticker.")
+                else:
+                    _f1, _f2, _f3 = st.columns(3)
+
+                    def _fval(v, fmt="{:.2f}", suffix="", prefix="", fallback="—"):
+                        if v is None: return fallback
+                        try: return prefix + fmt.format(v) + suffix
+                        except: return fallback
+
+                    def _fpct(v, fallback="—"):
+                        if v is None: return fallback
+                        return f"{v*100:+.1f}%"
+
+                    def _fcolor(v, good_positive=True):
+                        if v is None: return "#8a8fa0"
+                        return ("#00e5b0" if v > 0 else "#ff5f5f") if good_positive else ("#ff5f5f" if v > 0 else "#00e5b0")
+
+                    # Column 1: Valuation multiples
+                    with _f1:
+                        st.markdown(f"""
+                        <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #4d8eff;border-radius:.75rem;padding:1.2rem 1.4rem;">
+                          <div style="font-size:.58rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#4d8eff;margin-bottom:.9rem;">Valuation Multiples</div>
+                          {"".join(f'<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.7rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
+                            ("P/E (TTM)",  _fval(_fund.get("pe_trailing"), "{:.1f}×"),
+                             "#ffd426" if _fund.get("pe_trailing") and _fund["pe_trailing"]<25 else "#ff5f5f" if _fund.get("pe_trailing") else "#8a8fa0"),
+                            ("P/E (Fwd)",  _fval(_fund.get("pe_forward"), "{:.1f}×"), "#e4eafd"),
+                            ("P/B",        _fval(_fund.get("pb"),         "{:.2f}×"), "#e4eafd"),
+                            ("P/S (TTM)",  _fval(_fund.get("ps_ttm"),     "{:.2f}×"), "#e4eafd"),
+                            ("PEG Ratio",  _fval(_fund.get("peg"),        "{:.2f}"),
+                             "#00e5b0" if _fund.get("peg") and _fund["peg"]<1.5 else "#ffd426" if _fund.get("peg") else "#8a8fa0"),
+                            ("EV/EBITDA",  _fval(_fund.get("ev_ebitda"),  "{:.1f}×"), "#e4eafd"),
+                          ])}
+                        </div>""", unsafe_allow_html=True)
+
+                    # Column 2: Growth & Margins
+                    with _f2:
+                        st.markdown(f"""
+                        <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #00e5b0;border-radius:.75rem;padding:1.2rem 1.4rem;">
+                          <div style="font-size:.58rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#00e5b0;margin-bottom:.9rem;">Growth &amp; Margins</div>
+                          {"".join(f'<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.7rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
+                            ("Rev Growth YoY",  _fpct(_fund.get("rev_growth_yoy")),  _fcolor(_fund.get("rev_growth_yoy"))),
+                            ("EPS Growth YoY",  _fpct(_fund.get("earn_growth_yoy")), _fcolor(_fund.get("earn_growth_yoy"))),
+                            ("EPS (TTM)",       _fval(_fund.get("eps_ttm"), "${:.2f}"), "#e4eafd"),
+                            ("EPS (Fwd)",       _fval(_fund.get("eps_fwd"), "${:.2f}"), "#adc6ff"),
+                            ("Gross Margin",    _fpct(_fund.get("gross_margin")),     "#e4eafd"),
+                            ("Op Margin",       _fpct(_fund.get("op_margin")),        _fcolor(_fund.get("op_margin"))),
+                            ("Net Margin",      _fpct(_fund.get("profit_margin")),    _fcolor(_fund.get("profit_margin"))),
+                            ("ROE",             _fpct(_fund.get("roe")),              _fcolor(_fund.get("roe"))),
+                          ])}
+                        </div>""", unsafe_allow_html=True)
+
+                    # Column 3: Analyst targets + sentiment
+                    with _f3:
+                        _rec = (_fund.get("recommendation") or "").replace("_", " ").title()
+                        _rec_color = "#00e5b0" if "buy" in _rec.lower() else "#ff5f5f" if "sell" in _rec.lower() else "#ffd426"
+                        _upside = _fund.get("upside_pct")
+                        _up_color = "#00e5b0" if (_upside or 0) > 0 else "#ff5f5f"
+                        st.markdown(f"""
+                        <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #ffd426;border-radius:.75rem;padding:1.2rem 1.4rem;">
+                          <div style="font-size:.58rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#ffd426;margin-bottom:.9rem;">Analyst Consensus · {_fund.get("num_analysts",0)} analysts</div>
+                          {"".join(f'<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.7rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
+                            ("Consensus",    _rec or "—",                                              _rec_color),
+                            ("Price Target", _fval(_fund.get("target_mean"),"${:.2f}"),               "#e4eafd"),
+                            ("Target High",  _fval(_fund.get("target_high"),"${:.2f}"),               "#00e5b0"),
+                            ("Target Low",   _fval(_fund.get("target_low"), "${:.2f}"),               "#ff5f5f"),
+                            ("Upside/Down",  (f"{_upside:+.1f}%" if _upside is not None else "—"),   _up_color),
+                            ("Beta",         _fval(_fund.get("beta"),       "{:.2f}"),                "#e4eafd"),
+                            ("Short %Float", _fpct(_fund.get("short_pct_float")),                     "#ffd426" if (_fund.get("short_pct_float") or 0) > 0.1 else "#e4eafd"),
+                            ("Insider %",    _fpct(_fund.get("insider_pct")),                         "#e4eafd"),
+                          ])}
+                        </div>""", unsafe_allow_html=True)
+
+                    # Company description
+                    if _fund.get("description"):
+                        st.markdown(f"""
+                        <div style="margin-top:.8rem;background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12);
+                             border-radius:.5rem;padding:.9rem 1.2rem;">
+                          <div style="font-size:.58rem;font-weight:700;color:#4d8eff;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem;">
+                            About · {_fund.get("name",ticker)}
+                          </div>
+                          <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8a8fa0;line-height:1.65;">
+                            {_fund["description"]}{"..." if len(_fund.get("description",""))>=400 else ""}
+                          </div>
+                          <div style="font-size:.58rem;color:#3e4558;margin-top:.4rem;">{_fund.get("sector","")}{" · " + _fund.get("industry","") if _fund.get("industry") else ""}</div>
+                        </div>""", unsafe_allow_html=True)
+
+            # ── OBV Chart ─────────────────────────────────────────────────────
+            if 'OBV' in df.columns:
+                with st.expander("📈 On-Balance Volume (OBV) — Smart Money Flow", expanded=False):
+                    fig_obv = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.55, 0.45], vertical_spacing=0.06)
+                    fig_obv.add_trace(go.Scatter(x=df.index, y=close_series, name="Price", line=dict(color=C_ACCENT, width=1.5)), row=1, col=1)
+                    fig_obv.add_trace(go.Scatter(x=df.index, y=df['OBV'].squeeze(), name="OBV", line=dict(color=C_EMERALD, width=1.5), fill='tozeroy', fillcolor='rgba(0,229,176,0.05)'), row=2, col=1)
+                    if 'OBV_EMA' in df.columns:
+                        fig_obv.add_trace(go.Scatter(x=df.index, y=df['OBV_EMA'].squeeze(), name="OBV EMA(20)", line=dict(color=C_YELLOW, width=1.0, dash='dot')), row=2, col=1)
+                    _obv_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ('xaxis','yaxis')}
+                    fig_obv.update_layout(**_obv_layout, height=420,
+                        title=dict(text=f"{ticker} · Price vs On-Balance Volume · Divergence = early signal", font=dict(color=C_GREEN, size=13)))
+                    fig_obv.update_xaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
+                    fig_obv.update_yaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
+                    st.plotly_chart(fig_obv, use_container_width=True)
+                    st.markdown('<div style="background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.15);border-left:3px solid #00e5b0;padding:.6rem 1.2rem;font-family:Manrope,sans-serif;font-size:.72rem;color:#8a8fa0;border-radius:0 .5rem .5rem 0;">💡 OBV rising with flat/falling price = accumulation (bullish divergence). OBV falling with rising price = distribution (bearish divergence).</div>', unsafe_allow_html=True)
 
             # ── Future Forecast ────────────────────────────────────────────────
             st.subheader(_L["forecast_next"].format(n=future_days))
