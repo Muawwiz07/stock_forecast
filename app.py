@@ -39,6 +39,9 @@ warnings.filterwarnings('ignore')
 import threading
 from typing import List
 
+# ── Signal Engine (modular BUY/SELL/HOLD decision system) ─────────────────────
+from signal_engine import generate_signal, generate_insight, render_signal_card, run_signal_ui
+
 # ── Logging setup ──────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -558,7 +561,7 @@ def _build_signal_email_html(user_email, ticker, signal, price, score, tp, sl, r
   </div>
 </div></body></html>"""
 
-def _build_investor_csv(ticker, df, preds, actual, rmse, mae, mape, r2, comp):
+def _build_investor_csv(ticker, df, preds, actual, rmse, mae, mape, r2, comp, se_signal=None):
     import io, csv
     buf = io.StringIO(); w = csv.writer(buf)
     lc  = float(df["Close"].squeeze().iloc[-1])
@@ -570,6 +573,13 @@ def _build_investor_csv(ticker, df, preds, actual, rmse, mae, mape, r2, comp):
     sl  = comp.get("stop_loss",0) if comp else 0
     rr  = comp.get("risk_reward",0) if comp else 0
     xp  = comp.get("xgb_pct",0) if comp else 0
+    # Signal Engine fields
+    se_sig   = se_signal.get("signal","—")       if se_signal else "—"
+    se_conf  = se_signal.get("confidence",0)      if se_signal else 0
+    se_trend = se_signal.get("trend","—")         if se_signal else "—"
+    se_sent  = se_signal.get("sentiment","—")     if se_signal else "—"
+    se_vol   = se_signal.get("volatility","—")    if se_signal else "—"
+    se_conf_flag = "Yes" if (se_signal or {}).get("conflict", False) else "No"
     w.writerows([
         ["STOCKCAST — Investor Intelligence Report"],
         [f"Ticker: {ticker}",f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M UTC')}"],
@@ -582,6 +592,10 @@ def _build_investor_csv(ticker, df, preds, actual, rmse, mae, mape, r2, comp):
         ["── SIGNAL INTELLIGENCE ──"],
         ["Signal",sig],["Score (±100)",f"{sco:+.0f}"],["XGBoost Forecast %",f"{xp:+.2f}%"],
         ["Take Profit ($)",f"{tp:.2f}"],["Stop Loss ($)",f"{sl:.2f}"],["Risk/Reward",f"{rr:.2f}×"],[],
+        ["── AI SIGNAL ENGINE ──"],
+        ["SE Signal",se_sig],["SE Confidence (%)",f"{se_conf:.1f}"],
+        ["SE Trend",se_trend],["SE Sentiment",se_sent],
+        ["SE Volatility",se_vol],["SE Conflict",se_conf_flag],[],
         ["── DISCLAIMER ──"],
         ["For educational and research purposes only. Not financial advice."],
     ])
@@ -4271,30 +4285,105 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
+    # ── PHASE 1: DATA QUALITY LAYER ──────────────────────────────────────
     _show_progress(1, 5, f"📡 Fetching {ticker} price history...")
-    df = fetch_data(ticker, start_date, end_date)
+
+    def _get_data_quality(ticker_sym, start, end):
+        """Safe fetch with quality metadata — source, timestamp, missing%, validation."""
+        import datetime as _dt
+        meta = {
+            "source": "Yahoo Finance",
+            "fetched_at": pd.Timestamp.utcnow(),
+            "trading_days": 0,
+            "missing_pct": 0.0,
+            "last_updated_str": "just now",
+            "quality_ok": False,
+            "error": None,
+        }
+        try:
+            _raw = fetch_data(ticker_sym, start, end)
+            if _raw.empty:
+                meta["error"] = f"No data returned for '{ticker_sym}'."
+                return pd.DataFrame(), meta
+            # Quality checks
+            total_cells = _raw.size
+            missing     = _raw.isnull().sum().sum()
+            missing_pct = round(missing / total_cells * 100, 2) if total_cells > 0 else 0
+            _raw = _raw.dropna(subset=["Close"]).ffill().bfill()
+            # Human-readable last-update label
+            last_ts = _raw.index[-1] if not _raw.empty else None
+            if last_ts is not None:
+                delta_days = (pd.Timestamp.utcnow().normalize() -
+                              pd.Timestamp(last_ts).normalize()).days
+                if   delta_days == 0: label = "today"
+                elif delta_days == 1: label = "yesterday"
+                else:                 label = f"{delta_days} days ago"
+            else:
+                label = "unknown"
+            meta.update({
+                "trading_days": len(_raw),
+                "missing_pct":  missing_pct,
+                "last_updated_str": label,
+                "quality_ok": len(_raw) >= 50 and missing_pct < 5,
+            })
+            return _raw, meta
+        except Exception as _exc:
+            meta["error"] = str(_exc)
+            return pd.DataFrame(), meta
+
+    df, _data_meta = _get_data_quality(ticker, start_date, end_date)
 
     if df.empty:
         _progress_placeholder.empty()
-        st.error(f"⚠ No data found for '{ticker}'. Check the symbol — for Indian stocks use .NS suffix e.g. RELIANCE.NS, TCS.NS. For indices use ^ prefix e.g. ^GSPC")
+        _err = _data_meta.get("error", "")
+        st.markdown(f"""
+        <div style="background:rgba(255,87,87,0.06);border:1px solid rgba(255,87,87,0.25);
+             border-left:4px solid #ff5f5f;border-radius:0 .75rem .75rem 0;
+             padding:1.2rem 1.6rem;margin:.8rem 0;">
+          <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.16em;
+               text-transform:uppercase;color:#ff5f5f;margin-bottom:.5rem;font-weight:700;">
+            ⚠ Data unavailable — {ticker}
+          </div>
+          <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;line-height:1.65;">
+            {"Could not fetch market data. " + _err if _err else "No data returned from Yahoo Finance."}<br><br>
+            <b style="color:#e4eafd;">Possible fixes:</b><br>
+            · Indian stocks: <code>RELIANCE.NS</code> · Indices: <code>^GSPC</code><br>
+            · Try a longer date range — ticker may be newly listed<br>
+            · Yahoo Finance may be temporarily unavailable — try again shortly
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
         st.stop()
 
     _progress_placeholder.empty()
-    st.success(_L["days_loaded"].format(n=len(df), ticker=ticker))
 
-    # Data freshness + trust row
-    _now_ts = pd.Timestamp.now().strftime("%b %d, %Y · %H:%M UTC")
+    # ── Enhanced data quality strip (replaces old freshness bar) ──────────
+    _dq_color   = "#00e5b0" if _data_meta["quality_ok"] else "#ffd426"
+    _dq_warn    = (f'<span style="color:#ffd426;margin-left:.6rem;">⚠ {_data_meta["missing_pct"]:.1f}% missing (forward-filled)</span>'
+                   if _data_meta["missing_pct"] > 0 else "")
+    _dq_ts      = _data_meta["fetched_at"].strftime("%b %d, %Y · %H:%M UTC")
     st.markdown(f"""
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
          gap:.5rem;margin:.2rem 0 .8rem;padding:.55rem 1.1rem;
-         background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.12);border-radius:.5rem;">
+         background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.14);border-radius:.5rem;">
       <div style="display:flex;align-items:center;gap:.5rem;">
-        <span class="live-dot"></span>
-        <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#00e5b0;letter-spacing:.06em;">
-          {len(df)} trading days · via Yahoo Finance · refreshed {_now_ts}
+        <span style="width:7px;height:7px;border-radius:50%;background:{_dq_color};
+              display:inline-block;box-shadow:0 0 5px {_dq_color};"></span>
+        <span style="font-family:IBM Plex Mono,monospace;font-size:.68rem;
+              color:{_dq_color};letter-spacing:.05em;">
+          Data source: <b>Yahoo Finance</b>
+          &nbsp;·&nbsp; Updated: <b>{_data_meta["last_updated_str"]}</b>
+          &nbsp;·&nbsp; {_data_meta["trading_days"]:,} trading days loaded
+          {_dq_warn}
         </span>
       </div>
-      <span class="disclaimer-pill">⚠ Not Financial Advice · Educational Use Only</span>
+      <div style="display:flex;align-items:center;gap:.7rem;">
+        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">{_dq_ts}</span>
+        <span style="display:inline-flex;align-items:center;gap:.4rem;
+              background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2);
+              border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace;
+              font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not Financial Advice</span>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4336,24 +4425,102 @@ else:
         _progress_placeholder.empty()
         close_series = df['Close'].squeeze()
 
-        # ── Candlestick Chart ──────────────────────────────────────────────────
+        # ── PHASE 2: ENHANCED PRICE CHART (timeframe selector + MA toggle) ──────
         st.subheader(_L["price_chart"])
-        fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.72, 0.28], vertical_spacing=0.02)
-        fig_candle.add_trace(go.Candlestick(x=df.index,
-            open=df['Open'].squeeze(), high=df['High'].squeeze(),
-            low=df['Low'].squeeze(), close=close_series,
-            name="Price", increasing_line_color=C_EMERALD, decreasing_line_color=C_RED), row=1, col=1)
-        fig_candle.add_trace(go.Scatter(x=df.index, y=df['MA50'].squeeze(), name="MA50", line=dict(color=C_YELLOW, width=1.2)), row=1, col=1)
-        fig_candle.add_trace(go.Scatter(x=df.index, y=df['MA200'].squeeze(), name="MA200", line=dict(color=C_ACCENT, width=1.2)), row=1, col=1)
-        fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Upper'].squeeze(), name="BB Upper", line=dict(color=C_GREY, width=0.8, dash='dot')), row=1, col=1)
-        fig_candle.add_trace(go.Scatter(x=df.index, y=df['BB_Lower'].squeeze(), name="BB Lower", line=dict(color=C_GREY, width=0.8, dash='dot'), fill='tonexty', fillcolor='rgba(77,142,255,0.05)'), row=1, col=1)
-        colors_vol = [C_EMERALD if c >= o else C_RED for c, o in zip(close_series, df['Open'].squeeze())]
-        fig_candle.add_trace(go.Bar(x=df.index, y=df['Volume'].squeeze(), name="Volume", marker_color=colors_vol, opacity=0.5), row=2, col=1)
-        candle_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("xaxis","yaxis")}
-        fig_candle.update_layout(**candle_layout,
-            title=dict(text=f"{ticker} · Candlestick · MA50/200 · Bollinger · Volume", font=dict(color=C_GREEN, size=13)),
-            xaxis_rangeslider_visible=False, height=620)
-        fig_candle.update_xaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
+
+        # Timeframe selector buttons
+        _tf_options = {"1D": 1, "1W": 5, "1M": 21, "3M": 63, "6M": 126, "1Y": 252, "All": None}
+        _tf_key = f"chart_tf_{ticker}"
+        if _tf_key not in st.session_state:
+            st.session_state[_tf_key] = "3M"
+
+        _tf_cols = st.columns(len(_tf_options))
+        for _tfi, (_tfl, _) in enumerate(_tf_options.items()):
+            _is_active = (st.session_state[_tf_key] == _tfl)
+            _btn_style = ("background:rgba(77,142,255,0.18);border:1px solid #4d8eff;color:#adc6ff;"
+                          if _is_active else "background:#0f1727;border:1px solid #252f47;color:#3e4558;")
+            if _tf_cols[_tfi].button(_tfl, key=f"tf_{_tfl}_{ticker}", use_container_width=True):
+                st.session_state[_tf_key] = _tfl
+                st.rerun()
+
+        _tf_bars = _tf_options[st.session_state[_tf_key]]
+        _df_view = df.iloc[-_tf_bars:] if _tf_bars else df
+        _cv_close = _df_view["Close"].squeeze()
+        _cv_open  = _df_view["Open"].squeeze()
+
+        _show_ma20 = st.checkbox("Show MA 20", value=True, key=f"ma20_{ticker}")
+
+        fig_candle = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                                   row_heights=[0.73, 0.27], vertical_spacing=0.02)
+
+        fig_candle.add_trace(go.Candlestick(
+            x=_df_view.index,
+            open=_cv_open, high=_df_view["High"].squeeze(),
+            low=_df_view["Low"].squeeze(), close=_cv_close,
+            name="Price",
+            increasing_line_color=C_EMERALD, decreasing_line_color=C_RED,
+            increasing_fillcolor=C_EMERALD,  decreasing_fillcolor=C_RED,
+            hoverlabel=dict(bgcolor="#0f1727", font_size=11),
+        ), row=1, col=1)
+
+        # MA overlays — MA20 (toggleable), MA50, MA200
+        if _show_ma20 and len(_df_view) >= 20:
+            _ma20 = _cv_close.rolling(20).mean()
+            fig_candle.add_trace(go.Scatter(
+                x=_df_view.index, y=_ma20, name="MA 20",
+                line=dict(color="#ff9f40", width=1.3, dash="dot"),
+                hovertemplate="MA20: $%{y:.2f}<extra></extra>",
+            ), row=1, col=1)
+
+        if "MA50" in _df_view.columns:
+            fig_candle.add_trace(go.Scatter(
+                x=_df_view.index, y=_df_view["MA50"].squeeze(), name="MA 50",
+                line=dict(color=C_YELLOW, width=1.2),
+                hovertemplate="MA50: $%{y:.2f}<extra></extra>",
+            ), row=1, col=1)
+        if "MA200" in _df_view.columns:
+            fig_candle.add_trace(go.Scatter(
+                x=_df_view.index, y=_df_view["MA200"].squeeze(), name="MA 200",
+                line=dict(color=C_ACCENT, width=1.2),
+                hovertemplate="MA200: $%{y:.2f}<extra></extra>",
+            ), row=1, col=1)
+
+        # Bollinger bands
+        if "BB_Upper" in _df_view.columns:
+            fig_candle.add_trace(go.Scatter(
+                x=_df_view.index, y=_df_view["BB_Upper"].squeeze(), name="BB Upper",
+                line=dict(color=C_GREY, width=0.8, dash="dot"),
+                hovertemplate="BB Upper: $%{y:.2f}<extra></extra>",
+            ), row=1, col=1)
+            fig_candle.add_trace(go.Scatter(
+                x=_df_view.index, y=_df_view["BB_Lower"].squeeze(), name="BB Lower",
+                line=dict(color=C_GREY, width=0.8, dash="dot"),
+                fill="tonexty", fillcolor="rgba(77,142,255,0.05)",
+                hovertemplate="BB Lower: $%{y:.2f}<extra></extra>",
+            ), row=1, col=1)
+
+        # Volume
+        colors_vol = [C_EMERALD if c >= o else C_RED for c, o in zip(_cv_close, _cv_open)]
+        fig_candle.add_trace(go.Bar(
+            x=_df_view.index, y=_df_view["Volume"].squeeze(), name="Volume",
+            marker_color=colors_vol, opacity=0.45,
+            hovertemplate="%{x}<br>Vol: %{y:,.0f}<extra></extra>",
+        ), row=2, col=1)
+
+        candle_layout = {k: v for k, v in PLOTLY_LAYOUT.items() if k not in ("xaxis", "yaxis")}
+        fig_candle.update_layout(
+            **candle_layout,
+            title=dict(
+                text=f"{ticker} · {st.session_state[_tf_key]} · Candlestick · BB · Volume",
+                font=dict(color=C_GREEN, size=13),
+            ),
+            xaxis_rangeslider_visible=False,
+            height=600,
+        )
+        fig_candle.update_xaxes(
+            gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY),
+            showspikes=True, spikethickness=1, spikecolor=C_ACCENT, spikedash="dot",
+        )
         fig_candle.update_yaxes(gridcolor="#252f47", linecolor="#252f47", tickfont=dict(color=C_GREY))
         st.plotly_chart(fig_candle, use_container_width=True)
 
@@ -5047,7 +5214,7 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            # ── Signal Intelligence ────────────────────────────────────────────────
+            # ── PHASE 3 + 4: SIGNAL INTELLIGENCE · TRUST SYSTEM · ALERTS ────────
             st.subheader(_L["signal_intelligence"])
             composite    = compute_composite_signal(df, last_close, preds[-1], preds, actual)
             verdict      = composite['verdict']
@@ -5061,16 +5228,166 @@ else:
             vol_ratio    = composite['vol_ratio']
             atr_val      = composite['atr']
             sigs         = composite['signals']
+            _stoch_k_sig = composite.get('stoch_k', 50.0)
+            _adx_sig     = composite.get('adx', 25.0)
 
-            if alert_on_signal_change:
-                prev_verdict = st.session_state.alert_signals.get(ticker)
-                if prev_verdict is not None and prev_verdict != verdict_short:
-                    _ac = {"BUY":"#00e5b0","SELL":"#ff5f5f"}.get(verdict_short,"#ffd426")
-                    st.markdown(
-                        f'<div style="background:rgba(77,142,255,0.08);border:1px solid {_ac};border-left:4px solid {_ac};padding:.8rem 1.4rem;margin-bottom:1rem;font-family:Manrope,sans-serif;font-size:.78rem;color:{_ac};font-weight:700;border-radius:0 .5rem .5rem 0;">🔔 SIGNAL CHANGE — {ticker} &nbsp;|&nbsp; {prev_verdict} → {verdict_short} &nbsp;|&nbsp; Score: {total_score:+.0f}</div>' +
-                        f'<script>if(window.SCNotify)SCNotify.signal("{ticker}","{verdict_short}");</script>',
-                        unsafe_allow_html=True)
-                st.session_state.alert_signals[ticker] = verdict_short
+            # ── PHASE 3: Confidence score ────────────────────────────────────
+            # Normalise |score| to 0-100 (max theoretical ≈ ±135)
+            _sig_conf = min(100, int(abs(total_score) / 135 * 100))
+            # Penalise when AI direction and composite score disagree
+            if (total_score > 0 and xgb_pct < 0) or (total_score < 0 and xgb_pct > 0):
+                _sig_conf = int(_sig_conf * 0.7)
+            _conf_color = "#00e5b0" if _sig_conf >= 70 else "#ffd426" if _sig_conf >= 45 else "#ff5f5f"
+            _conf_label = "HIGH CONFIDENCE" if _sig_conf >= 70 else "MODERATE CONFIDENCE" if _sig_conf >= 45 else "LOW CONFIDENCE"
+
+            # ── PHASE 3: Signal reasons (2–3 plain-English bullets) ──────────
+            _direction = "upward" if xgb_pct >= 0 else "downward"
+            _sig_reasons = [
+                f"AI model projects {_direction} move of {abs(xgb_pct):.2f}% (XGBoost next-day forecast)"
+            ]
+            if rsi_val < 30:
+                _sig_reasons.append(f"RSI at {rsi_val:.1f} — deeply oversold, potential reversal zone")
+            elif rsi_val > 70:
+                _sig_reasons.append(f"RSI at {rsi_val:.1f} — overbought, elevated reversal risk")
+            else:
+                _mom = "positive" if total_score > 0 else "negative"
+                _sig_reasons.append(f"RSI at {rsi_val:.1f} (neutral zone) with {_mom} price momentum")
+            if _adx_sig > 25:
+                _trend_word = "bullish" if total_score > 0 else "bearish"
+                _sig_reasons.append(f"ADX at {_adx_sig:.1f} confirms strong {_trend_word} trend (ADX > 25 = trending market)")
+            elif _stoch_k_sig < 20:
+                _sig_reasons.append(f"Stochastic %K at {_stoch_k_sig:.1f} — oversold, watch for bullish crossover")
+            elif _stoch_k_sig > 80:
+                _sig_reasons.append(f"Stochastic %K at {_stoch_k_sig:.1f} — overbought, momentum may stall")
+            else:
+                _macd_cross = sigs.get("MACD Cross", ("HOLD", 0, 0, "neutral"))
+                _sig_reasons.append(f"MACD histogram shows {_macd_cross[0].lower()} crossover signal")
+
+            # ── PHASE 3: Trust & Credibility panel ──────────────────────────
+            _vs_color = {"BUY": "#00e5b0", "SELL": "#ff5f5f", "HOLD": "#ffd426"}.get(verdict_short, "#8a8fa0")
+            _vs_rgb   = ",".join(str(int(_vs_color.lstrip("#")[i:i+2], 16)) for i in (0, 2, 4))
+            _conf_segs = "".join(
+                f'<span style="display:inline-block;width:16px;height:8px;margin-right:2px;'
+                f'border-radius:1px;background:{_conf_color};'
+                f'opacity:{1.0 if i < int(_sig_conf / 5) else 0.1};"></span>'
+                for i in range(20)
+            )
+            _reason_html = "".join(
+                f'<div style="display:flex;align-items:flex-start;gap:.5rem;margin-bottom:.35rem;">'
+                f'<span style="color:{_vs_color};flex-shrink:0;margin-top:.1rem;">▸</span>'
+                f'<span style="font-family:Manrope,sans-serif;font-size:.79rem;'
+                f'color:#b8c4d8;line-height:1.55;">{_r}</span></div>'
+                for _r in _sig_reasons
+            )
+            _trust_ts = pd.Timestamp.utcnow().strftime("%b %d, %Y · %H:%M UTC")
+            st.markdown(f"""
+            <div style="background:linear-gradient(145deg,#0d1524,#07101e);
+                 border:1px solid #1e2d45;border-left:4px solid {_vs_color};
+                 border-radius:0 .75rem .75rem 0;padding:1.3rem 1.6rem;margin:.6rem 0 1rem;">
+              <div style="display:flex;align-items:center;justify-content:space-between;
+                          flex-wrap:wrap;gap:.7rem;margin-bottom:.9rem;">
+                <div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.18em;
+                        text-transform:uppercase;color:#3d4760;margin-bottom:.3rem;font-weight:700;">
+                    {_L["composite_signal"]} · {ticker}
+                  </div>
+                  <span style="background:rgba({_vs_rgb},0.14);border:1.5px solid {_vs_color};
+                        color:{_vs_color};font-family:IBM Plex Mono,monospace;
+                        font-size:1.4rem;font-weight:800;padding:.35rem 1.1rem;
+                        border-radius:.45rem;letter-spacing:.12em;">{verdict}</span>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;
+                        font-weight:700;color:{_conf_color};">{_sig_conf}%</div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.13em;
+                        text-transform:uppercase;color:{_conf_color};font-weight:700;">{_conf_label}</div>
+                </div>
+              </div>
+              <div style="margin-bottom:1rem;">{_conf_segs}</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.14em;
+                    text-transform:uppercase;color:#3d4760;margin-bottom:.5rem;font-weight:700;">
+                Signal Explanation
+              </div>
+              {_reason_html}
+              <div style="display:flex;align-items:center;justify-content:space-between;
+                          flex-wrap:wrap;gap:.5rem;margin-top:1rem;padding-top:.8rem;
+                          border-top:1px solid #1e2d45;">
+                <span style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3d4760;letter-spacing:.06em;">
+                  Data source: <b style="color:#8a8fa0;">Yahoo Finance</b>
+                  &nbsp;·&nbsp; Fetched: <b style="color:#8a8fa0;">{_trust_ts}</b>
+                </span>
+                <span style="display:inline-flex;align-items:center;gap:.4rem;
+                      background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2);
+                      border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace;
+                      font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not financial advice</span>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # ── PHASE 4: ALERTS SYSTEM ───────────────────────────────────────
+            # Signal-change detection (stored in session_state)
+            if "alert_signals" not in st.session_state:
+                st.session_state.alert_signals = {}
+            _prev_sig = st.session_state.alert_signals.get(ticker)
+
+            if alert_on_signal_change and _prev_sig is not None and _prev_sig != verdict_short:
+                _ac      = {"BUY": "#00e5b0", "SELL": "#ff5f5f"}.get(verdict_short, "#ffd426")
+                _ac_rgb  = ",".join(str(int(_ac.lstrip("#")[i:i+2], 16)) for i in (0, 2, 4))
+                st.markdown(f"""
+                <div style="background:rgba({_ac_rgb},0.08);border:1px solid {_ac};
+                     border-left:5px solid {_ac};border-radius:0 .6rem .6rem 0;
+                     padding:.85rem 1.4rem;margin:.4rem 0 .8rem;
+                     animation:flash-in .4s ease;">
+                  <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;
+                        font-weight:800;color:{_ac};">
+                    🔔&nbsp; ALERT — {ticker} signal changed:
+                    &nbsp;<span style="opacity:.55">{_prev_sig}</span>
+                    &nbsp;→&nbsp;<b>{verdict_short}</b>
+                  </div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.78rem;
+                        color:#8a8fa0;margin-top:.3rem;line-height:1.5;">
+                    Confidence: <b style="color:{_ac};">{_sig_conf}%</b>
+                    &nbsp;·&nbsp; AI Forecast: <b style="color:{_ac};">{xgb_pct:+.2f}%</b>
+                    &nbsp;·&nbsp; Score: <b style="color:{_ac};">{total_score:+.0f} / ±135</b>
+                    &nbsp;·&nbsp; Price: <b style="color:#e4eafd;">${last_close:.2f}</b>
+                  </div>
+                </div>
+                <style>
+                  @keyframes flash-in {{
+                    from {{ opacity:0; transform:translateX(-8px); }}
+                    to   {{ opacity:1; transform:translateX(0); }}
+                  }}
+                </style>
+                <script>if(window.SCNotify)SCNotify.signal("{ticker}","{verdict_short}");</script>
+                """, unsafe_allow_html=True)
+
+            # Price-target alert
+            if alert_price > 0 and last_close > 0:
+                _diff = last_close - alert_price
+                if last_close >= alert_price:
+                    st.markdown(f"""
+                    <div style="background:rgba(0,229,176,0.07);border:1px solid #00e5b0;
+                         border-left:4px solid #00e5b0;padding:.7rem 1.2rem;margin:.3rem 0;
+                         border-radius:0 .5rem .5rem 0;">
+                      <span style="font-family:IBM Plex Mono,monospace;font-size:.8rem;
+                            color:#00e5b0;font-weight:700;">
+                        🎯 {ticker} at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}
+                      </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="background:rgba(77,142,255,0.06);border:1px solid #4d8eff;
+                         border-left:4px solid #4d8eff;padding:.7rem 1.2rem;margin:.3rem 0;
+                         border-radius:0 .5rem .5rem 0;">
+                      <span style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#adc6ff;">
+                        🔔 {ticker} at ${last_close:.2f} — ${abs(_diff):.2f} below target of ${alert_price:.2f}
+                      </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # Persist current signal for next run
+            st.session_state.alert_signals[ticker] = verdict_short
 
             verdict_css = 'sell' if verdict_short=='SELL' else 'hold' if verdict_short=='HOLD' else ''
             sign = '+' if xgb_pct>=0 else ''
@@ -5173,6 +5490,25 @@ else:
               <span style="margin-left:auto;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#252f47;">9 signals · XGBoost · ATR-scaled TP/SL</span>
             </div>
             """, unsafe_allow_html=True)
+
+            # ── SIGNAL ENGINE INTEGRATION ─────────────────────────────────────
+            # Derive a normalised sentiment score [-1, +1] from the composite
+            # total_score (max theoretical ≈ ±135) for the signal engine.
+            _se_sentiment = float(np.clip(total_score / 135.0, -1.0, 1.0))
+            st.markdown(
+                "<div style='margin:.5rem 0 .2rem;font-family:Manrope,sans-serif;"
+                "font-size:.6rem;font-weight:800;letter-spacing:.18em;"
+                "text-transform:uppercase;color:#3d4760;'>▸ AI SIGNAL ENGINE</div>",
+                unsafe_allow_html=True,
+            )
+            try:
+                _se_signal_result = run_signal_ui(df, _se_sentiment, ticker=ticker)
+                # Persist the signal-engine result for downstream use (alerts, reports)
+                st.session_state[f"se_signal_{ticker}"] = _se_signal_result
+            except Exception as _se_err:
+                st.warning(f"Signal Engine unavailable: {_se_err}")
+            # ─────────────────────────────────────────────────────────────────
+
             with st.expander("📊 Fundamentals & Valuation — " + ticker, expanded=False):
                 with st.spinner("Loading fundamental data..."):
                     _fund = get_fundamentals_rich(ticker)
@@ -5880,6 +6216,24 @@ else:
                 else:
                     st.info("Run analysis first to generate signal data for email alerts.")
 
+                # ── Signal Engine card in hub5 ──────────────────────────────
+                _se_key = f"se_signal_{ticker}"
+                if _sh_comp and _se_key in st.session_state:
+                    try:
+                        _se_res = st.session_state[_se_key]
+                        st.markdown(
+                            "<div style='margin:.9rem 0 .3rem;font-family:Manrope,sans-serif;"
+                            "font-size:.6rem;font-weight:800;letter-spacing:.18em;"
+                            "text-transform:uppercase;color:#3d4760;'>▸ AI SIGNAL ENGINE SUMMARY</div>",
+                            unsafe_allow_html=True,
+                        )
+                        _se_insight = generate_insight(df, float(np.clip(
+                            _sh_comp.get("total_score", 0) / 135.0, -1.0, 1.0)), _se_res)
+                        render_signal_card(_se_res, _se_insight, ticker=ticker)
+                    except Exception as _se_hub5_err:
+                        st.warning(f"Signal Engine card unavailable: {_se_hub5_err}")
+                # ────────────────────────────────────────────────────────────
+
                 st.markdown('''<div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12);
                      border-radius:.5rem;padding:.8rem 1.2rem;margin-top:1rem;">
                   <div style="font-size:.62rem;font-weight:700;color:#4d8eff;margin-bottom:.4rem;">SMTP Setup (Streamlit secrets.toml)</div>
@@ -5945,7 +6299,7 @@ SMTP_PASS = "your-app-password"</pre>
                     </div>''', unsafe_allow_html=True)
 
                 st.markdown("<br>", unsafe_allow_html=True)
-                _csv_data = _build_investor_csv(ticker, df, preds, actual, rmse, mae, mape, r2, _sh_comp)
+                _csv_data = _build_investor_csv(ticker, df, preds, actual, rmse, mae, mape, r2, _sh_comp, se_signal=st.session_state.get(f"se_signal_{ticker}"))
                 st.download_button(
                     label=f"⬇  Download Investor Report — {ticker} · {pd.Timestamp.now().strftime('%Y-%m-%d')}.csv",
                     data=_csv_data,
