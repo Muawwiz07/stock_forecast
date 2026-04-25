@@ -35,14 +35,9 @@ import time
 import logging
 warnings.filterwarnings('ignore')
 
-# ── FastAPI / threading imports (embedded REST API) ────────────────────────────
+# ── threading (used for cache locks) ──────────────────────────────────────────
 import threading
-import asyncio
 from typing import List
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import uvicorn
 
 # ── Logging setup ──────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -52,10 +47,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("stockcast")
 
-# ── Suppress Streamlit's "missing ScriptRunContext" spam ──────────────────────
-# The warning is emitted from streamlit.runtime.scriptrunner.magic_funcs via the
-# ROOT logger (not a named child logger), so we must filter at the root level.
-# We also monkey-patch get_script_run_ctx to silence it at the source.
+# ── Suppress Streamlit's "missing ScriptRunContext" warnings ──────────────────
 import warnings
 warnings.filterwarnings("ignore", message=".*ScriptRunContext.*")
 
@@ -65,415 +57,13 @@ class _SuppressScriptRunContext(logging.Filter):
         msg = record.getMessage()
         return not any(kw in msg for kw in self._keywords)
 
-# Apply to root logger AND every named logger that could emit it
 _scrc_filter = _SuppressScriptRunContext()
 logging.root.addFilter(_scrc_filter)
 for _nl in ("streamlit", "streamlit.runtime", "streamlit.runtime.scriptrunner",
-            "streamlit.runtime.scriptrunner.magic_funcs",
-            "streamlit.runtime.caching",
-            "tornado", "tornado.access", "uvicorn", "uvicorn.error", "uvicorn.access"):
+            "streamlit.runtime.caching", "tornado"):
     logging.getLogger(_nl).addFilter(_scrc_filter)
 
-# Monkey-patch: if streamlit is importable, silence at the call site
-try:
-    import streamlit.runtime.scriptrunner.magic_funcs as _mf
-    import streamlit.runtime.scriptrunner as _sr
-    # Override get_script_run_ctx to never raise/warn outside main thread
-    from streamlit.runtime.scriptrunner import add_script_run_ctx  # noqa
-except Exception:
-    pass
-
 # ══════════════════════════════════════════════════════════════════════════════
-# EMBEDDED REST API  ·  FastAPI on :8000 in a background daemon thread
-# ══════════════════════════════════════════════════════════════════════════════
-# Endpoints used by stockcast-dashboard-integrated.jsx:
-#   GET /health
-#   GET /watchlist?tickers=AAPL,TSLA,...
-#   GET /signals?tickers=AAPL,TSLA,...
-#   GET /market-indices
-#   GET /market-mood
-#   GET /forecast/{ticker}?days=30
-#   GET /news/{ticker}
-#   GET /portfolio-stats?tickers=...
-# Run: streamlit run app.py  (API starts automatically on port 8000)
-# ══════════════════════════════════════════════════════════════════════════════
-
-_API_PORT = int(os.environ.get("STOCKCAST_API_PORT", 8000))
-
-# Thread-safe yfinance info cache (5-min TTL) — does NOT use st.cache_data
-# so it is safe to call from the FastAPI background thread.
-_yf_info_cache: dict = {}
-
-def _api_get_info(ticker: str) -> dict:
-    bucket = int(time.time() // 300)
-    key = (ticker.upper(), bucket)
-    if key not in _yf_info_cache:
-        for attempt in range(3):
-            try:
-                info = yf.Ticker(ticker).get_info() or {}
-                if info.get("symbol") or info.get("longName"):
-                    _yf_info_cache[key] = info
-                    break
-                if attempt < 2:
-                    time.sleep(2)
-            except Exception as e:
-                logger.warning("_api_get_info attempt %d for %s: %s", attempt+1, ticker, e)
-                if attempt < 2:
-                    time.sleep(2)
-        else:
-            _yf_info_cache[key] = {}
-    return _yf_info_cache.get(key, {})
-
-def _api_download(ticker, **kwargs) -> "pd.DataFrame":
-    """yfinance download with retry — thread-safe, no st.cache_data."""
-    for attempt in range(3):
-        try:
-            df = yf.download(ticker, progress=False, auto_adjust=True, **kwargs)
-            if not df.empty:
-                return df
-        except Exception as e:
-            if attempt < 2:
-                time.sleep(2 + attempt * 2)
-    return pd.DataFrame()
-
-def _api_compute_signal(df: "pd.DataFrame") -> dict:
-    if df.empty or len(df) < 30:
-        return {"signal": "HOLD", "conf": 50, "reason": "Insufficient data"}
-    if isinstance(df.columns, pd.MultiIndex):
-        df = df.copy(); df.columns = df.columns.get_level_values(0)
-    close = df["Close"].squeeze().dropna()
-    score = 0; reasons = []
-    # RSI-14
-    delta = close.diff(); gain = delta.clip(lower=0).rolling(14).mean()
-    loss = (-delta.clip(upper=0)).rolling(14).mean()
-    rsi = float((100 - 100 / (1 + gain / loss.replace(0, np.nan))).iloc[-1])
-    if rsi < 35:   score += 25; reasons.append("RSI oversold recovery")
-    elif rsi > 70: score -= 25; reasons.append("Overbought RSI")
-    # MA cross
-    ma50 = close.rolling(50).mean(); ma200 = close.rolling(200).mean()
-    if len(ma50.dropna()) >= 2 and len(ma200.dropna()) >= 2:
-        if ma50.iloc[-1] > ma200.iloc[-1] and ma50.iloc[-2] <= ma200.iloc[-2]:
-            score += 30; reasons.append("Golden cross detected")
-        elif ma50.iloc[-1] < ma200.iloc[-1] and ma50.iloc[-2] >= ma200.iloc[-2]:
-            score -= 30; reasons.append("Death cross detected")
-        elif ma50.iloc[-1] > ma200.iloc[-1]:
-            score += 15; reasons.append("Above 200-day MA")
-    # MACD
-    macd = close.ewm(span=12).mean() - close.ewm(span=26).mean()
-    sig  = macd.ewm(span=9).mean()
-    if macd.iloc[-1] > sig.iloc[-1] and macd.iloc[-2] <= sig.iloc[-2]:
-        score += 20; reasons.append("MACD bullish crossover")
-    elif macd.iloc[-1] < sig.iloc[-1]:
-        score -= 10; reasons.append("MACD bearish")
-    # Volume surge
-    vol = df["Volume"].squeeze().dropna()
-    if len(vol) >= 20 and vol.iloc[-1] > vol.rolling(20).mean().iloc[-1] * 1.5:
-        score += 10; reasons.append("Volume surge confirmed")
-    conf = min(95, max(50, 50 + abs(score)))
-    if score >= 20:   verdict = "BUY"
-    elif score <= -20: verdict = "SELL"
-    else:             verdict = "HOLD"; conf = max(50, conf - 10)
-    reason = "; ".join(reasons[:2]) if reasons else "Consolidation phase; await breakout confirmation"
-    return {"signal": verdict, "conf": int(conf), "reason": reason}
-
-def _api_rsi(series, period=14):
-    delta = series.diff(); gain = delta.clip(lower=0).rolling(period).mean()
-    loss = (-delta.clip(upper=0)).rolling(period).mean()
-    return 100 - 100 / (1 + gain / loss.replace(0, np.nan))
-
-# ── Pydantic models ───────────────────────────────────────────────────────────
-class WatchlistItem(BaseModel):
-    ticker: str; name: str; price: float; change: float; signal: str; conf: int; sector: str
-
-class SignalItem(BaseModel):
-    ticker: str; signal: str; conf: int; reason: str; sector: str
-
-class MarketIndex(BaseModel):
-    name: str; price: str; change: str; color: str
-
-class SectorItem(BaseModel):
-    name: str; mood: float; dir: str
-
-class MarketMood(BaseModel):
-    fearGreed: float; vix: float; sentiment: str; breadth: str; sectors: List[SectorItem]
-
-class PricePoint(BaseModel):
-    date: str; close: float
-
-class ForecastResult(BaseModel):
-    ticker: str; history: List[PricePoint]; xgb_pct: float
-    take_profit: float; stop_loss: float; risk_reward: float
-
-# ── FastAPI app ───────────────────────────────────────────────────────────────
-_api = FastAPI(title="Stockcast API", version="2.0")
-_ALLOW_ORIGINS = os.environ.get(
-    "ALLOW_ORIGINS",
-    "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
-).split(",")
-_api.add_middleware(CORSMiddleware, allow_origins=_ALLOW_ORIGINS,
-                    allow_methods=["GET","POST"], allow_headers=["*"])
-_DEFAULT_TICKERS = ["AAPL","NVDA","TSLA","MSFT","AMZN","META"]
-
-@_api.get("/health")
-def _health():
-    return {"status": "ok", "api_port": _API_PORT}
-
-@_api.get("/watchlist", response_model=List[WatchlistItem])
-def _api_watchlist(tickers: str = Query(default=",".join(_DEFAULT_TICKERS))):
-    syms = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-    if not syms: raise HTTPException(400, "No tickers provided")
-    try:
-        raw = yf.download(syms, period="2d", interval="1d", progress=False, auto_adjust=True)
-        close = raw["Close"] if "Close" in raw.columns else raw
-        if isinstance(close.columns, pd.MultiIndex): close = close.droplevel(0, axis=1)
-    except Exception: close = pd.DataFrame()
-    results = []
-    for sym in syms:
-        try:
-            if not close.empty and sym in close.columns:
-                prices = close[sym].dropna()
-                price = float(prices.iloc[-1]); prev = float(prices.iloc[-2]) if len(prices)>=2 else price
-            else:
-                info_q = _api_get_info(sym)
-                price = float(info_q.get("currentPrice") or info_q.get("regularMarketPrice") or 0)
-                prev = float(info_q.get("previousClose") or price)
-            change = ((price-prev)/prev*100) if prev else 0.0
-            info = _api_get_info(sym)
-            hist = _api_download(sym, period="1y", interval="1d")
-            sig = _api_compute_signal(hist)
-            results.append(WatchlistItem(ticker=sym, name=(info.get("longName") or sym)[:30],
-                price=round(price,2), change=round(change,2), signal=sig["signal"],
-                conf=sig["conf"], sector=info.get("sector") or "Unknown"))
-        except Exception as e:
-            logger.warning("watchlist failed for %s: %s", sym, e)
-            results.append(WatchlistItem(ticker=sym, name=sym, price=0.0, change=0.0,
-                                         signal="HOLD", conf=50, sector="Unknown"))
-    return results
-
-@_api.get("/signals", response_model=List[SignalItem])
-def _api_signals(tickers: str = Query(default=",".join(_DEFAULT_TICKERS))):
-    syms = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-    results = []
-    for sym in syms:
-        try:
-            info = _api_get_info(sym)
-            hist = _api_download(sym, period="1y", interval="1d")
-            sig  = _api_compute_signal(hist)
-            results.append(SignalItem(ticker=sym, sector=info.get("sector") or "Unknown", **sig))
-        except Exception as e:
-            logger.warning("signals failed for %s: %s", sym, e)
-            results.append(SignalItem(ticker=sym, signal="HOLD", conf=50,
-                                      reason="Data unavailable", sector="Unknown"))
-    return results
-
-@_api.get("/market-indices", response_model=List[MarketIndex])
-def _api_market_indices():
-    symbols = {"S&P 500":"^GSPC","NASDAQ 100":"^NDX","DOW JONES":"^DJI","VIX":"^VIX"}
-    result = []
-    try:
-        raw = yf.download(list(symbols.values()), period="2d", interval="1d", progress=False, auto_adjust=True)
-        close = raw["Close"] if "Close" in raw.columns else raw
-        if isinstance(close.columns, pd.MultiIndex): close = close.droplevel(0, axis=1)
-        for name, sym in symbols.items():
-            try:
-                prices = close[sym].dropna(); price = float(prices.iloc[-1])
-                prev = float(prices.iloc[-2]) if len(prices)>=2 else price
-                chg = ((price-prev)/prev*100) if prev else 0.0
-                col = "#10b981" if chg>=0 else "#ef4444"
-                fmt = f"{price:,.2f}" if sym!="^VIX" else f"{price:.2f}"
-                result.append(MarketIndex(name=name, price=fmt,
-                    change=f"{'+' if chg>=0 else ''}{chg:.2f}%", color=col))
-            except Exception:
-                result.append(MarketIndex(name=name, price="—", change="—", color="#64748b"))
-    except Exception as e:
-        logger.warning("market-indices failed: %s", e)
-    return result
-
-@_api.get("/market-mood", response_model=MarketMood)
-def _api_market_mood():
-    vix_val = 18.0
-    try:
-        v = _api_download("^VIX", period="5d", interval="1d")
-        if not v.empty: vix_val = float(v["Close"].dropna().iloc[-1])
-    except Exception: pass
-    fg_score, fg_rating = 50.0, "Neutral"
-    try:
-        import requests as _req
-        # Try CNN first, then alternative.me
-        _fg_fetched = False
-        try:
-            r = _req.get("https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
-                         timeout=6, headers={"User-Agent":"Mozilla/5.0","Accept":"application/json"})
-            if r.status_code == 200 and "application/json" in r.headers.get("Content-Type",""):
-                d = r.json()
-                fg_score  = float(d["fear_and_greed"]["score"])
-                fg_rating = d["fear_and_greed"]["rating"].replace("_"," ").title()
-                _fg_fetched = True
-        except Exception: pass
-        if not _fg_fetched:
-            r2 = _req.get("https://api.alternative.me/fng/?limit=1", timeout=6)
-            if r2.status_code == 200:
-                d2 = r2.json()["data"][0]
-                fg_score  = float(d2["value"])
-                fg_rating = d2["value_classification"].title()
-    except Exception: pass
-    breadth = "Neutral"
-    try:
-        sp = _api_download("^GSPC", period="5d", interval="1d")
-        if not sp.empty:
-            sc = sp["Close"].dropna()
-            if len(sc)>=2:
-                pct = (float(sc.iloc[-1])-float(sc.iloc[-2]))/float(sc.iloc[-2])*100
-                breadth = "Bullish" if pct>0.3 else "Bearish" if pct<-0.3 else "Neutral"
-    except Exception: pass
-    sector_etfs = {"Technology":"XLK","Energy":"XLE","Healthcare":"XLV",
-                   "Financials":"XLF","Consumer":"XLY","Industrials":"XLI"}
-    sectors = []
-    try:
-        raw = yf.download(list(sector_etfs.values()), period="2d", interval="1d", progress=False, auto_adjust=True)
-        close = raw["Close"] if "Close" in raw.columns else raw
-        if isinstance(close.columns, pd.MultiIndex): close = close.droplevel(0, axis=1)
-        for name, sym in sector_etfs.items():
-            try:
-                prices = close[sym].dropna(); price = float(prices.iloc[-1])
-                prev = float(prices.iloc[-2]) if len(prices)>=2 else price
-                chg = ((price-prev)/prev*100) if prev else 0.0
-                mood = round(min(95, max(5, 50+chg*10)), 1)
-                sectors.append(SectorItem(name=name, mood=mood,
-                    dir="up" if chg>0.1 else "down" if chg<-0.1 else "neutral"))
-            except Exception:
-                sectors.append(SectorItem(name=name, mood=50.0, dir="neutral"))
-    except Exception:
-        for name in sector_etfs:
-            sectors.append(SectorItem(name=name, mood=50.0, dir="neutral"))
-    return MarketMood(fearGreed=round(fg_score,1), vix=round(vix_val,1),
-                      sentiment=fg_rating, breadth=breadth, sectors=sectors)
-
-@_api.get("/forecast/{ticker}", response_model=ForecastResult)
-def _api_forecast(ticker: str, days: int = Query(default=30, ge=5, le=90)):
-    ticker = ticker.upper()
-    df = _api_download(ticker, period="max", interval="1d")
-    if df.empty or len(df)<60: raise HTTPException(404, f"Insufficient data for {ticker}")
-    if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-    df = df[["Open","High","Low","Close","Volume"]].copy()
-    df.index = pd.to_datetime(df.index).tz_localize(None); df.sort_index(inplace=True)
-    close = df["Close"].squeeze()
-    feat = pd.DataFrame(index=df.index)
-    for lag in [1,2,3,5,10,20]: feat[f"lag_{lag}"] = close.shift(lag)
-    feat["ma5"] = close.rolling(5).mean(); feat["ma20"] = close.rolling(20).mean()
-    feat["ma50"] = close.rolling(50).mean()
-    feat["vol_ma10"] = df["Volume"].squeeze().rolling(10).mean()
-    feat["high_low"] = df["High"].squeeze()-df["Low"].squeeze()
-    feat["rsi"] = _api_rsi(close, 14); feat["target"] = close.shift(-1)
-    feat.dropna(inplace=True)
-    X = feat.drop(columns=["target"]); y = feat["target"]
-    split = int(len(X)*0.8)
-    model = XGBRegressor(n_estimators=200, max_depth=4, learning_rate=0.05,
-                         subsample=0.85, colsample_bytree=0.85,
-                         objective="reg:squarederror", random_state=42, n_jobs=-1)
-    model.fit(X.iloc[:split], y.iloc[:split], verbose=False)
-    last_close = float(close.iloc[-1]); row = X.iloc[-1:].copy(); future_pct = 0.0
-    for _ in range(min(days, 30)):
-        pred = float(model.predict(row)[0])
-        future_pct = (pred-last_close)/last_close*100
-        if "lag_1" in row.columns:
-            for lag in [20,10,5,3,2]:
-                if f"lag_{lag}" in row.columns and f"lag_{lag-1}" in row.columns:
-                    row[f"lag_{lag}"] = row[f"lag_{lag-1}"].values
-            row["lag_1"] = pred
-    tp = round(last_close*(1+max(0.02, future_pct/100*0.7)), 2)
-    sl = round(last_close*0.95, 2)
-    rr = round((tp-last_close)/(last_close-sl), 2) if last_close>sl else 0.0
-    hist_60 = close.iloc[-60:]
-    history = [PricePoint(date=str(d.date()), close=round(float(v),2)) for d,v in hist_60.items()]
-    return ForecastResult(ticker=ticker, history=history, xgb_pct=round(future_pct,2),
-                          take_profit=tp, stop_loss=sl, risk_reward=rr)
-
-@_api.get("/news/{ticker}")
-def _api_news(ticker: str, limit: int = Query(default=8, le=20)):
-    ticker = ticker.upper()
-    try:
-        raw = yf.Ticker(ticker).news or []
-        items = []
-        for n in raw[:limit]:
-            title = n.get("title") or (n.get("content") or {}).get("title") or ""
-            if title: items.append({"title": title})
-        return {"ticker": ticker, "news": items}
-    except Exception as e:
-        logger.warning("news failed for %s: %s", ticker, e)
-        return {"ticker": ticker, "news": []}
-
-@_api.get("/portfolio-stats")
-def _api_portfolio_stats(tickers: str = Query(default=",".join(_DEFAULT_TICKERS))):
-    syms = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-    total = 0.0; wins = 0; counts = {"BUY":0,"HOLD":0,"SELL":0}
-    for sym in syms:
-        try:
-            hist = _api_download(sym, period="2mo", interval="1d")
-            if hist.empty: continue
-            if isinstance(hist.columns, pd.MultiIndex): hist.columns = hist.columns.get_level_values(0)
-            close = hist["Close"].squeeze().dropna()
-            price_now = float(close.iloc[-1])
-            price_30d = float(close.iloc[-30]) if len(close)>=30 else float(close.iloc[0])
-            total += price_now*10
-            if price_now > price_30d: wins += 1
-            sig = _api_compute_signal(hist)
-            counts[sig["signal"]] = counts.get(sig["signal"],0)+1
-        except Exception: pass
-    n = len(syms) or 1; win_rate = round(wins/n*100, 1)
-    return {"portfolio_value": f"${total:,.0f}", "win_rate": f"{win_rate}%",
-            "active_signals": f"{counts.get('BUY',0)} BUY",
-            "signal_summary": f"{counts.get('HOLD',0)} HOLD · {counts.get('SELL',0)} SELL"}
-
-# ── Background thread (starts once per process) ───────────────────────────────
-_API_THREAD_STARTED = False
-
-def _start_api_server():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    config = uvicorn.Config(
-        _api, host="0.0.0.0", port=_API_PORT,
-        log_level="critical",   # suppress uvicorn's own startup/access logs
-        log_config=None,        # prevent uvicorn from reconfiguring the root logger
-        loop="none",
-        access_log=False,       # no per-request access log lines
-    )
-    server = uvicorn.Server(config)
-    loop.run_until_complete(server.serve())
-
-def _ensure_api_running():
-    global _API_THREAD_STARTED
-    already = any(t.name=="stockcast-api" for t in threading.enumerate())
-    if not _API_THREAD_STARTED and not already:
-        t = threading.Thread(target=_start_api_server, daemon=True, name="stockcast-api")
-        t.start()
-        _API_THREAD_STARTED = True
-        logger.info("Stockcast REST API started on port %d", _API_PORT)
-    elif already:
-        _API_THREAD_STARTED = True
-
-# ── Monkey-patch Streamlit's ScriptRunContext warning at the source ────────────
-# Called AFTER the thread starts so the import chain is already resolved.
-def _patch_scriptrun_ctx():
-    """Silence 'missing ScriptRunContext' in non-main threads at the call site."""
-    try:
-        import streamlit.runtime.scriptrunner.script_run_context as _ctx_mod
-        _orig = _ctx_mod.get_script_run_ctx
-
-        def _silent_get_script_run_ctx(suppress_warning=True):
-            return _orig(suppress_warning=True)
-
-        _ctx_mod.get_script_run_ctx = _silent_get_script_run_ctx
-    except Exception:
-        pass  # Not yet importable or already patched — safe to skip
-
-_patch_scriptrun_ctx()
-_ensure_api_running()
-
-# ══════════════════════════════════════════════════════════════════════════════
-# END OF EMBEDDED API — Streamlit UI continues below unchanged
-# ══════════════════════════════════════════════════════════════════════════════
-
 # ── yfinance helpers ───────────────────────────────────────────────────────────
 
 def _yf_download_with_retry(ticker, retries=3, **kwargs):
@@ -1960,83 +1550,42 @@ C_EMERALD = "#00e5b0"
 # ── Master CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ── ROOT ── */
 :root {
-    --bg:          #080e1c;
-    --bg2:         #0f1727;
-    --bg3:         #141d30;
-    --bg4:         #1e2740;
-    --bg5:         #29334d;
-    --primary:     #adc6ff;
+    --bg:          #070d1a;
+    --bg2:         #0d1524;
+    --bg3:         #131e30;
+    --bg4:         #1a2640;
+    --bg5:         #243050;
+    --primary:     #c2d4ff;
     --accent:      #4d8eff;
-    --accent2:     #6ea8ff;
+    --accent2:     #7ab0ff;
     --on-primary:  #002e6a;
     --secondary:   #b1c6f9;
-    --t1:          #e4eafd;
-    --t2:          #c8cedd;
-    --t3:          #8a8fa0;
-    --t4:          #3e4558;
-    --border:      #252f47;
-    --border2:     #3e4558;
-    --emerald:     #00e5b0;
-    --red:         #ff5f5f;
-    --yellow:      #ffd426;
+    --t1:          #eaefff;
+    --t2:          #b8c4d8;
+    --t3:          #7a8299;
+    --t4:          #3d4760;
+    --border:      #1e2d45;
+    --border2:     #2d3f5a;
+    --emerald:     #00d9a6;
+    --red:         #ff5757;
+    --yellow:      #ffcb2b;
     --mono:        'IBM Plex Mono', monospace;
     --sans:        'Manrope', sans-serif;
-    --radius:      0.6rem;
-    --radius-lg:   1rem;
-    --shadow-sm:   0 2px 8px rgba(0,0,0,0.3);
-    --shadow-md:   0 6px 24px rgba(0,0,0,0.45);
-    --shadow-lg:   0 12px 40px rgba(0,0,0,0.55);
-    /* ── FIX 1: Accessible font-size floor system ── */
-    --text-2xs:    0.72rem;  /* was 0.5–0.58rem — labels, caps, badges */
-    --text-xs:     0.78rem;  /* was 0.6–0.66rem — secondary labels, chips */
-    --text-sm:     0.84rem;  /* was 0.68–0.75rem — body small */
-    --text-base:   0.9rem;   /* was 0.78–0.85rem — body */
-}
-
-/* ── FIX 1: Global font-size floor — override all illegibly small text ── */
-/* Label classes */
-.stat-label, .bento-label, .sig-lbl, .bt-label, .sir-sig,
-.signal-lbl, .meter-title, .section-title, .plan-badge-label,
-.accordion-num, .accordion-badge, .chip, .live-label,
-.trust-item, .nav-item-active, .nav-item-idle,
-.data-ts, .sk-line, .tab-dot {
-    font-size: var(--text-2xs) !important;
-}
-/* Sub-labels and captions */
-.stat-sub, .bento-sub, .sig-sub, .sir-label, .wl-badge,
-.plan-badge-value, .freshness-badge, .disclaimer-pill,
-[data-testid="stMetricLabel"], .sc-toast-msg {
-    font-size: var(--text-xs) !important;
-}
-/* Body text */
-.bento-desc, .accordion-trigger, .accordion-body-inner div,
-.halal-card, .halal-card-fail, p, .stMarkdown p,
-.sc-toast-title, [data-testid="stTabs"] [role="tab"] {
-    font-size: var(--text-sm) !important;
-}
-/* Headings override — h2/h3 were 0.65rem */
-h2, h3 {
-    font-size: 0.78rem !important;
-}
-h4 {
-    font-size: 0.74rem !important;
-}
-/* Sidebar small text */
-[data-testid="stSidebar"] input {
-    font-size: var(--text-sm) !important;
-}
-.stat-row {
-    font-size: var(--text-xs) !important;
-}
-/* Metric label floor */
-[data-testid="stMetricLabel"] {
-    font-size: var(--text-2xs) !important;
-    letter-spacing: 0.1em !important;
+    --radius:      0.5rem;
+    --radius-lg:   0.875rem;
+    --shadow-sm:   0 1px 6px rgba(0,0,0,0.35);
+    --shadow-md:   0 4px 20px rgba(0,0,0,0.5);
+    --shadow-lg:   0 10px 40px rgba(0,0,0,0.6);
+    /* Accessible font sizes — nothing below 0.7rem */
+    --text-2xs:    0.7rem;
+    --text-xs:     0.75rem;
+    --text-sm:     0.82rem;
+    --text-base:   0.9rem;
+    --text-md:     1rem;
 }
 
 /* ── GLOBAL ── */
@@ -2048,27 +1597,54 @@ html, body, [class*="css"], [data-testid="stApp"],
     -webkit-font-smoothing: antialiased !important;
 }
 .block-container {
-    padding: 1.5rem 2.5rem 4rem 2.5rem !important;
-    max-width: 1320px !important;
+    padding: 1.25rem 2rem 4rem 2rem !important;
+    max-width: 1300px !important;
     margin: 0 auto !important;
 }
 
-/* ambient glow layers */
+/* Subtle ambient glow */
 [data-testid="stApp"]::before {
     content: '';
     position: fixed; inset: 0;
     background:
-        radial-gradient(ellipse 80% 50% at 10% 0%, rgba(77,142,255,0.07) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 90% 100%, rgba(0,229,176,0.04) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 30% at 50% 50%, rgba(173,198,255,0.02) 0%, transparent 70%);
+        radial-gradient(ellipse 70% 40% at 8% 0%, rgba(77,142,255,0.06) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 35% at 92% 100%, rgba(0,217,166,0.03) 0%, transparent 55%);
     pointer-events: none; z-index: 0;
 }
+
+/* ── GLOBAL FONT FLOOR — nothing illegibly small ── */
+.stat-label, .bento-label, .sig-lbl, .bt-label, .sir-sig,
+.signal-lbl, .meter-title, .section-title, .plan-badge-label,
+.accordion-num, .accordion-badge, .chip, .live-label,
+.trust-item, .nav-item-active, .nav-item-idle,
+.data-ts, .sk-line, .tab-dot {
+    font-size: var(--text-2xs) !important;
+}
+.stat-sub, .bento-sub, .sig-sub, .sir-label, .wl-badge,
+.plan-badge-value, .freshness-badge, .disclaimer-pill,
+[data-testid="stMetricLabel"], .sc-toast-msg {
+    font-size: var(--text-xs) !important;
+}
+.bento-desc, .accordion-trigger, .accordion-body-inner div,
+.halal-card, .halal-card-fail, p, .stMarkdown p,
+.sc-toast-title, [data-testid="stTabs"] [role="tab"] {
+    font-size: var(--text-sm) !important;
+}
+h2, h3 { font-size: 0.82rem !important; }
+h4     { font-size: 0.76rem !important; }
+.stat-row { font-size: var(--text-xs) !important; }
+[data-testid="stMetricLabel"] {
+    font-size: var(--text-2xs) !important;
+    letter-spacing: 0.1em !important;
+}
+[data-testid="stSidebar"] input { font-size: var(--text-sm) !important; }
 
 /* ── SIDEBAR ── */
 [data-testid="stSidebar"],
 [data-testid="stSidebar"] > div:first-child {
-    background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%) !important;
+    background: linear-gradient(175deg, #0d1524 0%, #07111f 100%) !important;
     border-right: 1px solid var(--border) !important;
+    padding-top: 0 !important;
 }
 [data-testid="stSidebar"] * { color: var(--t3) !important; }
 [data-testid="stSidebar"] input {
@@ -2078,104 +1654,135 @@ html, body, [class*="css"], [data-testid="stApp"],
     color: var(--primary) !important;
     font-family: var(--mono) !important;
     font-weight: 600 !important;
-    letter-spacing: 0.04em !important;
-    font-size: 0.82rem !important;
-    padding: 0.5rem 0.75rem !important;
+    letter-spacing: 0.06em !important;
+    font-size: 0.85rem !important;
+    padding: 0.55rem 0.85rem !important;
+    transition: border-color 0.18s, box-shadow 0.18s !important;
 }
 [data-testid="stSidebar"] input:focus {
     border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(77,142,255,0.2) !important;
+    box-shadow: 0 0 0 2px rgba(77,142,255,0.2) !important;
+    outline: none !important;
+}
+/* Sidebar selectbox */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div {
+    background-color: var(--bg3) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: var(--radius) !important;
+    font-size: 0.82rem !important;
+}
+/* Sidebar labels */
+[data-testid="stSidebar"] label {
+    font-size: var(--text-xs) !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    font-weight: 700 !important;
+    color: var(--t4) !important;
+}
+/* Sidebar dividers */
+[data-testid="stSidebar"] hr {
+    border-color: var(--border) !important;
+    margin: 0.8rem 0 !important;
+}
+/* Sidebar checkbox */
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label {
+    font-size: 0.8rem !important;
+    letter-spacing: 0.01em !important;
+    text-transform: none !important;
+    color: var(--t2) !important;
+    font-weight: 500 !important;
 }
 
 /* ── BUTTONS ── */
 .stButton > button {
-    background: linear-gradient(135deg, #3d7bf5 0%, #5a9aff 100%) !important;
+    background: linear-gradient(135deg, #3a76ed 0%, #5294ff 100%) !important;
     color: #fff !important;
     border: none !important;
     border-radius: var(--radius) !important;
     font-family: var(--sans) !important;
     font-weight: 700 !important;
-    font-size: 0.72rem !important;
-    letter-spacing: 0.07em !important;
+    font-size: 0.75rem !important;
+    letter-spacing: 0.06em !important;
     text-transform: uppercase !important;
-    padding: 0.65rem 1.5rem !important;
-    transition: all 0.2s cubic-bezier(0.4,0,0.2,1) !important;
-    box-shadow: 0 2px 12px rgba(77,142,255,0.25) !important;
+    padding: 0.6rem 1.4rem !important;
+    transition: all 0.18s cubic-bezier(0.4,0,0.2,1) !important;
+    box-shadow: 0 2px 10px rgba(77,142,255,0.28) !important;
+    cursor: pointer !important;
 }
 .stButton > button:hover {
-    background: linear-gradient(135deg, #4d8eff 0%, #6ea8ff 100%) !important;
-    box-shadow: 0 4px 20px rgba(77,142,255,0.5) !important;
+    background: linear-gradient(135deg, #4d8eff 0%, #6aabff 100%) !important;
+    box-shadow: 0 4px 18px rgba(77,142,255,0.45) !important;
     transform: translateY(-1px) !important;
 }
 .stButton > button:active {
     transform: translateY(0) !important;
-    box-shadow: 0 1px 6px rgba(77,142,255,0.3) !important;
+    box-shadow: 0 1px 5px rgba(77,142,255,0.3) !important;
 }
-
-/* Run Analysis button — bigger, more prominent */
 [data-testid="stSidebar"] .stButton > button {
-    padding: 0.75rem 1.5rem !important;
-    font-size: 0.73rem !important;
+    width: 100% !important;
+    padding: 0.7rem 1.4rem !important;
+    font-size: 0.76rem !important;
+    border-radius: var(--radius) !important;
 }
 
 /* ── METRICS ── */
 [data-testid="metric-container"] {
-    background: linear-gradient(145deg, #0f1727, #0a1020) !important;
-    border: 1px solid rgba(255,255,255,0.05) !important;
+    background: linear-gradient(145deg, var(--bg2), #080f1c) !important;
+    border: 1px solid rgba(255,255,255,0.04) !important;
     border-top: 2px solid var(--accent) !important;
     border-radius: var(--radius-lg) !important;
-    padding: 1.3rem 1.4rem !important;
-    transition: all 0.22s cubic-bezier(0.4,0,0.2,1) !important;
+    padding: 1.1rem 1.3rem !important;
+    transition: all 0.2s ease !important;
     box-shadow: var(--shadow-sm) !important;
 }
 [data-testid="metric-container"]:hover {
-    border-color: rgba(77,142,255,0.35) !important;
-    border-top: 2px solid var(--accent) !important;
-    transform: translateY(-3px) !important;
+    border-color: rgba(77,142,255,0.3) !important;
+    border-top-color: var(--accent) !important;
+    transform: translateY(-2px) !important;
     box-shadow: var(--shadow-md) !important;
 }
 [data-testid="stMetricLabel"] {
     font-family: var(--sans) !important;
-    font-size: 0.58rem !important;
-    letter-spacing: 0.14em !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.12em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
     font-weight: 700 !important;
 }
 [data-testid="stMetricValue"] {
     font-family: var(--mono) !important;
-    font-size: 1.6rem !important;
+    font-size: 1.5rem !important;
     font-weight: 700 !important;
     color: var(--primary) !important;
     line-height: 1.2 !important;
 }
 [data-testid="stMetricDelta"] {
     font-family: var(--mono) !important;
-    font-size: 0.72rem !important;
+    font-size: 0.75rem !important;
 }
 
 /* ── HEADINGS ── */
 h2, h3 {
     font-family: var(--sans) !important;
-    color: var(--t1) !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 0.16em !important;
+    color: var(--t2) !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.14em !important;
     text-transform: uppercase !important;
     border-bottom: 1px solid var(--border) !important;
-    padding-bottom: 0.55rem !important;
-    margin-top: 1.8rem !important;
-    margin-bottom: 1rem !important;
+    padding-bottom: 0.5rem !important;
+    margin-top: 1.6rem !important;
+    margin-bottom: 0.9rem !important;
     font-weight: 800 !important;
 }
 h4 {
     font-family: var(--sans) !important;
-    font-size: 0.63rem !important;
-    letter-spacing: 0.1em !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.09em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
-    margin-top: 1.2rem !important;
+    margin-top: 1rem !important;
 }
-hr { border-color: var(--border) !important; margin: 1.2rem 0 !important; }
+hr { border-color: var(--border) !important; margin: 1rem 0 !important; }
 p, .stMarkdown p {
     color: var(--t2) !important;
     font-size: 0.88rem !important;
@@ -2190,7 +1797,7 @@ p, .stMarkdown p {
     overflow: hidden !important;
 }
 
-/* ── FORM INPUTS (global) ── */
+/* ── FORM INPUTS ── */
 [data-testid="stTextInput"] input,
 [data-testid="stNumberInput"] input {
     background-color: var(--bg3) !important;
@@ -2199,13 +1806,13 @@ p, .stMarkdown p {
     color: var(--t1) !important;
     font-family: var(--mono) !important;
     font-size: 0.84rem !important;
-    padding: 0.55rem 0.85rem !important;
+    padding: 0.5rem 0.8rem !important;
     transition: border-color 0.18s, box-shadow 0.18s !important;
 }
 [data-testid="stTextInput"] input:focus,
 [data-testid="stNumberInput"] input:focus {
     border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(77,142,255,0.18) !important;
+    box-shadow: 0 0 0 2px rgba(77,142,255,0.18) !important;
     outline: none !important;
 }
 [data-testid="stSelectbox"] > div > div {
@@ -2222,25 +1829,25 @@ label, [data-testid="stSelectbox"] label,
 [data-testid="stTextInput"] label,
 [data-testid="stNumberInput"] label {
     font-family: var(--sans) !important;
-    font-size: 0.58rem !important;
-    letter-spacing: 0.11em !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.09em !important;
     text-transform: uppercase !important;
     color: var(--t3) !important;
     font-weight: 700 !important;
-    margin-bottom: 0.3rem !important;
+    margin-bottom: 0.25rem !important;
 }
 
 /* ── SLIDER ── */
 [data-testid="stSlider"] [role="slider"] {
     background: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(77,142,255,0.25) !important;
+    box-shadow: 0 0 0 3px rgba(77,142,255,0.22) !important;
 }
 
 /* ── CHECKBOX ── */
 [data-testid="stCheckbox"] label {
     font-family: var(--sans) !important;
-    font-size: 0.78rem !important;
-    letter-spacing: 0.02em !important;
+    font-size: 0.8rem !important;
+    letter-spacing: 0.01em !important;
     text-transform: none !important;
     color: var(--t2) !important;
     font-weight: 500 !important;
@@ -2251,661 +1858,71 @@ label, [data-testid="stSelectbox"] label,
     border: 1px solid var(--border) !important;
     border-radius: var(--radius) !important;
     background: var(--bg2) !important;
-    margin-bottom: 0.6rem !important;
+    margin-bottom: 0.5rem !important;
+    transition: border-color 0.18s !important;
+}
+[data-testid="stExpander"]:hover {
+    border-color: var(--border2) !important;
 }
 [data-testid="stExpander"] summary {
     font-family: var(--sans) !important;
-    font-size: 0.78rem !important;
+    font-size: 0.8rem !important;
     font-weight: 600 !important;
     color: var(--t2) !important;
-    padding: 0.7rem 1rem !important;
+    padding: 0.65rem 1rem !important;
 }
 
 /* ── SPINNER ── */
 [data-testid="stSpinner"] p {
     font-family: var(--mono) !important;
-    font-size: 0.7rem !important;
+    font-size: 0.72rem !important;
     color: var(--accent) !important;
-    letter-spacing: 0.08em !important;
+    letter-spacing: 0.06em !important;
 }
 
-/* ── SUCCESS / INFO / WARNING / ERROR ── */
+/* ── ALERTS ── */
 [data-testid="stSuccess"] {
-    background: rgba(0,229,176,0.07) !important;
-    border: 1px solid rgba(0,229,176,0.25) !important;
+    background: rgba(0,217,166,0.06) !important;
+    border: 1px solid rgba(0,217,166,0.2) !important;
     border-radius: var(--radius) !important;
 }
 [data-testid="stInfo"] {
-    background: rgba(77,142,255,0.07) !important;
-    border: 1px solid rgba(77,142,255,0.2) !important;
+    background: rgba(77,142,255,0.06) !important;
+    border: 1px solid rgba(77,142,255,0.18) !important;
     border-radius: var(--radius) !important;
 }
 [data-testid="stWarning"] {
-    background: rgba(255,212,38,0.07) !important;
-    border: 1px solid rgba(255,212,38,0.2) !important;
+    background: rgba(255,203,43,0.06) !important;
+    border: 1px solid rgba(255,203,43,0.18) !important;
     border-radius: var(--radius) !important;
 }
 [data-testid="stError"] {
-    background: rgba(255,95,95,0.07) !important;
-    border: 1px solid rgba(255,95,95,0.2) !important;
+    background: rgba(255,87,87,0.06) !important;
+    border: 1px solid rgba(255,87,87,0.18) !important;
     border-radius: var(--radius) !important;
 }
 
 /* ── TABS ── */
-[data-testid="stTabs"] [role="tablist"] {
-    background: var(--bg2) !important;
-    border-bottom: 1px solid var(--border) !important;
-    gap: 4px !important;
-    padding: 0 0.5rem !important;
-}
-[data-testid="stTabs"] [role="tab"] {
-    font-family: var(--sans) !important;
-    font-size: 0.66rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.09em !important;
-    color: var(--t3) !important;
-    border: none !important;
-    border-bottom: 2px solid transparent !important;
-    text-transform: uppercase !important;
-    padding: 0.65rem 1rem !important;
-    transition: color 0.15s, border-color 0.15s !important;
-}
-[data-testid="stTabs"] [role="tab"]:hover {
-    color: var(--t2) !important;
-}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: var(--primary) !important;
-    border-bottom-color: var(--accent) !important;
-    background: transparent !important;
-}
-[data-testid="stTabPanel"] { background: transparent !important; padding: 1.2rem 0 !important; }
-
-/* ── APP HEADER ── */
-.wi-header {
-    background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 100%);
-    border-bottom: 1px solid var(--border);
-    border-left: 4px solid var(--accent);
-    padding: 1.3rem 2rem;
-    margin: 2rem -2.5rem 1.8rem -2.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 4px 40px rgba(0,0,0,0.5);
-}
-.wi-logo {
-    font-family: var(--sans);
-    font-size: 1.65rem;
-    font-weight: 800;
-    color: var(--t1);
-    letter-spacing: -0.01em;
-}
-.wi-logo span { color: var(--accent); }
-.wi-sub {
-    font-size: 0.7rem;
-    color: var(--t3);
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    margin-top: 0.25rem;
-    font-weight: 600;
-    line-height: 1.4;
-}
-.live-dot {
-    display: inline-block;
-    width: 7px; height: 7px;
-    background: var(--emerald);
-    border-radius: 50%;
-    animation: pulse-dot 2s infinite;
-    margin-right: 5px;
-    vertical-align: middle;
-    box-shadow: 0 0 10px rgba(0,229,176,0.6);
-}
-@keyframes pulse-dot {
-    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,229,176,0.5); }
-    50%      { opacity:.85; box-shadow: 0 0 0 7px rgba(0,229,176,0); }
-}
-.live-label {
-    font-family: var(--mono);
-    font-size: 0.58rem;
-    color: var(--emerald);
-    letter-spacing: 0.13em;
-    vertical-align: middle;
-}
-
-/* ── DATA FRESHNESS BADGE ── */
-.freshness-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(0,229,176,0.06);
-    border: 1px solid rgba(0,229,176,0.18);
-    border-radius: 2rem;
-    padding: 0.28rem 0.75rem;
-    font-family: var(--mono);
-    font-size: 0.56rem;
-    letter-spacing: 0.08em;
-    color: var(--emerald);
-}
-
-/* ── TICKER TAPE ── */
-.ticker-tape-wrap {
-    overflow: hidden;
-    background: linear-gradient(90deg, var(--bg2), var(--bg3), var(--bg2));
-    border-bottom: 1px solid var(--border);
-    border-top: 1px solid var(--border);
-    padding: 0.32rem 0;
-    margin: 0 -2.5rem 2rem -2.5rem;
-}
-.ticker-tape {
-    display: inline-flex;
-    gap: 2.8rem;
-    animation: tape 40s linear infinite;
-    white-space: nowrap;
-    font-family: var(--mono);
-    font-size: 0.63rem;
-    letter-spacing: 0.04em;
-    color: var(--t3);
-}
-.ticker-tape:hover { animation-play-state: paused; }
-@keyframes tape { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-.tape-up   { color: var(--emerald); font-weight: 700; }
-.tape-down { color: var(--red); font-weight: 700; }
-.tape-sym  { color: var(--t4); font-size: 0.56rem; margin-right: 0.3rem; }
-
-/* ── GLASS CARDS ── */
-.wi-card {
-    background: linear-gradient(145deg, #0f1727, #090e1b);
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem 1.7rem;
-    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
-    box-shadow: var(--shadow-sm);
-}
-.wi-card:hover {
-    border-color: rgba(77,142,255,0.35);
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-md);
-}
-.wi-card-accent  { border-top: 2px solid var(--accent); }
-.wi-card-emerald { border-top: 2px solid var(--emerald); }
-.wi-card-red     { border-top: 2px solid var(--red); }
-.wi-card-yellow  { border-top: 2px solid var(--yellow); }
-
-/* ── SUMMARY STAT GRID ── */
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.85rem;
-    margin: 1.2rem 0;
-}
-@media (max-width: 768px) {
-    .stat-grid {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: .6rem !important;
-    }
-    .block-container {
-        padding: .75rem .75rem 3rem .75rem !important;
-    }
-    .wi-header {
-        padding: .8rem 1rem !important;
-        margin: 0 -0.75rem 1rem -0.75rem !important;
-        flex-wrap: wrap;
-        gap: .5rem;
-    }
-    .wi-sub { display: none !important; }
-    .trust-row { display: none !important; }
-    .ticker-tape-wrap { margin: 0 -.75rem 1rem -.75rem !important; }
-    .signal-panel { flex-direction: column !important; }
-    .signal-main { flex: none !important; width: 100% !important; }
-    .signal-details { grid-template-columns: 1fr 1fr !important; width: 100% !important; }
-    .stat-value { font-size: 1.3rem !important; }
-    .wi-logo { font-size: 1.3rem !important; }
-    h2, h3 { margin-top: 1.2rem !important; }
-    /* 3-col grids → 1-col on mobile */
-    div[style*="grid-template-columns:repeat(3,1fr)"] {
-        grid-template-columns: 1fr !important;
-    }
-    /* 4-col grids → 2-col on mobile */
-    div[style*="grid-template-columns:repeat(4,1fr)"] {
-        grid-template-columns: repeat(2,1fr) !important;
-    }
-}
-@media (max-width: 480px) {
-    .stat-grid { grid-template-columns: 1fr 1fr !important; }
-    .stat-value { font-size: 1.1rem !important; }
-    div[style*="grid-template-columns:repeat(2,1fr)"] {
-        grid-template-columns: 1fr !important;
-    }
-}
-.stat-card {
-    background: linear-gradient(145deg, var(--bg2), #0a1020);
-    border: 1px solid var(--border);
-    border-top: 2px solid var(--accent);
-    border-radius: var(--radius-lg);
-    padding: 1.15rem 1.4rem;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: var(--shadow-sm);
-}
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-}
-.stat-card::after {
-    content: '';
-    position: absolute;
-    top: 0; right: 0;
-    width: 70px; height: 70px;
-    background: radial-gradient(circle at top right, rgba(77,142,255,0.08), transparent 70%);
-}
-.stat-label {
-    font-family: var(--sans);
-    font-size: 0.54rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--t3);
-    font-weight: 700;
-    margin-bottom: 6px;
-}
-.stat-value {
-    font-family: var(--mono);
-    font-size: 1.65rem;
-    font-weight: 700;
-    color: var(--primary);
-    line-height: 1.1;
-}
-.stat-sub { font-size: 0.6rem; color: var(--t3); margin-top: 4px; font-family: var(--sans); font-weight: 600; }
-
-/* ── SIGNAL PANEL ── */
-.signal-panel {
-    display: flex;
-    gap: 1.2rem;
-    margin: 1.4rem 0;
-    flex-wrap: wrap;
-}
-.signal-main {
-    flex: 0 0 260px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2.2rem 1.8rem;
-    border: 2px solid var(--accent);
-    background: rgba(77,142,255,0.05);
-    border-radius: var(--radius-lg);
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 0 40px rgba(77,142,255,0.1), var(--shadow-sm);
-    transition: box-shadow 0.2s;
-}
-.signal-main::before {
-    content: '';
-    position: absolute;
-    bottom: -25px; right: -25px;
-    width: 120px; height: 120px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(77,142,255,0.2) 0%, transparent 70%);
-}
-.signal-main.sell { border-color: var(--red); background: rgba(255,95,95,0.05); box-shadow: 0 0 40px rgba(255,95,95,0.1), var(--shadow-sm); }
-.signal-main.sell::before { background: radial-gradient(circle, rgba(255,95,95,0.2) 0%, transparent 70%); }
-.signal-main.hold { border-color: var(--yellow); background: rgba(255,212,38,0.05); box-shadow: 0 0 40px rgba(255,212,38,0.1), var(--shadow-sm); }
-.signal-main.hold::before { background: radial-gradient(circle, rgba(255,212,38,0.2) 0%, transparent 70%); }
-.signal-action {
-    font-family: var(--mono);
-    font-size: 2.4rem;
-    font-weight: 800;
-    letter-spacing: 0.18em;
-    color: var(--primary);
-    line-height: 1;
-}
-.signal-action.sell { color: var(--red); }
-.signal-action.hold { color: var(--yellow); }
-.signal-pct {
-    font-family: var(--mono);
-    font-size: 1.05rem;
-    font-weight: 600;
-    margin-top: 0.6rem;
-    color: var(--t1);
-}
-.signal-lbl {
-    font-size: 0.52rem;
-    letter-spacing: 0.2em;
-    color: var(--t3);
-    margin-top: 8px;
-    text-transform: uppercase;
-    font-weight: 700;
-    font-family: var(--sans);
-}
-.signal-details {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.7rem;
-    min-width: 220px;
-}
-@media (max-width: 600px) {
-    .signal-panel { flex-direction: column; }
-    .signal-main  { flex: none; width: 100%; }
-    .signal-details { min-width: 0; width: 100%; }
-}
-.sig-card {
-    background: linear-gradient(145deg, var(--bg2), var(--bg3));
-    border: 1px solid var(--border);
-    padding: 0.85rem 1.1rem;
-    position: relative;
-    border-radius: var(--radius);
-    overflow: hidden;
-    transition: transform 0.15s;
-}
-.sig-card:hover { transform: translateY(-1px); }
-.sig-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0;
-    width: 3px; height: 100%;
-    background: var(--border);
-    border-radius: 2px 0 0 2px;
-}
-.sig-card.positive::before { background: var(--emerald); }
-.sig-card.negative::before { background: var(--red); }
-.sig-card.neutral::before  { background: var(--yellow); }
-.sig-lbl { font-size: 0.52rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--t3); margin-bottom: 5px; font-weight: 700; font-family: var(--sans); }
-.sig-val { font-family: var(--mono); font-size: 0.9rem; font-weight: 700; color: var(--t1); }
-.sig-sub { font-size: 0.55rem; color: var(--t3); margin-top: 3px; font-family: var(--sans); }
-
-/* ── COMPOSITE METER ── */
-.composite-meter {
-    background: linear-gradient(145deg, var(--bg2), var(--bg3));
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    padding: 1.2rem 1.6rem;
-    margin: 1rem 0;
-    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-}
-.meter-title { font-size: 0.54rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--t3); margin-bottom: 0.9rem; font-weight: 700; font-family: var(--sans); }
-.sir { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-family: var(--mono); font-size: 0.66rem; }
-.sir-label { color: var(--t2); width: 130px; flex-shrink: 0; }
-.sir-bar-bg { flex: 1; height: 5px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
-.sir-bar { height: 100%; border-radius: 3px; transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
-.sir-bar.positive { background: linear-gradient(90deg, var(--emerald), rgba(0,229,176,0.4)); }
-.sir-bar.negative { background: linear-gradient(90deg, var(--red), rgba(255,95,95,0.4)); }
-.sir-bar.neutral  { background: linear-gradient(90deg, var(--yellow), rgba(255,212,38,0.4)); }
-.sir-val { width: 58px; text-align: right; font-weight: 600; color: var(--t1); }
-.sir-sig { width: 42px; text-align: right; font-size: 0.56rem; letter-spacing: 0.08em; font-weight: 700; }
-.sir-sig.buy { color: var(--emerald); }
-.sir-sig.sell { color: var(--red); }
-.sir-sig.hold { color: var(--yellow); }
-
-/* ── BT CARDS ── */
-.bt-card {
-    background: linear-gradient(145deg, var(--bg2), var(--bg3));
-    border: 1px solid var(--border);
-    border-top: 2px solid var(--border2);
-    padding: 1.1rem 1.3rem;
-    margin-bottom: 0.5rem;
-    font-family: var(--mono);
-    border-radius: var(--radius);
-    transition: transform 0.15s;
-}
-.bt-card:hover { transform: translateY(-1px); }
-.bt-label { font-size: 0.56rem; color: var(--t3); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 5px; font-family: var(--sans); font-weight: 700; }
-.bt-val       { font-size: 1.35rem; font-weight: 700; color: var(--t1); }
-.bt-val-green { font-size: 1.35rem; font-weight: 700; color: var(--emerald); }
-.bt-val-red   { font-size: 1.35rem; font-weight: 700; color: var(--red); }
-
-/* ── HALAL CARDS ── */
-.halal-card {
-    background: rgba(0,229,176,0.03);
-    border: 1px solid rgba(0,229,176,0.15);
-    border-left: 3px solid var(--emerald);
-    padding: 0.9rem 1.3rem;
-    margin: 0.4rem 0;
-    font-family: var(--sans);
-    font-size: 0.82rem;
-    color: var(--t2);
-    line-height: 1.5;
-    border-radius: 0 var(--radius) var(--radius) 0;
-}
-.halal-card-fail {
-    background: rgba(255,95,95,0.03);
-    border: 1px solid rgba(255,95,95,0.15);
-    border-left: 3px solid var(--red);
-    padding: 0.9rem 1.3rem;
-    margin: 0.4rem 0;
-    font-family: var(--sans);
-    font-size: 0.82rem;
-    color: var(--t2);
-    line-height: 1.5;
-    border-radius: 0 var(--radius) var(--radius) 0;
-}
-
-/* ── MODEL BADGE ── */
-.model-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(77,142,255,0.1);
-    border: 1px solid rgba(77,142,255,0.22);
-    color: var(--primary);
-    font-family: var(--sans);
-    font-size: 0.6rem;
-    font-weight: 700;
-    padding: 0.25rem 0.9rem;
-    letter-spacing: 0.09em;
-    text-transform: uppercase;
-    margin-bottom: 0.9rem;
-    border-radius: 2rem;
-}
-
-/* ── ALERT BOX ── */
-.alert-box {
-    background: rgba(77,142,255,0.06);
-    border: 1px solid rgba(77,142,255,0.28);
-    border-left: 3px solid var(--accent);
-    padding: 0.9rem 1.4rem;
-    font-family: var(--sans);
-    font-size: 0.8rem;
-    color: var(--primary);
-    margin: 0.9rem 0;
-    letter-spacing: 0.02em;
-    border-radius: 0 var(--radius) var(--radius) 0;
-    line-height: 1.5;
-}
-
-/* ── SIDEBAR STAT ROW ── */
-.stat-row {
-    font-family: var(--sans);
-    font-size: 0.57rem;
-    color: var(--t3);
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    margin-bottom: 5px;
-    margin-top: 3px;
-    font-weight: 700;
-}
-
-/* ── FREE PLAN BADGE ── */
-.plan-badge {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(77,142,255,0.06);
-    border: 1px solid rgba(77,142,255,0.18);
-    border-radius: var(--radius);
-    padding: 0.55rem 0.85rem;
-    margin: 0.5rem 0;
-}
-.plan-badge-label {
-    font-family: var(--sans);
-    font-size: 0.56rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--t3);
-}
-.plan-badge-value {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: var(--accent);
-}
-.usage-bar-bg {
-    width: 100%;
-    height: 3px;
-    background: rgba(255,255,255,0.06);
-    border-radius: 2px;
-    margin-top: 0.4rem;
-    overflow: hidden;
-}
-.usage-bar-fill {
-    height: 100%;
-    border-radius: 2px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    transition: width 0.6s ease;
-}
-
-/* ── NAV ITEM ── */
-.nav-item-active {
-    background: var(--bg4);
-    border-left: 3px solid var(--accent);
-    color: var(--primary) !important;
-    padding: 0.55rem 1rem;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    margin: 2px 0;
-    border-radius: 0 var(--radius) var(--radius) 0;
-    font-family: var(--sans);
-}
-.nav-item-idle {
-    color: var(--t3);
-    padding: 0.55rem 1rem;
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    margin: 2px 0;
-    font-family: var(--sans);
-}
-
-/* ── WATCHLIST BADGE ── */
-.wl-badge {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    padding: 0.55rem 0.8rem;
-    border-radius: var(--radius);
-    margin-bottom: 0.3rem;
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    transition: background 0.15s;
-}
-.wl-badge:hover { background: var(--bg4); }
-
-/* ── PREMIUM METRIC CARD (feature grid) ── */
-.metric-card {
-    background: linear-gradient(145deg, #0f1727, #080e1c);
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: var(--radius-lg);
-    padding: 1.3rem 1.4rem;
-    transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
-    height: 100%;
-    box-shadow: var(--shadow-sm);
-}
-.metric-card:hover {
-    border-color: rgba(77,142,255,0.35);
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-md);
-}
-.section-title {
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.13em;
-    color: #7c8191;
-    margin-bottom: 0.55rem;
-    font-weight: 700;
-    font-family: var(--sans);
-    line-height: 1.4;
-}
-
-/* ── TRUST ELEMENTS ── */
-.trust-row {
-    display: flex;
-    align-items: center;
-    gap: 1.2rem;
-    flex-wrap: wrap;
-    margin: 0.8rem 0 0;
-}
-.trust-item {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-family: var(--sans);
-    font-size: 0.57rem;
-    font-weight: 600;
-    color: var(--t4);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
-.trust-item-dot {
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: var(--emerald);
-    flex-shrink: 0;
-}
-
-/* ── DISCLAIMER PILL ── */
-.disclaimer-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: rgba(255,95,95,0.07);
-    border: 1px solid rgba(255,95,95,0.18);
-    border-radius: 2rem;
-    padding: 0.32rem 0.85rem;
-    font-family: var(--mono);
-    font-size: 0.55rem;
-    letter-spacing: 0.07em;
-    color: rgba(255,95,95,0.7);
-}
-
-/* ── TIMESTAMP CAPTION ── */
-.data-ts {
-    font-family: var(--mono);
-    font-size: 0.54rem;
-    color: var(--t4);
-    letter-spacing: 0.07em;
-    margin-top: 0.3rem;
-}
-
-/* ====================================================================
-   METAPHOR SYSTEM  ·  7 expert UI patterns  — STOCKCAST
-   ==================================================================== */
-
-/* 1. TABS — premium pill-style with notification dots */
 [data-testid="stTabs"] [role="tablist"] {
     background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 100%) !important;
     border: 1px solid var(--border) !important;
     border-bottom: none !important;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
     gap: 2px !important;
-    padding: 0.35rem 0.5rem !important;
+    padding: 0.3rem 0.45rem !important;
     box-shadow: var(--shadow-sm) !important;
 }
 [data-testid="stTabs"] [role="tab"] {
     font-family: var(--sans) !important;
-    font-size: 0.64rem !important;
+    font-size: 0.7rem !important;
     font-weight: 700 !important;
-    letter-spacing: 0.09em !important;
+    letter-spacing: 0.08em !important;
     color: var(--t4) !important;
     border: 1px solid transparent !important;
     border-radius: var(--radius) !important;
     text-transform: uppercase !important;
-    padding: 0.5rem 1.1rem !important;
-    transition: color 0.18s, background 0.18s, border-color 0.18s, box-shadow 0.18s !important;
+    padding: 0.48rem 1rem !important;
+    transition: color 0.15s, background 0.15s, border-color 0.15s !important;
     white-space: nowrap !important;
 }
 [data-testid="stTabs"] [role="tab"]:hover {
@@ -2914,219 +1931,504 @@ label, [data-testid="stSelectbox"] label,
 }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
     color: var(--t1) !important;
-    background: linear-gradient(135deg, rgba(77,142,255,0.14) 0%, rgba(77,142,255,0.06) 100%) !important;
-    border-color: rgba(77,142,255,0.3) !important;
-    box-shadow: 0 0 16px rgba(77,142,255,0.15), inset 0 1px 0 rgba(77,142,255,0.2) !important;
+    background: linear-gradient(135deg, rgba(77,142,255,0.14) 0%, rgba(77,142,255,0.05) 100%) !important;
+    border-color: rgba(77,142,255,0.28) !important;
+    box-shadow: 0 0 12px rgba(77,142,255,0.12), inset 0 1px 0 rgba(77,142,255,0.15) !important;
 }
 [data-testid="stTabPanel"] {
-    background: linear-gradient(180deg, rgba(77,142,255,0.02) 0%, transparent 60px) !important;
+    background: linear-gradient(180deg, rgba(77,142,255,0.015) 0%, transparent 50px) !important;
     border: 1px solid var(--border) !important;
     border-top: none !important;
     border-radius: 0 0 var(--radius-lg) var(--radius-lg) !important;
-    padding: 1.4rem 0.2rem 0.4rem !important;
+    padding: 1.2rem 0.2rem 0.3rem !important;
 }
 .tab-dot {
     display: inline-block; width: 6px; height: 6px;
     background: var(--red); border-radius: 50%;
     margin-left: 5px; vertical-align: top; margin-top: 1px;
-    box-shadow: 0 0 6px rgba(255,95,95,0.7);
+    box-shadow: 0 0 5px rgba(255,87,87,0.65);
     animation: tab-dot-pulse 2s ease-in-out infinite;
 }
-.tab-dot.green  { background: var(--emerald); box-shadow: 0 0 6px rgba(0,229,176,0.7); }
-.tab-dot.yellow { background: var(--yellow);  box-shadow: 0 0 6px rgba(255,212,38,0.7); }
+.tab-dot.green  { background: var(--emerald); box-shadow: 0 0 5px rgba(0,217,166,0.65); }
+.tab-dot.yellow { background: var(--yellow);  box-shadow: 0 0 5px rgba(255,203,43,0.65); }
 @keyframes tab-dot-pulse {
     0%,100% { opacity: 1; transform: scale(1); }
-    50%      { opacity: 0.6; transform: scale(0.85); }
+    50%      { opacity: 0.5; transform: scale(0.8); }
 }
 
-/* 2. SKELETON LOADING */
-.skeleton {
-    background: linear-gradient(90deg, var(--bg3) 25%, rgba(255,255,255,0.04) 50%, var(--bg3) 75%);
-    background-size: 400% 100%;
-    animation: skeleton-shimmer 1.6s ease-in-out infinite;
-    border-radius: var(--radius);
+/* ── APP HEADER ── */
+.wi-header {
+    background: linear-gradient(90deg, var(--bg2) 0%, var(--bg3) 60%, var(--bg2) 100%);
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 1.1rem 2rem;
+    margin: 1.5rem -2rem 1.5rem -2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 24px rgba(0,0,0,0.4);
 }
-@keyframes skeleton-shimmer {
-    0%   { background-position: 100% 50%; }
-    100% { background-position:   0% 50%; }
+.wi-logo {
+    font-family: var(--sans);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--t1);
+    letter-spacing: -0.02em;
 }
-.skeleton-card {
-    background: var(--bg2); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); padding: 1.15rem 1.4rem;
-    overflow: hidden; position: relative;
+.wi-logo span { color: var(--accent); }
+.wi-sub {
+    font-size: 0.7rem;
+    color: var(--t3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 0.2rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
-.skeleton-card::after {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
-    background-size: 200% 100%;
-    animation: sk-overlay 1.6s ease-in-out infinite;
+.live-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--emerald);
+    border-radius: 50%;
+    animation: pulse-dot 2s infinite;
+    margin-right: 5px;
+    vertical-align: middle;
+    box-shadow: 0 0 8px rgba(0,217,166,0.55);
 }
-@keyframes sk-overlay {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+@keyframes pulse-dot {
+    0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,217,166,0.45); }
+    50%      { opacity:.8; box-shadow: 0 0 0 6px rgba(0,217,166,0); }
 }
-.sk-line       { height: 10px; margin-bottom: 8px; border-radius: 4px; }
-.sk-line.w-100 { width: 100%; }  .sk-line.w-80 { width: 80%; }
-.sk-line.w-60  { width: 60%; }   .sk-line.w-40 { width: 40%; }
-.sk-line.title { height: 20px; width: 50%; margin-bottom: 10px; }
-.sk-line.value { height: 28px; width: 70%; margin-bottom: 6px; }
-.sk-circle     { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+.live-label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--emerald);
+    letter-spacing: 0.1em;
+    vertical-align: middle;
+}
 
-/* 3. CHIPS */
+/* ── TICKER TAPE ── */
+.ticker-tape-wrap {
+    overflow: hidden;
+    background: linear-gradient(90deg, var(--bg2), var(--bg3), var(--bg2));
+    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    padding: 0.28rem 0;
+    margin: 0 -2rem 1.8rem -2rem;
+}
+.ticker-tape {
+    display: inline-flex;
+    gap: 2.5rem;
+    animation: tape 40s linear infinite;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    color: var(--t3);
+}
+.ticker-tape:hover { animation-play-state: paused; }
+@keyframes tape { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+.tape-up   { color: var(--emerald); font-weight: 700; }
+.tape-down { color: var(--red); font-weight: 700; }
+.tape-sym  { color: var(--t4); font-size: 0.62rem; margin-right: 0.25rem; }
+
+/* ── DATA FRESHNESS BADGE ── */
+.freshness-badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    background: rgba(0,217,166,0.05);
+    border: 1px solid rgba(0,217,166,0.16);
+    border-radius: 2rem; padding: 0.25rem 0.7rem;
+    font-family: var(--mono); font-size: 0.68rem;
+    letter-spacing: 0.07em; color: var(--emerald);
+}
+
+/* ── GLASS CARDS ── */
+.wi-card {
+    background: linear-gradient(145deg, #0d1524, #07101e);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-lg);
+    padding: 1.3rem 1.5rem;
+    transition: all 0.22s ease;
+    box-shadow: var(--shadow-sm);
+}
+.wi-card:hover {
+    border-color: rgba(77,142,255,0.28);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+.wi-card-accent  { border-top: 2px solid var(--accent); }
+.wi-card-emerald { border-top: 2px solid var(--emerald); }
+.wi-card-red     { border-top: 2px solid var(--red); }
+.wi-card-yellow  { border-top: 2px solid var(--yellow); }
+
+/* ── STAT GRID ── */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+@media (max-width: 768px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; gap: .55rem !important; }
+    .block-container { padding: .7rem .7rem 3rem .7rem !important; }
+    .wi-header { padding: .75rem 1rem !important; margin: 0 -.7rem 1rem -.7rem !important; flex-wrap: wrap; gap: .4rem; }
+    .wi-sub { display: none !important; }
+    .trust-row { display: none !important; }
+    .ticker-tape-wrap { margin: 0 -.7rem 1rem -.7rem !important; }
+    .signal-panel { flex-direction: column !important; }
+    .signal-main { flex: none !important; width: 100% !important; }
+    .signal-details { grid-template-columns: 1fr 1fr !important; width: 100% !important; }
+    .stat-value { font-size: 1.25rem !important; }
+    .wi-logo { font-size: 1.2rem !important; }
+    h2, h3 { margin-top: 1rem !important; }
+}
+@media (max-width: 480px) {
+    .stat-grid { grid-template-columns: 1fr 1fr !important; }
+    .stat-value { font-size: 1.05rem !important; }
+}
+.stat-card {
+    background: linear-gradient(145deg, var(--bg2), #080d1c);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--accent);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    position: relative; overflow: hidden;
+    transition: transform 0.18s, box-shadow 0.18s;
+    box-shadow: var(--shadow-sm);
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.stat-card::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 60px; height: 60px;
+    background: radial-gradient(circle at top right, rgba(77,142,255,0.07), transparent 70%);
+}
+.stat-label {
+    font-family: var(--sans);
+    font-size: 0.68rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--t3);
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+.stat-value {
+    font-family: var(--mono);
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: var(--primary);
+    line-height: 1.1;
+}
+.stat-sub { font-size: 0.68rem; color: var(--t3); margin-top: 4px; font-family: var(--sans); font-weight: 600; }
+
+/* ── SIGNAL PANEL ── */
+.signal-panel { display: flex; gap: 1rem; margin: 1.2rem 0; flex-wrap: wrap; }
+.signal-main {
+    flex: 0 0 250px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem 1.6rem;
+    border: 1.5px solid var(--accent);
+    background: rgba(77,142,255,0.04);
+    border-radius: var(--radius-lg);
+    position: relative; overflow: hidden;
+    box-shadow: 0 0 30px rgba(77,142,255,0.08), var(--shadow-sm);
+    transition: box-shadow 0.2s;
+}
+.signal-main::before {
+    content: ''; position: absolute; bottom: -20px; right: -20px;
+    width: 100px; height: 100px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(77,142,255,0.15) 0%, transparent 70%);
+}
+.signal-main.sell { border-color: var(--red); background: rgba(255,87,87,0.04); box-shadow: 0 0 30px rgba(255,87,87,0.08), var(--shadow-sm); }
+.signal-main.sell::before { background: radial-gradient(circle, rgba(255,87,87,0.15) 0%, transparent 70%); }
+.signal-main.hold { border-color: var(--yellow); background: rgba(255,203,43,0.04); box-shadow: 0 0 30px rgba(255,203,43,0.08), var(--shadow-sm); }
+.signal-main.hold::before { background: radial-gradient(circle, rgba(255,203,43,0.15) 0%, transparent 70%); }
+.signal-action {
+    font-family: var(--mono); font-size: 2.2rem; font-weight: 800;
+    letter-spacing: 0.14em; color: var(--primary); line-height: 1;
+}
+.signal-action.sell { color: var(--red); }
+.signal-action.hold { color: var(--yellow); }
+.signal-pct { font-family: var(--mono); font-size: 1rem; font-weight: 600; margin-top: 0.5rem; color: var(--t1); }
+.signal-lbl { font-size: 0.68rem; letter-spacing: 0.16em; color: var(--t3); margin-top: 8px; text-transform: uppercase; font-weight: 700; font-family: var(--sans); }
+.signal-details { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; min-width: 200px; }
+@media (max-width: 600px) {
+    .signal-panel { flex-direction: column; }
+    .signal-main  { flex: none; width: 100%; }
+    .signal-details { min-width: 0; width: 100%; }
+}
+.sig-card {
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
+    border: 1px solid var(--border);
+    padding: 0.8rem 1rem; position: relative;
+    border-radius: var(--radius); overflow: hidden;
+    transition: transform 0.15s, border-color 0.15s;
+}
+.sig-card:hover { transform: translateY(-1px); border-color: var(--border2); }
+.sig-card::before {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: 3px; height: 100%; background: var(--border); border-radius: 2px 0 0 2px;
+}
+.sig-card.positive::before { background: var(--emerald); }
+.sig-card.negative::before { background: var(--red); }
+.sig-card.neutral::before  { background: var(--yellow); }
+.sig-lbl { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--t3); margin-bottom: 4px; font-weight: 700; font-family: var(--sans); }
+.sig-val { font-family: var(--mono); font-size: 0.9rem; font-weight: 700; color: var(--t1); }
+.sig-sub { font-size: 0.68rem; color: var(--t3); margin-top: 2px; font-family: var(--sans); }
+
+/* ── COMPOSITE METER ── */
+.composite-meter {
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 1.1rem 1.5rem;
+    margin: 0.8rem 0;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+.meter-title { font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--t3); margin-bottom: 0.8rem; font-weight: 700; font-family: var(--sans); }
+.sir { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.45rem; font-family: var(--mono); font-size: 0.72rem; }
+.sir-label { color: var(--t2); width: 128px; flex-shrink: 0; }
+.sir-bar-bg { flex: 1; height: 4px; background: rgba(255,255,255,0.04); border-radius: 2px; overflow: hidden; }
+.sir-bar { height: 100%; border-radius: 2px; transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
+.sir-bar.positive { background: linear-gradient(90deg, var(--emerald), rgba(0,217,166,0.4)); }
+.sir-bar.negative { background: linear-gradient(90deg, var(--red), rgba(255,87,87,0.4)); }
+.sir-bar.neutral  { background: linear-gradient(90deg, var(--yellow), rgba(255,203,43,0.4)); }
+.sir-val { width: 55px; text-align: right; font-weight: 600; color: var(--t1); }
+.sir-sig { width: 40px; text-align: right; font-size: 0.65rem; letter-spacing: 0.07em; font-weight: 700; }
+.sir-sig.buy { color: var(--emerald); }
+.sir-sig.sell { color: var(--red); }
+.sir-sig.hold { color: var(--yellow); }
+
+/* ── CHIPS ── */
 .chip {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    padding: 0.3rem 0.75rem; border-radius: 100px;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0.27rem 0.7rem; border-radius: 100px;
     border: 1px solid var(--border2); background: var(--bg3);
     color: var(--t3); white-space: nowrap; user-select: none;
     transition: all 0.15s ease;
 }
-.chip:hover { border-color: var(--accent); color: var(--t2); background: rgba(77,142,255,0.08); }
-.chip.buy    { background: rgba(0,229,176,0.1);  border-color: rgba(0,229,176,0.4);  color: var(--emerald); }
-.chip.sell   { background: rgba(255,95,95,0.1);   border-color: rgba(255,95,95,0.4);  color: var(--red); }
-.chip.hold   { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.4); color: var(--yellow); }
-.chip.live   { background: rgba(0,229,176,0.08);  border-color: rgba(0,229,176,0.25); color: var(--emerald);
-               animation: chip-live-pulse 2.5s ease-in-out infinite; }
-.chip.info   { background: rgba(77,142,255,0.1);  border-color: rgba(77,142,255,0.35);color: var(--accent); }
-.chip.pro    { background: rgba(255,212,38,0.1);  border-color: rgba(255,212,38,0.35);color: var(--yellow); }
-.chip.warn   { background: rgba(255,160,0,0.1);   border-color: rgba(255,160,0,0.35); color: #ffa040; }
-.chip.ai     { background: rgba(173,198,255,0.1); border-color: rgba(173,198,255,0.3);color: var(--primary); }
+.chip:hover { border-color: var(--accent); color: var(--t2); background: rgba(77,142,255,0.07); }
+.chip.buy    { background: rgba(0,217,166,0.09);  border-color: rgba(0,217,166,0.35);  color: var(--emerald); }
+.chip.sell   { background: rgba(255,87,87,0.09);  border-color: rgba(255,87,87,0.35);  color: var(--red); }
+.chip.hold   { background: rgba(255,203,43,0.09); border-color: rgba(255,203,43,0.35); color: var(--yellow); }
+.chip.live   { background: rgba(0,217,166,0.07);  border-color: rgba(0,217,166,0.22);  color: var(--emerald); animation: chip-live-pulse 2.5s ease-in-out infinite; }
+.chip.info   { background: rgba(77,142,255,0.09); border-color: rgba(77,142,255,0.32); color: var(--accent); }
+.chip.pro    { background: rgba(255,203,43,0.09); border-color: rgba(255,203,43,0.32); color: var(--yellow); }
+.chip.ai     { background: rgba(194,212,255,0.08);border-color: rgba(194,212,255,0.25);color: var(--primary); }
 .chip.dot::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-@keyframes chip-live-pulse {
-    0%,100% { box-shadow: 0 0 0 0 rgba(0,229,176,0.3); }
-    50%      { box-shadow: 0 0 0 4px rgba(0,229,176,0); }
-}
-.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+@keyframes chip-live-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,217,166,0.28); } 50% { box-shadow: 0 0 0 3px rgba(0,217,166,0); } }
+.chip-group { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 
-/* 4. ACCORDION */
-.accordion { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin: 0.5rem 0; }
+/* ── BT CARDS ── */
+.bt-card {
+    background: linear-gradient(145deg, var(--bg2), var(--bg3));
+    border: 1px solid var(--border); border-top: 2px solid var(--border2);
+    padding: 1rem 1.2rem; margin-bottom: 0.45rem;
+    font-family: var(--mono); border-radius: var(--radius);
+    transition: transform 0.15s;
+}
+.bt-card:hover { transform: translateY(-1px); }
+.bt-label { font-size: 0.68rem; color: var(--t3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; font-family: var(--sans); font-weight: 700; }
+.bt-val       { font-size: 1.3rem; font-weight: 700; color: var(--t1); }
+.bt-val-green { font-size: 1.3rem; font-weight: 700; color: var(--emerald); }
+.bt-val-red   { font-size: 1.3rem; font-weight: 700; color: var(--red); }
+
+/* ── HALAL CARDS ── */
+.halal-card {
+    background: rgba(0,217,166,0.03); border: 1px solid rgba(0,217,166,0.13);
+    border-left: 3px solid var(--emerald); padding: 0.85rem 1.2rem; margin: 0.35rem 0;
+    font-family: var(--sans); font-size: 0.82rem; color: var(--t2); line-height: 1.5;
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+.halal-card-fail {
+    background: rgba(255,87,87,0.03); border: 1px solid rgba(255,87,87,0.13);
+    border-left: 3px solid var(--red); padding: 0.85rem 1.2rem; margin: 0.35rem 0;
+    font-family: var(--sans); font-size: 0.82rem; color: var(--t2); line-height: 1.5;
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* ── MODEL BADGE ── */
+.model-badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    background: rgba(77,142,255,0.08); border: 1px solid rgba(77,142,255,0.2);
+    color: var(--primary); font-family: var(--sans); font-size: 0.68rem;
+    font-weight: 700; padding: 0.22rem 0.85rem; letter-spacing: 0.08em;
+    text-transform: uppercase; margin-bottom: 0.8rem; border-radius: 2rem;
+}
+
+/* ── ALERT BOX ── */
+.alert-box {
+    background: rgba(77,142,255,0.05); border: 1px solid rgba(77,142,255,0.22);
+    border-left: 3px solid var(--accent); padding: 0.85rem 1.3rem;
+    font-family: var(--sans); font-size: 0.82rem; color: var(--primary);
+    margin: 0.8rem 0; letter-spacing: 0.02em;
+    border-radius: 0 var(--radius) var(--radius) 0; line-height: 1.55;
+}
+
+/* ── SIDEBAR STAT ROW ── */
+.stat-row {
+    font-family: var(--sans); font-size: 0.7rem; color: var(--t3);
+    letter-spacing: 0.09em; text-transform: uppercase;
+    margin-bottom: 4px; margin-top: 2px; font-weight: 700;
+}
+
+/* ── PLAN BADGE ── */
+.plan-badge {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(77,142,255,0.05); border: 1px solid rgba(77,142,255,0.15);
+    border-radius: var(--radius); padding: 0.5rem 0.8rem; margin: 0.45rem 0;
+}
+.plan-badge-label {
+    font-family: var(--sans); font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--t3);
+}
+.plan-badge-value {
+    font-family: var(--mono); font-size: 0.7rem; font-weight: 600; color: var(--accent);
+}
+.usage-bar-bg { width: 100%; height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 0.35rem; overflow: hidden; }
+.usage-bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.6s ease; }
+
+/* ── NAV ITEMS ── */
+.nav-item-active {
+    background: var(--bg4); border-left: 3px solid var(--accent);
+    color: var(--primary) !important; padding: 0.5rem 1rem;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em;
+    text-transform: uppercase; margin: 2px 0;
+    border-radius: 0 var(--radius) var(--radius) 0; font-family: var(--sans);
+}
+.nav-item-idle {
+    color: var(--t3); padding: 0.5rem 1rem; font-size: 0.7rem;
+    font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    margin: 2px 0; font-family: var(--sans);
+}
+
+/* ── WATCHLIST BADGE ── */
+.wl-badge {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem; border-radius: var(--radius);
+    margin-bottom: 0.28rem; font-family: var(--mono);
+    font-size: 0.72rem; transition: background 0.15s, border-color 0.15s;
+}
+.wl-badge:hover { background: var(--bg4); border-color: var(--border2); }
+
+/* ── METRIC CARD (feature grid) ── */
+.metric-card {
+    background: linear-gradient(145deg, #0d1524, #07101e);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: var(--radius-lg); padding: 1.2rem 1.3rem;
+    transition: all 0.22s ease; height: 100%; box-shadow: var(--shadow-sm);
+}
+.metric-card:hover { border-color: rgba(77,142,255,0.28); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.section-title {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.11em;
+    color: var(--t3); margin-bottom: 0.5rem; font-weight: 700;
+    font-family: var(--sans); line-height: 1.4;
+}
+
+/* ── TRUST ELEMENTS ── */
+.trust-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 0.6rem 0 0; }
+.trust-item {
+    display: flex; align-items: center; gap: 0.28rem;
+    font-family: var(--sans); font-size: 0.68rem; font-weight: 600;
+    color: var(--t4); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.trust-item-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
+
+/* ── DISCLAIMER PILL ── */
+.disclaimer-pill {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    background: rgba(255,87,87,0.06); border: 1px solid rgba(255,87,87,0.16);
+    border-radius: 2rem; padding: 0.28rem 0.8rem;
+    font-family: var(--mono); font-size: 0.68rem;
+    letter-spacing: 0.06em; color: rgba(255,87,87,0.65);
+}
+
+/* ── TIMESTAMP ── */
+.data-ts {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--t4); letter-spacing: 0.06em; margin-top: 0.25rem;
+}
+
+/* ── SKELETON LOADING ── */
+.skeleton {
+    background: linear-gradient(90deg, var(--bg3) 25%, rgba(255,255,255,0.03) 50%, var(--bg3) 75%);
+    background-size: 400% 100%; animation: skeleton-shimmer 1.6s ease-in-out infinite;
+    border-radius: var(--radius);
+}
+@keyframes skeleton-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.skeleton-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 1rem 1.25rem;
+    overflow: hidden; position: relative;
+}
+.skeleton-card::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.025) 50%, transparent 60%);
+    background-size: 200% 100%; animation: sk-overlay 1.6s ease-in-out infinite;
+}
+@keyframes sk-overlay { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.sk-line       { height: 9px;  margin-bottom: 7px; border-radius: 3px; }
+.sk-line.w-100 { width: 100%; } .sk-line.w-80 { width: 80%; }
+.sk-line.w-60  { width: 60%; }  .sk-line.w-40 { width: 40%; }
+.sk-line.title { height: 18px; width: 50%; margin-bottom: 9px; }
+.sk-line.value { height: 26px; width: 70%; margin-bottom: 5px; }
+.sk-circle     { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── ACCORDION ── */
+.accordion { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin: 0.45rem 0; }
 .accordion-item { border-bottom: 1px solid var(--border); }
 .accordion-item:last-child { border-bottom: none; }
 .accordion-trigger {
     width: 100%; display: flex; align-items: center; justify-content: space-between;
-    padding: 0.9rem 1.3rem; background: var(--bg2); border: none; cursor: pointer;
-    font-family: var(--sans); font-size: 0.76rem; font-weight: 700;
-    color: var(--t2); text-align: left; gap: 0.8rem;
+    padding: 0.85rem 1.2rem; background: var(--bg2); border: none; cursor: pointer;
+    font-family: var(--sans); font-size: 0.78rem; font-weight: 700;
+    color: var(--t2); text-align: left; gap: 0.75rem;
     transition: background 0.15s, color 0.15s;
 }
 .accordion-trigger:hover  { background: var(--bg3); color: var(--t1); }
-.accordion-trigger.active { color: var(--accent); background: rgba(77,142,255,0.05); }
+.accordion-trigger.active { color: var(--accent); background: rgba(77,142,255,0.04); }
 .accordion-icon {
-    width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+    width: 17px; height: 17px; display: flex; align-items: center; justify-content: center;
     border-radius: 50%; border: 1px solid var(--border2); flex-shrink: 0;
-    font-size: 0.65rem; color: var(--t4);
+    font-size: 0.62rem; color: var(--t4);
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.15s;
 }
 .accordion-trigger.active .accordion-icon { transform: rotate(180deg); border-color: var(--accent); color: var(--accent); }
-.accordion-num   { font-family: var(--mono); font-size: 0.6rem; color: var(--t4); flex-shrink: 0; }
+.accordion-num   { font-family: var(--mono); font-size: 0.65rem; color: var(--t4); flex-shrink: 0; }
 .accordion-label { flex: 1; }
-.accordion-badge { font-family: var(--mono); font-size: 0.56rem; color: var(--t4); flex-shrink: 0; }
+.accordion-badge { font-family: var(--mono); font-size: 0.62rem; color: var(--t4); flex-shrink: 0; }
 .accordion-body  { max-height: 0; overflow: hidden; transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1); background: var(--bg); }
 .accordion-body.open { max-height: 900px; }
-.accordion-body-inner { padding: 1rem 1.3rem 1.2rem; }
+.accordion-body-inner { padding: 0.9rem 1.2rem 1.1rem; }
 
-/* 5. TOAST */
-#sc-toasts {
-    position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 99999;
-    display: flex; flex-direction: column-reverse; gap: 0.6rem; pointer-events: none;
-}
+/* ── TOAST ── */
+#sc-toasts { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 99999; display: flex; flex-direction: column-reverse; gap: 0.55rem; pointer-events: none; }
 .sc-toast {
-    display: flex; align-items: flex-start; gap: 0.75rem;
-    min-width: 280px; max-width: 380px; padding: 0.85rem 1rem;
+    display: flex; align-items: flex-start; gap: 0.7rem;
+    min-width: 270px; max-width: 360px; padding: 0.8rem 0.95rem;
     background: var(--bg2); border: 1px solid var(--border);
     border-radius: var(--radius-lg); position: relative;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-    pointer-events: all;
-    animation: sc-toast-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55); pointer-events: all;
+    animation: sc-toast-in 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards;
 }
-.sc-toast.hiding { animation: sc-toast-out 0.25s ease-in forwards; }
-@keyframes sc-toast-in  { from{opacity:0;transform:translateX(20px) scale(0.92)} to{opacity:1;transform:translateX(0) scale(1)} }
-@keyframes sc-toast-out { from{opacity:1;transform:translateX(0) scale(1)} to{opacity:0;transform:translateX(20px) scale(0.9)} }
-.sc-toast::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-}
+.sc-toast.hiding { animation: sc-toast-out 0.22s ease-in forwards; }
+@keyframes sc-toast-in  { from{opacity:0;transform:translateX(16px) scale(0.94)} to{opacity:1;transform:translateX(0) scale(1)} }
+@keyframes sc-toast-out { from{opacity:1;transform:translateX(0) scale(1)} to{opacity:0;transform:translateX(16px) scale(0.92)} }
+.sc-toast::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
 .sc-toast.t-success::before { background: var(--emerald); }
 .sc-toast.t-error::before   { background: var(--red); }
 .sc-toast.t-warn::before    { background: var(--yellow); }
 .sc-toast.t-info::before    { background: var(--accent); }
-.sc-toast-icon  { font-size: 1rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+.sc-toast-icon  { font-size: 0.95rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
 .sc-toast-body  { flex: 1; min-width: 0; }
-.sc-toast-title { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; color: var(--t1); margin-bottom: 2px; }
-.sc-toast-msg   { font-family: var(--sans); font-size: 0.67rem; color: var(--t3); line-height: 1.45; }
-.sc-toast-close { background: none; border: none; color: var(--t4); cursor: pointer; font-size: 0.75rem; padding: 0; flex-shrink: 0; transition: color 0.12s; pointer-events: all; }
+.sc-toast-title { font-family: var(--sans); font-size: 0.74rem; font-weight: 700; color: var(--t1); margin-bottom: 2px; }
+.sc-toast-msg   { font-family: var(--sans); font-size: 0.69rem; color: var(--t3); line-height: 1.45; }
+.sc-toast-close { background: none; border: none; color: var(--t4); cursor: pointer; font-size: 0.72rem; padding: 0; flex-shrink: 0; transition: color 0.12s; pointer-events: all; }
 .sc-toast-close:hover { color: var(--t2); }
-.sc-toast-bar { position: absolute; bottom: 0; left: 0; height: 2px; width: 100%; overflow: hidden; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: rgba(255,255,255,0.06); }
-.sc-toast-bar-fill { height: 100%; animation: sc-toast-bar-anim linear forwards; transform-origin: left; }
-.sc-toast.t-success .sc-toast-bar-fill { background: var(--emerald); }
-.sc-toast.t-error   .sc-toast-bar-fill { background: var(--red); }
-.sc-toast.t-warn    .sc-toast-bar-fill { background: var(--yellow); }
-.sc-toast.t-info    .sc-toast-bar-fill { background: var(--accent); }
-@keyframes sc-toast-bar-anim { from{transform:scaleX(1)} to{transform:scaleX(0)} }
+.sc-toast-bar   { position: absolute; bottom: 0; left: 0; height: 2px; width: 100%; overflow: hidden; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: rgba(255,255,255,0.05); }
 
-/* 6. BENTO GRID */
-.bento-grid {
-    display: grid; grid-template-columns: repeat(12, 1fr);
-    grid-auto-rows: minmax(100px, auto); gap: 0.75rem; margin: 1.2rem 0;
-}
-.bento-cell {
-    background: linear-gradient(145deg, var(--bg2), #090e1b);
-    border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-lg);
-    padding: 1.3rem 1.5rem; overflow: hidden; position: relative;
-    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), box-shadow 0.22s, border-color 0.22s;
-    box-shadow: var(--shadow-sm);
-}
-.bento-cell:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: rgba(77,142,255,0.2); }
-.bento-cell::before {
-    content: ''; position: absolute; top: -30px; right: -30px;
-    width: 100px; height: 100px; border-radius: 50%;
-    background: var(--cell-glow, rgba(77,142,255,0.06));
-    pointer-events: none; filter: blur(20px);
-}
-.col-3  { grid-column: span 3; }  .col-4  { grid-column: span 4; }
-.col-5  { grid-column: span 5; }  .col-6  { grid-column: span 6; }
-.col-8  { grid-column: span 8; }  .col-12 { grid-column: span 12; }
-.row-2  { grid-row: span 2; }
-.bento-cell.accent-blue   { border-top: 2px solid var(--accent);  --cell-glow: rgba(77,142,255,0.1); }
-.bento-cell.accent-green  { border-top: 2px solid var(--emerald); --cell-glow: rgba(0,229,176,0.1); }
-.bento-cell.accent-yellow { border-top: 2px solid var(--yellow);  --cell-glow: rgba(255,212,38,0.1); }
-.bento-cell.accent-red    { border-top: 2px solid var(--red);     --cell-glow: rgba(255,95,95,0.1); }
-.bento-cell.accent-purple { border-top: 2px solid var(--primary); --cell-glow: rgba(173,198,255,0.1); }
-.bento-label { font-family: var(--sans); font-size: 0.54rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--t4); margin-bottom: 0.5rem; }
-.bento-value { font-family: var(--mono); font-size: 1.7rem; font-weight: 700; color: var(--t1); line-height: 1.1; }
-.bento-sub   { font-family: var(--sans); font-size: 0.7rem; color: var(--t3); margin-top: 4px; }
-.bento-desc  { font-family: var(--sans); font-size: 0.78rem; color: var(--t3); line-height: 1.55; margin-top: 0.5rem; }
-.bento-icon  { font-size: 1.5rem; margin-bottom: 0.6rem; line-height: 1; }
-@media (max-width: 768px) {
-    .bento-grid { grid-template-columns: repeat(6,1fr) !important; }
-    .col-3,.col-4,.col-5,.col-6,.col-8 { grid-column: span 6 !important; }
-    .row-2 { grid-row: span 1 !important; }
-}
-
-/* 7. BREADCRUMBS */
-.breadcrumb-bar {
-    background: linear-gradient(90deg, var(--bg2), var(--bg3));
-    border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 0.4rem 1rem; margin-bottom: 1rem;
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-}
-.breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 0; font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.06em; }
-.bc-item { display: flex; align-items: center; gap: 4px; color: var(--t4); white-space: nowrap; }
-.bc-item.active { color: var(--accent); font-weight: 700; }
-.bc-dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--t4); flex-shrink: 0; }
-.bc-item.active .bc-dot { background: var(--accent); }
-.bc-sep { color: var(--border2); padding: 0 6px; font-size: 0.7rem; user-select: none; }
-.bc-context { font-family: var(--mono); font-size: 0.56rem; color: var(--t4); letter-spacing: 0.08em; white-space: nowrap; }
-
-/* ECG Heartbeat Spinner */
-[data-testid="stSpinner"] svg { display: none !important; }
-[data-testid="stSpinner"] p { font-family: var(--mono) !important; font-size: 0.68rem !important; color: var(--accent) !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; text-align: center !important; margin-top: 0.5rem !important; }
-[data-testid="stSpinner"] > div { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; padding: 1.2rem 2rem !important; gap: 0.4rem !important; }
-[data-testid="stSpinner"] > div::before { content: '' !important; display: block !important; width: 200px !important; height: 48px !important; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 48'%3E%3Cpolyline points='0,24 20,24 28,24 32,6 36,42 40,10 44,38 48,24 68,24 80,24 86,4 90,44 94,4 98,24 118,24 130,24 136,4 140,44 144,4 148,24 168,24 200,24' fill='none' stroke='%234d8eff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important; background-size: 200px 48px !important; background-repeat: repeat-x !important; animation: ecg-scroll 1.4s linear infinite !important; -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important; mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%) !important; }
-@keyframes ecg-scroll { 0%{background-position:0 0} 100%{background-position:200px 0} }
-[data-testid="stSpinner"] > div::after { content: '' !important; display: block !important; width: 8px !important; height: 8px !important; background: var(--emerald) !important; border-radius: 50% !important; box-shadow: 0 0 10px 3px rgba(0,229,176,0.7), 0 0 20px 6px rgba(0,229,176,0.3) !important; animation: ecg-dot 1.4s linear infinite !important; margin-top: -10px !important; position: relative !important; z-index: 2 !important; }
-@keyframes ecg-dot { 0%{transform:translateX(-96px);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateX(96px);opacity:0} }
 
 </style>
 
@@ -3659,7 +2961,7 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
             f'<button class="accordion-trigger">' +
             f'<span class="accordion-num">{_sn}</span>' +
             f'<span class="accordion-label">{_st} ' +
-            f'<span style="font-family:var(--mono);font-size:.56rem;color:{_sc};margin-left:.5rem;">{_ss}</span></span>' +
+            f'<span style="font-family:var(--mono);font-size:.7rem;color:{_sc};margin-left:.5rem;">{_ss}</span></span>' +
             f'<span class="accordion-badge">{_sb}</span>' +
             f'<span class="accordion-icon">&#9662;</span></button>' +
             f'<div class="accordion-body"><div class="accordion-body-inner">' +
@@ -3771,20 +3073,19 @@ st.markdown(f"""
 <div class="wi-header">
   <div style="min-width:0;flex:1;">
     <div class="wi-logo">Stock<span>cast</span>{_pro_badge_html}</div>
-    <div class="wi-sub" style="white-space:normal;">AI Stock Assistant · Signals · Simulator · Shariah · NLP</div>
-    <div class="trust-row" style="flex-wrap:wrap;gap:.4rem .8rem;margin-top:.4rem;">
+    <div class="wi-sub">AI Stock Intelligence · Signals · Forecast · Shariah · NLP</div>
+    <div class="trust-row">
       <span class="trust-item"><span class="trust-item-dot"></span>Yahoo Finance</span>
       <span class="trust-item"><span class="trust-item-dot" style="background:#4d8eff;"></span>Supabase Auth</span>
-      <span class="trust-item"><span class="trust-item-dot" style="background:#ffd426;"></span>Educational Only</span>
+      <span class="trust-item"><span class="trust-item-dot" style="background:#ffcb2b;"></span>Educational Only</span>
     </div>
   </div>
-  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;margin-left:1rem;">
-    <div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;margin-left:1rem;">
+    <div style="display:flex;align-items:center;gap:5px;">
       <span class="live-dot"></span>
       <span class="live-label">LIVE</span>
     </div>
-    <span class="disclaimer-pill" style="font-size:.5rem;">⚠ Not Advice</span>
-    <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#8a8fa0;">Muawwiz Ghani</div>
+    <span class="disclaimer-pill">⚠ Not Financial Advice</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -3851,7 +3152,7 @@ if st.session_state.get("show_upgrade_modal"):
              border:2px solid rgba(255,212,38,0.4);border-radius:1rem;
              padding:1.4rem 1.5rem;height:100%;position:relative;">
           <div style="position:absolute;top:-1px;right:1.2rem;background:#ffd426;
-               color:#080e1c;font-family:Manrope,sans-serif;font-size:.52rem;
+               color:#080e1c;font-family:Manrope,sans-serif;font-size:.7rem;
                font-weight:800;letter-spacing:.08em;text-transform:uppercase;
                padding:.22rem .75rem;border-radius:0 0 .5rem .5rem;">BEST VALUE</div>
           <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
@@ -3978,74 +3279,73 @@ with st.sidebar:
     )
 
     st.markdown(f"""
-    <div style="padding:1.5rem 1rem 0.9rem;">
-      <div style="font-family:Manrope,sans-serif;font-size:1.45rem;font-weight:800;
-           color:#e4eafd;letter-spacing:-.02em;line-height:1;">
+    <div style="padding:1.3rem 0.85rem 0.7rem;">
+      <div style="font-family:Manrope,sans-serif;font-size:1.3rem;font-weight:800;
+           color:#eaefff;letter-spacing:-.025em;line-height:1;">
         Stock<span style="color:#4d8eff;">cast</span>
       </div>
-      <div style="font-size:.52rem;color:#3e4558;letter-spacing:.1em;text-transform:uppercase;
-           font-weight:700;margin-top:3px;">by Muawwiz Ghani</div>
+      <div style="font-size:.7rem;color:#3d4760;letter-spacing:.08em;text-transform:uppercase;
+           font-weight:700;margin-top:4px;">AI Stock Intelligence</div>
     </div>
-    <div style="background:rgba(77,142,255,0.07);border:1px solid rgba(77,142,255,0.18);
-         border-left:3px solid #4d8eff;padding:.55rem 1rem;margin:.3rem 0 .5rem;
-         font-family:IBM Plex Mono,monospace;font-size:.63rem;color:#adc6ff;letter-spacing:.04em;
-         border-radius:0 .5rem .5rem 0;display:flex;align-items:center;gap:.5rem;">
-      <span style="color:#3e4558;">👤</span>
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+    <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.13);
+         border-left:2px solid #4d8eff;padding:.42rem .85rem;margin:.15rem 0 .4rem;
+         font-family:IBM Plex Mono,monospace;font-size:0.74rem;color:#7ab0ff;
+         letter-spacing:.025em;border-radius:0 .45rem .45rem 0;
+         display:flex;align-items:center;gap:.4rem;overflow:hidden;">
+      <span style="color:#3d4760;flex-shrink:0;font-size:.8rem;">👤</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7ab0ff;">
         {_user_email()}
       </span>
     </div>
     """, unsafe_allow_html=True)
 
     if _is_pro_user:
-        # Pro badge
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,rgba(255,212,38,0.12),rgba(255,160,0,0.08));
-             border:1px solid rgba(255,212,38,0.35);border-radius:.6rem;padding:.65rem 1rem;
-             margin:.2rem 0 .5rem;display:flex;align-items:center;justify-content:space-between;">
+        <div style="background:linear-gradient(135deg,rgba(255,203,43,0.1),rgba(255,160,0,0.06));
+             border:1px solid rgba(255,203,43,0.28);border-radius:.5rem;padding:.6rem .9rem;
+             margin:.2rem 0 .45rem;display:flex;align-items:center;justify-content:space-between;">
           <div>
-            <div style="font-family:Manrope,sans-serif;font-size:.56rem;font-weight:800;
-                 letter-spacing:.12em;text-transform:uppercase;color:#ffd426;">✦ Pro Plan</div>
-            <div style="font-family:Manrope,sans-serif;font-size:.68rem;color:#8a8fa0;margin-top:1px;">
-              Unlimited analyses · {_wl_limit} watchlist stocks
+            <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;
+                 letter-spacing:.1em;text-transform:uppercase;color:#ffcb2b;">✦ Pro Plan</div>
+            <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#7a8299;margin-top:2px;">
+              Unlimited · {_wl_limit} watchlist stocks
             </div>
           </div>
-          <div style="font-family:IBM Plex Mono,monospace;font-size:1rem;color:#ffd426;">∞</div>
+          <div style="font-family:IBM Plex Mono,monospace;font-size:1.1rem;color:#ffcb2b;opacity:.8;">∞</div>
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Free plan meter — segmented pill display
         _seg_html = ""
         for _si in range(_daily_limit):
-            _seg_color = _usage_color if _si < _usage_count else "#1e2740"
-            _seg_html += f'<div style="flex:1;height:6px;background:{_seg_color};border-radius:3px;transition:background .3s;"></div>'
+            _seg_color = _usage_color if _si < _usage_count else "#1a2640"
+            _seg_html += f'<div style="flex:1;height:5px;background:{_seg_color};border-radius:2px;transition:background .3s;"></div>'
 
         _limit_banner = ""
         if _usage_count >= _daily_limit:
             _limit_banner = f"""
-            <div style="background:rgba(255,95,95,0.07);border:1px solid rgba(255,95,95,0.2);
-                 border-left:3px solid #ff5f5f;padding:.55rem .9rem;margin:.3rem 0;
-                 border-radius:0 .5rem .5rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:.72rem;font-weight:800;
-                   color:#ff5f5f;margin-bottom:.2rem;">🔒 Daily limit reached</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;line-height:1.4;">
+            <div style="background:rgba(255,87,87,0.06);border:1px solid rgba(255,87,87,0.18);
+                 border-left:3px solid #ff5757;padding:.5rem .85rem;margin:.3rem 0;
+                 border-radius:0 .45rem .45rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:.76rem;font-weight:800;
+                   color:#ff5757;margin-bottom:.15rem;">🔒 Daily limit reached</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.73rem;color:#7a8299;line-height:1.4;">
                 Resets at midnight UTC · Upgrade for unlimited.
               </div>
             </div>"""
         elif _usage_count > 0:
             _rem = _daily_limit - _usage_count
-            _limit_banner = f'<div style="font-family:Manrope,sans-serif;font-size:.62rem;color:#8a8fa0;margin-top:.3rem;">{_rem} {"analysis" if _rem==1 else "analyses"} remaining today</div>'
+            _limit_banner = f'<div style="font-family:Manrope,sans-serif;font-size:.72rem;color:#7a8299;margin-top:.25rem;">{_rem} {"analysis" if _rem==1 else "analyses"} remaining today</div>'
 
         st.markdown(f"""
         <div class="plan-badge">
           <div style="flex:1;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
               <div class="plan-badge-label">Free Plan · Daily Usage</div>
-              <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:{_usage_color};font-weight:700;">
+              <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_usage_color};font-weight:700;">
                 {_usage_count}/{_daily_limit}
               </div>
             </div>
-            <div style="display:flex;gap:3px;margin-bottom:.3rem;">{_seg_html}</div>
+            <div style="display:flex;gap:3px;margin-bottom:.25rem;">{_seg_html}</div>
           </div>
         </div>
         {_limit_banner}
@@ -4082,11 +3382,11 @@ with st.sidebar:
             selected = st.selectbox("Select", search_results, label_visibility="collapsed")
             ticker   = selected.split(" — ")[0].strip()
             # FIX 4: Confirmed ticker — green validation badge
-            st.markdown(f'<div style="background:rgba(0,229,176,0.08);border:1px solid rgba(0,229,176,0.3);border-left:3px solid #00e5b0;padding:.35rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#00e5b0;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">✓ {ticker} — symbol verified</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background:rgba(0,217,166,0.07);border:1px solid rgba(0,217,166,0.25);border-left:3px solid #00d9a6;padding:.35rem .85rem;font-family:IBM Plex Mono,monospace;font-size:0.75rem;color:#00d9a6;letter-spacing:.04em;margin:.25rem 0;border-radius:0 .45rem .45rem 0;">✓ {ticker} — symbol verified</div>', unsafe_allow_html=True)
         else:
             ticker = search_query.strip().upper()
             # FIX 4: Unknown ticker — amber warning with hint
-            st.markdown(f'<div style="background:rgba(255,221,45,0.06);border:1px solid rgba(255,221,45,0.3);border-left:3px solid #ffd426;padding:.4rem .9rem;font-family:IBM Plex Mono,monospace;font-size:0.78rem;color:#ffd426;letter-spacing:.05em;margin:.3rem 0;border-radius:0 .5rem .5rem 0;">⚠ {_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background:rgba(255,203,43,0.06);border:1px solid rgba(255,203,43,0.25);border-left:3px solid #ffcb2b;padding:.38rem .85rem;font-family:IBM Plex Mono,monospace;font-size:0.75rem;color:#ffcb2b;letter-spacing:.04em;margin:.25rem 0;border-radius:0 .45rem .45rem 0;">⚠ {_L["verify_symbol"].format(ticker=ticker)}</div>', unsafe_allow_html=True)
             # Probe yfinance lightly to confirm symbol exists
             @st.cache_data(ttl=60)
             def _quick_validate(sym):
@@ -4110,7 +3410,7 @@ with st.sidebar:
     if _in_wl:
         st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#00e5b0;padding:.2rem 0;">⭐ {ticker} is in your watchlist</div>', unsafe_allow_html=True)
     elif _wl_full:
-        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.63rem;color:#ff5f5f;padding:.2rem 0;">Watchlist full ({FREE_PLAN_WATCHLIST_LIMIT}/{FREE_PLAN_WATCHLIST_LIMIT})</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.73rem;color:#ff5757;padding:.2rem 0;">Watchlist full ({FREE_PLAN_WATCHLIST_LIMIT}/{FREE_PLAN_WATCHLIST_LIMIT})</div>', unsafe_allow_html=True)
     else:
         if st.button(f"⭐ Add {ticker} to Watchlist", use_container_width=True, key="sidebar_wl_add"):
             if ticker not in st.session_state.watchlist:
@@ -4129,15 +3429,15 @@ with st.sidebar:
     _max_horizon = _get_limit("forecast_horizon")
     future_days  = st.slider("Outlook horizon", 1, _max_horizon, min(7, _max_horizon), label_visibility="collapsed")
     if not _is_pro() and _max_horizon < 30:
-        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.6rem;color:#3e4558;">🔒 Pro unlocks 30-day outlook</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:Manrope,sans-serif;font-size:.72rem;color:#3d4760;">🔒 Pro unlocks 30-day outlook</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     ui_mode    = st.radio("Mode", [_L["beginner"], _L["pro"]], index=1, horizontal=True, label_visibility="collapsed")
     is_beginner = (ui_mode == _L["beginner"])
     if is_beginner:
-        st.markdown(f'<div style="background:rgba(0,229,176,0.06);border-left:3px solid #00e5b0;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#00e5b0;font-weight:700;">{_L["simple_view"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:rgba(0,217,166,0.05);border-left:3px solid #00d9a6;padding:.38rem .85rem;font-family:Manrope,sans-serif;font-size:.73rem;color:#00d9a6;font-weight:700;">{_L["simple_view"]}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div style="background:rgba(255,107,107,0.06);border-left:3px solid #ff5f5f;padding:.4rem .9rem;font-family:Manrope,sans-serif;font-size:.62rem;color:#ff5f5f;font-weight:700;">{_L["pro_view"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:rgba(255,87,87,0.05);border-left:3px solid #ff5757;padding:.38rem .85rem;font-family:Manrope,sans-serif;font-size:.73rem;color:#ff5757;font-weight:700;">{_L["pro_view"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
     fast_mode = st.checkbox(_L["fast_mode"], value=is_beginner)
@@ -4160,7 +3460,7 @@ with st.sidebar:
     if alert_price != _ap_saved:
         st.session_state[_ap_key] = alert_price
     if alert_price > 0:
-        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#ffd426;margin-top:.25rem;">🔔 Target set: ${alert_price:.2f}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:IBM Plex Mono,monospace;font-size:.73rem;color:#ffcb2b;margin-top:.2rem;">🔔 Target set: ${alert_price:.2f}</div>', unsafe_allow_html=True)
 
     if not is_beginner:
         st.markdown("---")
@@ -4185,16 +3485,16 @@ with st.sidebar:
             ci_bootstrap_n     = 100
             # FIX 3: Visible upgrade CTA instead of silent gating
             st.markdown(f"""
-            <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07),rgba(77,142,255,0.04));
-                 border:1px solid rgba(255,212,38,0.25);border-radius:.75rem;
-                 padding:.9rem 1.1rem;margin:.3rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;font-weight:800;
-                   color:#ffd426;margin-bottom:.4rem;">🔒 Pro Features Locked</div>
-              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;
-                   line-height:1.6;margin-bottom:.5rem;">
-                <span style="color:#e4eafd;">Model Comparison</span> — XGB vs Prophet vs LR side-by-side<br>
-                <span style="color:#e4eafd;">Bootstrap CI</span> — 95% confidence interval ribbon on forecast<br>
-                <span style="color:#e4eafd;">30-day Outlook</span> — extended forecast horizon
+            <div style="background:linear-gradient(135deg,rgba(255,203,43,0.06),rgba(77,142,255,0.03));
+                 border:1px solid rgba(255,203,43,0.2);border-radius:.5rem;
+                 padding:.85rem 1rem;margin:.25rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:0.8rem;font-weight:800;
+                   color:#ffcb2b;margin-bottom:.4rem;">🔒 Pro Features</div>
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#7a8299;
+                   line-height:1.65;margin-bottom:.45rem;">
+                <span style="color:#eaefff;">Model Comparison</span> — XGB vs Prophet vs LR<br>
+                <span style="color:#eaefff;">Bootstrap CI</span> — 95% confidence ribbon<br>
+                <span style="color:#eaefff;">30-day Outlook</span> — extended forecast
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -4216,10 +3516,10 @@ with st.sidebar:
             compare_tickers = []
             # FIX 3: Explicit locked feature card
             st.markdown(f"""
-            <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.2);
-                 border-radius:.6rem;padding:.75rem .9rem;margin:.2rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;line-height:1.5;">
-                🔒 <span style="color:#adc6ff;font-weight:700;">Multi-stock compare</span> — 
+            <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.16);
+                 border-radius:.5rem;padding:.7rem .85rem;margin:.15rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#7a8299;line-height:1.55;">
+                🔒 <span style="color:#c2d4ff;font-weight:700;">Multi-stock compare</span> — 
                 run up to 5 tickers side-by-side with Pro.
               </div>
             </div>
@@ -4234,13 +3534,13 @@ with st.sidebar:
     _at_limit = (not _is_pro_user) and (st.session_state.get("usage_count", 0) >= _get_limit("daily_analyses"))
     if _at_limit:
         st.markdown(f"""
-        <div style="background:rgba(255,95,95,0.06);border:1px solid rgba(255,95,95,0.2);
-             padding:.75rem 1rem;border-radius:.5rem;text-align:center;margin-bottom:.4rem;">
-          <div style="font-family:Manrope,sans-serif;font-size:.65rem;color:#ff5f5f;
-               font-weight:700;letter-spacing:.08em;text-transform:uppercase;">
+        <div style="background:rgba(255,87,87,0.05);border:1px solid rgba(255,87,87,0.18);
+             padding:.7rem .9rem;border-radius:.45rem;text-align:center;margin-bottom:.35rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:.76rem;color:#ff5757;
+               font-weight:700;letter-spacing:.06em;text-transform:uppercase;">
             🔒 Daily limit reached
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.7rem;color:#8a8fa0;margin-top:.3rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:.74rem;color:#7a8299;margin-top:.25rem;">
             {_get_limit("daily_analyses")}/{_get_limit("daily_analyses")} analyses used today
           </div>
         </div>
@@ -4267,7 +3567,7 @@ with st.sidebar:
     st.markdown(f'''
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
       <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;">{_L["watchlist"]}</div>
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:{_wl_ct_color};">{_wl_count}/{_wl_plan_lim}</div>
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:{_wl_ct_color};">{_wl_count}/{_wl_plan_lim}</div>
     </div>
     ''', unsafe_allow_html=True)
 
@@ -4395,12 +3695,12 @@ if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
     st.markdown(f"""
     <div style="margin-bottom:1.5rem;padding-top:.5rem;">
-      <div style="font-family:var(--sans);font-size:1.75rem;font-weight:800;color:#e4eafd;
-           letter-spacing:-.03em;line-height:1.2;">
+      <div style="font-family:var(--sans);font-size:1.65rem;font-weight:800;color:#eaefff;
+           letter-spacing:-.025em;line-height:1.2;">
         {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
       </div>
-      <div style="font-size:.84rem;color:#8a8fa0;margin-top:.5rem;font-weight:500;line-height:1.6;
-           max-width:600px;">{_L["dashboard_desc"]}</div>
+      <div style="font-size:.88rem;color:#7a8299;margin-top:.5rem;font-weight:500;line-height:1.65;
+           max-width:580px;">{_L["dashboard_desc"]}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4414,16 +3714,16 @@ if not run_btn:
           <div style="position:absolute;top:-20px;right:-20px;width:120px;height:120px;
                border-radius:50%;background:radial-gradient(circle,rgba(77,142,255,0.15),transparent 70%);
                pointer-events:none;"></div>
-          <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;letter-spacing:.14em;
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.12em;
                text-transform:uppercase;color:#4d8eff;margin-bottom:.4rem;font-weight:700;">
             Welcome to Stockcast
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:1.25rem;font-weight:800;
-               color:#e4eafd;letter-spacing:-.02em;margin-bottom:.4rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:1.2rem;font-weight:800;
+               color:#eaefff;letter-spacing:-.02em;margin-bottom:.4rem;">
             Hi {_user_first} 👋 — Your AI stock research assistant is ready.
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.85rem;color:#8a8fa0;
-               margin-bottom:1.2rem;line-height:1.6;max-width:560px;">
+          <div style="font-family:Manrope,sans-serif;font-size:.86rem;color:#7a8299;
+               margin-bottom:1.2rem;line-height:1.65;max-width:540px;">
             AI-powered stock insights for smarter decisions. Here's how to get started:
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.2rem;">
@@ -4513,14 +3813,14 @@ if not run_btn:
     <div class="stat-grid" style="margin-bottom:.5rem;">
       <div class="stat-card">
         <div class="stat-label">S&amp;P 500 · Market Pulse
-          <span class="chip live dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Live</span>
+          <span class="chip live dot" style="font-size:.7rem;padding:.15rem .45rem;margin-left:5px;">Live</span>
         </div>
         {_sk_val(_sp[0])}
         <div class="stat-sub" style="color:{_sp[2]};font-weight:700;font-size:.7rem;">{_sp[1]}</div>
       </div>
       <div class="stat-card" style="border-top-color:#adc6ff;">
         <div class="stat-label">NASDAQ 100 · Tech Momentum
-          <span class="chip info dot" style="font-size:.46rem;padding:.15rem .45rem;margin-left:5px;">Tech</span>
+          <span class="chip info dot" style="font-size:.7rem;padding:.15rem .45rem;margin-left:5px;">Tech</span>
         </div>
         {_sk_val(_nd[0], "#adc6ff")}
         <div class="stat-sub" style="color:{_nd[2]};font-weight:700;font-size:.7rem;">{_nd[1]}</div>
@@ -4553,7 +3853,7 @@ if not run_btn:
           </div>
           <div style="display:flex;align-items:center;gap:.5rem;">
             <span class="chip live dot" style="font-size:.5rem;padding:.18rem .55rem;">Live</span>
-            <span style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#3e4558;">
+            <span style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;">
               {_wl_total}/{_wl_plan_max}
             </span>
           </div>
@@ -4597,10 +3897,10 @@ if not run_btn:
                       <div style="font-family:IBM Plex Mono,monospace;font-size:1.25rem;font-weight:700;
                            color:#e4eafd;margin:.25rem 0 .5rem;">${_px:.2f}</div>
                       <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span class="chip {_wl_chip} dot" style="font-size:.52rem;padding:.18rem .5rem;">
+                        <span class="chip {_wl_chip} dot" style="font-size:.7rem;padding:.18rem .5rem;">
                           {_sign} {abs(_chg):.2f}%
                         </span>
-                        <span style="font-family:IBM Plex Mono,monospace;font-size:.55rem;color:#3e4558;">
+                        <span style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;">
                           conf {_sig_conf}%
                         </span>
                       </div>
@@ -4780,7 +4080,7 @@ if not run_btn:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;margin-top:2rem;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#252f47;letter-spacing:.08em;"> </div>', unsafe_allow_html=True)
 
     # Upgrade CTA — only for free users
     if not _is_pro():
@@ -4788,7 +4088,7 @@ if not run_btn:
         <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07) 0%,rgba(77,142,255,0.05) 100%);
              border:1px solid rgba(255,212,38,0.2);border-radius:1rem;
              padding:1.6rem 2rem;margin-top:1.5rem;text-align:center;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;letter-spacing:.16em;
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.16em;
                text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Stockcast Pro</div>
           <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;
                color:#e4eafd;letter-spacing:-.01em;margin-bottom:.4rem;">
@@ -5333,7 +4633,7 @@ else:
                     st.markdown(f"""
                     <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.2);
                          border-left:4px solid #00e5b0;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
-                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
+                      <div style="font-family:Manrope,sans-serif;font-size:.7rem;letter-spacing:.14em;
                            text-transform:uppercase;color:#00e5b0;font-weight:700;margin-bottom:.3rem;">
                         🏆 Best Performer
                       </div>
@@ -5354,7 +4654,7 @@ else:
                     st.markdown(f"""
                     <div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.2);
                          border-left:4px solid #ff5f5f;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
-                      <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
+                      <div style="font-family:Manrope,sans-serif;font-size:.7rem;letter-spacing:.14em;
                            text-transform:uppercase;color:#ff5f5f;font-weight:700;margin-bottom:.3rem;">
                         📉 Worst Performer
                       </div>
@@ -5558,7 +4858,7 @@ else:
                         f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
                         f'border:1px solid #252f47;border-top:2px solid {col};'
                         f'padding:1rem 1.1rem;border-radius:.6rem;margin-bottom:.5rem;">'
-                        f'<div style="font-size:.55rem;font-weight:700;color:#8a8fa0;'
+                        f'<div style="font-size:.7rem;font-weight:700;color:#8a8fa0;'
                         f'letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem;">{name}</div>'
                         f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
                         f'font-weight:700;color:#e4eafd;line-height:1.1;">{price}</div>'
@@ -5583,7 +4883,7 @@ else:
                                     f'<div style="background:#0f1727;border:1px solid #252f47;'
                                     f'border-left:2px solid {_scol_color};padding:.6rem .8rem;'
                                     f'border-radius:0 .5rem .5rem 0;margin-bottom:.4rem;">'
-                                    f'<div style="font-size:.55rem;font-weight:700;color:#8a8fa0;'
+                                    f'<div style="font-size:.7rem;font-weight:700;color:#8a8fa0;'
                                     f'text-transform:uppercase;margin-bottom:.2rem;">{_sname}</div>'
                                     f'<div style="font-family:IBM Plex Mono,monospace;font-size:.85rem;'
                                     f'font-weight:700;color:{_scol_color};">{_schg}</div>'
@@ -5609,7 +4909,7 @@ else:
                   <div style="height:6px;background:linear-gradient(90deg,#ff5f5f,#ff9f40,#ffd426,#00e5b0);border-radius:3px;position:relative;">
                     <div style="position:absolute;top:-10px;left:{_fg_pct};transform:translateX(-50%);width:2px;height:26px;background:#e4eafd;border-radius:1px;"></div>
                   </div>
-                  <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.58rem;color:#3e4558;font-weight:700;text-transform:uppercase;">
+                  <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.7rem;color:#3e4558;font-weight:700;text-transform:uppercase;">
                     <span>Fear</span><span>Neutral</span><span>Greed</span>
                   </div>
                   <div style="margin-top:1rem;padding:.75rem;background:rgba(77,142,255,0.06);border-radius:.5rem;">
@@ -5769,7 +5069,7 @@ else:
             <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;
                  padding:.55rem 1rem;background:#080e1c;border:1px solid #1a2236;
                  border-radius:.5rem;margin:.6rem 0 1.2rem;">
-              <span style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#3e4558;font-weight:700;text-transform:uppercase;letter-spacing:.1em;">Data sources</span>
+              <span style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;font-weight:700;text-transform:uppercase;letter-spacing:.1em;">Data sources</span>
               <span style="font-size:.6rem;color:#3e4558;">·</span>
               <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#8a8fa0;">Yahoo Finance (OHLCV)</span>
               <span style="font-size:.6rem;color:#3e4558;">·</span>
@@ -5778,7 +5078,7 @@ else:
               <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#8a8fa0;">CNN Fear &amp; Greed (Sentiment)</span>
               <span style="font-size:.6rem;color:#3e4558;">·</span>
               <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#ffd426;">⚠ Not financial advice</span>
-              <span style="margin-left:auto;font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#252f47;">9 signals · XGBoost · ATR-scaled TP/SL</span>
+              <span style="margin-left:auto;font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#252f47;">9 signals · XGBoost · ATR-scaled TP/SL</span>
             </div>
             """, unsafe_allow_html=True)
             with st.expander("📊 Fundamentals & Valuation — " + ticker, expanded=False):
@@ -5806,7 +5106,7 @@ else:
                     with _f1:
                         st.markdown(f"""
                         <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #4d8eff;border-radius:.75rem;padding:1.2rem 1.4rem;">
-                          <div style="font-size:.58rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#4d8eff;margin-bottom:.9rem;">Valuation Multiples</div>
+                          <div style="font-size:.7rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#4d8eff;margin-bottom:.9rem;">Valuation Multiples</div>
                           {"".join(f'<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.7rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
                             ("P/E (TTM)",  _fval(_fund.get("pe_trailing"), "{:.1f}×"),
                              "#ffd426" if _fund.get("pe_trailing") and _fund["pe_trailing"]<25 else "#ff5f5f" if _fund.get("pe_trailing") else "#8a8fa0"),
@@ -5823,7 +5123,7 @@ else:
                     with _f2:
                         st.markdown(f"""
                         <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #00e5b0;border-radius:.75rem;padding:1.2rem 1.4rem;">
-                          <div style="font-size:.58rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#00e5b0;margin-bottom:.9rem;">Growth &amp; Margins</div>
+                          <div style="font-size:.7rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#00e5b0;margin-bottom:.9rem;">Growth &amp; Margins</div>
                           {"".join(f'<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.7rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
                             ("Rev Growth YoY",  _fpct(_fund.get("rev_growth_yoy")),  _fcolor(_fund.get("rev_growth_yoy"))),
                             ("EPS Growth YoY",  _fpct(_fund.get("earn_growth_yoy")), _fcolor(_fund.get("earn_growth_yoy"))),
@@ -5844,7 +5144,7 @@ else:
                         _up_color = "#00e5b0" if (_upside or 0) > 0 else "#ff5f5f"
                         st.markdown(f"""
                         <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #ffd426;border-radius:.75rem;padding:1.2rem 1.4rem;">
-                          <div style="font-size:.58rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#ffd426;margin-bottom:.9rem;">Analyst Consensus · {_fund.get("num_analysts",0)} analysts</div>
+                          <div style="font-size:.7rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#ffd426;margin-bottom:.9rem;">Analyst Consensus · {_fund.get("num_analysts",0)} analysts</div>
                           {"".join(f'<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.7rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
                             ("Consensus",    _rec or "—",                                              _rec_color),
                             ("Price Target", _fval(_fund.get("target_mean"),"${:.2f}"),               "#e4eafd"),
@@ -5862,13 +5162,13 @@ else:
                         st.markdown(f"""
                         <div style="margin-top:.8rem;background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12);
                              border-radius:.5rem;padding:.9rem 1.2rem;">
-                          <div style="font-size:.58rem;font-weight:700;color:#4d8eff;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem;">
+                          <div style="font-size:.7rem;font-weight:700;color:#4d8eff;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem;">
                             About · {_fund.get("name",ticker)}
                           </div>
                           <div style="font-family:Manrope,sans-serif;font-size:.78rem;color:#8a8fa0;line-height:1.65;">
                             {_fund["description"]}{"..." if len(_fund.get("description",""))>=400 else ""}
                           </div>
-                          <div style="font-size:.58rem;color:#3e4558;margin-top:.4rem;">{_fund.get("sector","")}{" · " + _fund.get("industry","") if _fund.get("industry") else ""}</div>
+                          <div style="font-size:.7rem;color:#3e4558;margin-top:.4rem;">{_fund.get("sector","")}{" · " + _fund.get("industry","") if _fund.get("industry") else ""}</div>
                         </div>""", unsafe_allow_html=True)
 
             # ── OBV Chart ─────────────────────────────────────────────────────
@@ -6179,7 +5479,7 @@ else:
                 with _h1a:
                     st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#080e1c);
                          border:2px solid {_mc};border-radius:1.2rem;padding:2rem 1.5rem;text-align:center;">
-                      <div style="font-size:.56rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#3e4558;margin-bottom:.5rem;">Market Climate</div>
+                      <div style="font-size:.7rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#3e4558;margin-bottom:.5rem;">Market Climate</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:4rem;font-weight:700;color:{_mc};line-height:1;">{_ms:.0f}</div>
                       <div style="font-size:.68rem;color:#3e4558;margin-bottom:.9rem;">/100</div>
                       <div style="background:{_mc};color:#080e1c;font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:.5rem 1.2rem;border-radius:.4rem;display:inline-block;">{_ml}</div>
@@ -6194,11 +5494,11 @@ else:
                 with _h1b:
                     st.markdown(
                         f'<div style="background:rgba(0,0,0,0.2);border:1px solid {_mc};border-left:4px solid {_mc};padding:1rem 1.4rem;border-radius:0 .6rem .6rem 0;margin-bottom:.8rem;">'
-                        f'<div style="font-size:.58rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:{_mc};margin-bottom:.35rem;">Founder Verdict</div>'
+                        f'<div style="font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:{_mc};margin-bottom:.35rem;">Founder Verdict</div>'
                         f'<div style="font-size:.84rem;color:#c8cedd;line-height:1.65;">{_mv}</div>'
                         f'</div>',
                         unsafe_allow_html=True)
-                    st.markdown('<div style="font-size:.58rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">Factor Breakdown</div>', unsafe_allow_html=True)
+                    st.markdown('<div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">Factor Breakdown</div>', unsafe_allow_html=True)
                     for _fn, (_fc, _fl) in _mf.items():
                         _fcc = "#00e5b0" if _fc > 0 else "#ff5f5f" if _fc < 0 else "#ffd426"
                         _fcb = "#00e5b0" if _fc > 0 else "#ff5f5f" if _fc < 0 else "#1e2740"
@@ -6245,14 +5545,14 @@ else:
 
                 st.markdown(f'''<div style="background:linear-gradient(135deg,rgba(0,229,176,0.08),rgba(77,142,255,0.04));
                      border:1px solid rgba(0,229,176,0.25);border-radius:.75rem;padding:1rem 1.4rem;margin:.6rem 0 1rem;">
-                  <div style="font-size:.56rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.3rem;">✦ Recommended Strategy</div>
+                  <div style="font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.3rem;">✦ Recommended Strategy</div>
                   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
                     <div>
                       <div style="font-size:1rem;font-weight:800;color:#e4eafd;">{_auto}</div>
                       <div style="font-size:.78rem;color:#8a8fa0;margin-top:.25rem;max-width:440px;line-height:1.55;">{_tp["desc"]}</div>
                     </div>
                     <div style="text-align:right;">
-                      <div style="font-size:.55rem;color:#3e4558;font-family:IBM Plex Mono,monospace;">Suggested tickers</div>
+                      <div style="font-size:.7rem;color:#3e4558;font-family:IBM Plex Mono,monospace;">Suggested tickers</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;font-weight:700;color:#4d8eff;">{" · ".join(_tp["tickers"])}</div>
                     </div>
                   </div>
@@ -6263,7 +5563,7 @@ else:
 
                 _th = st.columns([1,2.5,1.1,1.1,1.2,1.2,1.4])
                 for _thc, _tht in zip(_th,["Ticker","Name","Price","Today","1Y Return","Div Yield","AUM"]):
-                    _thc.markdown(f'<div style="font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_tht}</div>', unsafe_allow_html=True)
+                    _thc.markdown(f'<div style="font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_tht}</div>', unsafe_allow_html=True)
 
                 for _te in _tdata:
                     _tc = "#00e5b0" if _te["change_pct"]>=0 else "#ff5f5f"
@@ -6285,19 +5585,19 @@ else:
                     _pg = _cash * (_ar/100)
                     st.markdown(f'''<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.9rem;">
                       <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #00e5b0;border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:140px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Deployed Capital</div>
+                        <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Deployed Capital</div>
                         <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#e4eafd;">${_cash:,.0f}</div>
                       </div>
                       <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #4d8eff;border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:140px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Avg 1Y Return</div>
+                        <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Avg 1Y Return</div>
                         <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#4d8eff;">{"+" if _ar>=0 else ""}{_ar:.2f}%</div>
                       </div>
                       <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #ffd426;border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:140px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Projected Gain (1Y)</div>
+                        <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Projected Gain (1Y)</div>
                         <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#ffd426;">{"+" if _pg>=0 else ""}${_pg:,.0f}</div>
                       </div>
                       <div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #00e5b0;border-radius:.6rem;padding:.9rem 1.3rem;flex:1;min-width:140px;">
-                        <div style="font-size:.55rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Final Value</div>
+                        <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Final Value</div>
                         <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;color:#00e5b0;">${_cash+_pg:,.0f}</div>
                       </div>
                     </div>''', unsafe_allow_html=True)
@@ -6334,7 +5634,7 @@ else:
 
                 _chdr = st.columns([1.2,2.4,1.2,1.2,1.5,1.2,1.5])
                 for _cc,_ct in zip(_chdr,["Ticker","Company","Price","Δ Today","Mkt Cap","P/E","vs 52w High"]):
-                    _cc.markdown(f'<div style="font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_ct}</div>', unsafe_allow_html=True)
+                    _cc.markdown(f'<div style="font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_ct}</div>', unsafe_allow_html=True)
 
                 for _cr2 in _crows:
                     _isc   = _cr2["ticker"] == ticker
@@ -6396,14 +5696,14 @@ else:
                 _tmc = sum(_vmc)
 
                 _s1,_s2,_s3 = st.columns(3)
-                _s1.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #adc6ff;border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.54rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Median P/E</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:#adc6ff;">{_mpe:.1f}×</div></div>', unsafe_allow_html=True)
-                _s2.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid {"#00e5b0" if _ach>=0 else "#ff5f5f"};border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.54rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Avg Daily Change</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:{"#00e5b0" if _ach>=0 else "#ff5f5f"};">{_ach:+.2f}%</div></div>', unsafe_allow_html=True)
-                _s3.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #ffd426;border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.54rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Combined Mkt Cap</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:#ffd426;">${_tmc/1e12:.2f}T</div></div>', unsafe_allow_html=True)
+                _s1.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #adc6ff;border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Median P/E</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:#adc6ff;">{_mpe:.1f}×</div></div>', unsafe_allow_html=True)
+                _s2.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid {"#00e5b0" if _ach>=0 else "#ff5f5f"};border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Avg Daily Change</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:{"#00e5b0" if _ach>=0 else "#ff5f5f"};">{_ach:+.2f}%</div></div>', unsafe_allow_html=True)
+                _s3.markdown(f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid #ffd426;border-radius:.6rem;padding:.9rem 1.2rem;"><div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;">Combined Mkt Cap</div><div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:700;color:#ffd426;">${_tmc/1e12:.2f}T</div></div>', unsafe_allow_html=True)
                 st.markdown("<br>", unsafe_allow_html=True)
 
                 _bh = st.columns([1.2,2.4,1.2,1.2,1.5,1.2,1.5])
                 for _bhc,_bht in zip(_bh,["Ticker","Company","Price","Δ Today","Mkt Cap","P/E","vs 52w High"]):
-                    _bhc.markdown(f'<div style="font-size:.54rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_bht}</div>', unsafe_allow_html=True)
+                    _bhc.markdown(f'<div style="font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#3e4558;">{_bht}</div>', unsafe_allow_html=True)
                 for _bd in _bench:
                     _bdc = "#00e5b0" if _bd["change_pct"]>=0 else "#ff5f5f"
                     _bds = "+" if _bd["change_pct"]>=0 else ""
@@ -6457,7 +5757,7 @@ else:
                     with _sp1:
                         st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#141d30);
                              border:2px solid {_sa_c};border-radius:.9rem;padding:1.5rem;text-align:center;">
-                          <div style="font-size:.56rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">Current Signal</div>
+                          <div style="font-size:.7rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">Current Signal</div>
                           <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;font-weight:800;color:{_sa_c};letter-spacing:.04em;">{_sa_sig}</div>
                           <div style="font-family:IBM Plex Mono,monospace;font-size:.82rem;color:#8a8fa0;margin-top:.3rem;">{_sa_sco:+.0f} / ±100</div>
                           <div style="font-family:IBM Plex Mono,monospace;font-size:.75rem;color:#e4eafd;margin-top:.4rem;">${last_close:.2f}</div>
@@ -6465,7 +5765,7 @@ else:
 
                     with _sp2:
                         st.markdown(f'''<div style="background:#0f1727;border:1px solid #252f47;border-radius:.75rem;padding:1.2rem 1.5rem;">
-                          <div style="font-size:.58rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.6rem;">Email Preview · {ticker}</div>
+                          <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#3e4558;margin-bottom:.6rem;">Email Preview · {ticker}</div>
                           {"".join(f'<div style="display:flex;justify-content:space-between;padding:.32rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.72rem;"><span style="color:#3e4558;">{k}</span><span style="color:{vc};">{v}</span></div>' for k,v,vc in [
                             ("Signal",_sa_sig,_sa_c),("Score",f"{_sa_sco:+.0f}","#adc6ff"),
                             ("AI Forecast",f"{_sa_xp:+.2f}%","#adc6ff"),
@@ -6527,7 +5827,7 @@ SMTP_PASS = "your-app-password"</pre>
 
                 with _ir1:
                     st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;border-top:2px solid #00e5b0;border-radius:.75rem;padding:1.3rem 1.5rem;">
-                      <div style="font-size:.58rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#00e5b0;margin-bottom:.8rem;">Price Summary · {ticker}</div>
+                      <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#00e5b0;margin-bottom:.8rem;">Price Summary · {ticker}</div>
                       {"".join(f'<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.72rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
                         ("Last Close ($)",f"{_lc2:.2f}","#e4eafd"),
                         ("52-Week High ($)",f"{_h52:.2f}","#00e5b0"),
@@ -6540,7 +5840,7 @@ SMTP_PASS = "your-app-password"</pre>
                     _isig = _sh_comp.get("verdict_short","—") if _sh_comp else "—"
                     _isigc = {"BUY":"#00e5b0","SELL":"#ff5f5f"}.get(_isig,"#ffd426")
                     st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;border-top:2px solid #4d8eff;border-radius:.75rem;padding:1.3rem 1.5rem;">
-                      <div style="font-size:.58rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#4d8eff;margin-bottom:.8rem;">AI Model &amp; Signals</div>
+                      <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#4d8eff;margin-bottom:.8rem;">AI Model &amp; Signals</div>
                       {"".join(f'<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid #1e2740;font-family:IBM Plex Mono,monospace;font-size:.72rem;"><span style="color:#3e4558;">{lbl}</span><span style="color:{vc};">{val}</span></div>' for lbl,val,vc in [
                         ("RMSE ($)",f"{rmse:.2f}","#e4eafd"),("MAE ($)",f"{mae:.2f}","#e4eafd"),
                         ("MAPE (%)",f"{mape:.2f}","#ffd426"),("R²",f"{r2:.4f}","#00e5b0"),
@@ -6565,18 +5865,18 @@ SMTP_PASS = "your-app-password"</pre>
 st.markdown(f"""
 <div style="text-align:center;margin-top:4rem;padding:2rem 1rem;border-top:1px solid #1e2740;">
   <div style="display:flex;align-items:center;justify-content:center;gap:1.2rem;flex-wrap:wrap;margin-bottom:1rem;">
-    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot"></span>Data via Yahoo Finance</span>
+    <span class="trust-item" style="font-size:.7rem;"><span class="trust-item-dot"></span>Data via Yahoo Finance</span>
     <span style="color:#1e2740;">·</span>
-    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#4d8eff;"></span>Auth by Supabase</span>
+    <span class="trust-item" style="font-size:.7rem;"><span class="trust-item-dot" style="background:#4d8eff;"></span>Auth by Supabase</span>
     <span style="color:#1e2740;">·</span>
-    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#ffd426;"></span>AI-Powered Analysis</span>
+    <span class="trust-item" style="font-size:.7rem;"><span class="trust-item-dot" style="background:#ffd426;"></span>AI-Powered Analysis</span>
     <span style="color:#1e2740;">·</span>
-    <span class="trust-item" style="font-size:.56rem;"><span class="trust-item-dot" style="background:#00e5b0;"></span>Shariah Screening</span>
+    <span class="trust-item" style="font-size:.7rem;"><span class="trust-item-dot" style="background:#00e5b0;"></span>Shariah Screening</span>
   </div>
   <div style="margin-bottom:.7rem;">
-    <a href="/privacy" target="_blank" style="color:#3e4558;text-decoration:none;font-family:IBM Plex Mono,monospace;font-size:.54rem;letter-spacing:.08em;margin:0 .6rem;">Privacy Policy</a>
+    <a href="/privacy" target="_blank" style="color:#3e4558;text-decoration:none;font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.08em;margin:0 .6rem;">Privacy Policy</a>
     <span style="color:#1e2740;">·</span>
-    <a href="/terms" target="_blank" style="color:#3e4558;text-decoration:none;font-family:IBM Plex Mono,monospace;font-size:.54rem;letter-spacing:.08em;margin:0 .6rem;">Terms of Service</a>
+    <a href="/terms" target="_blank" style="color:#3e4558;text-decoration:none;font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.08em;margin:0 .6rem;">Terms of Service</a>
   </div>
   <div style="margin-bottom:.5rem;">
     <span class="disclaimer-pill">⚠ Stockcast is for educational and research purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a licensed financial advisor.</span>
