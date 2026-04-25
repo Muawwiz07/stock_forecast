@@ -52,6 +52,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("stockcast")
 
+# ── Suppress Streamlit's "missing ScriptRunContext" spam that floods logs
+#    whenever uvicorn/background threads touch Python's logging system.
+#    Completely harmless — the background thread never calls Streamlit APIs.
+class _SuppressScriptRunContext(logging.Filter):
+    def filter(self, record):
+        return "ScriptRunContext" not in record.getMessage()
+
+for _noisy_logger in ("streamlit", "streamlit.runtime", "streamlit.runtime.scriptrunner",
+                      "tornado", "uvicorn", "uvicorn.error"):
+    logging.getLogger(_noisy_logger).addFilter(_SuppressScriptRunContext())
+
 # ══════════════════════════════════════════════════════════════════════════════
 # EMBEDDED REST API  ·  FastAPI on :8000 in a background daemon thread
 # ══════════════════════════════════════════════════════════════════════════════
@@ -268,11 +279,23 @@ def _api_market_mood():
     fg_score, fg_rating = 50.0, "Neutral"
     try:
         import requests as _req
-        r = _req.get("https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
-                     timeout=8, headers={"User-Agent":"Mozilla/5.0"})
-        d = r.json()
-        fg_score = float(d["fear_and_greed"]["score"])
-        fg_rating = d["fear_and_greed"]["rating"].title()
+        # Try CNN first, then alternative.me
+        _fg_fetched = False
+        try:
+            r = _req.get("https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+                         timeout=6, headers={"User-Agent":"Mozilla/5.0","Accept":"application/json"})
+            if r.status_code == 200 and "application/json" in r.headers.get("Content-Type",""):
+                d = r.json()
+                fg_score  = float(d["fear_and_greed"]["score"])
+                fg_rating = d["fear_and_greed"]["rating"].replace("_"," ").title()
+                _fg_fetched = True
+        except Exception: pass
+        if not _fg_fetched:
+            r2 = _req.get("https://api.alternative.me/fng/?limit=1", timeout=6)
+            if r2.status_code == 200:
+                d2 = r2.json()["data"][0]
+                fg_score  = float(d2["value"])
+                fg_rating = d2["value_classification"].title()
     except Exception: pass
     breadth = "Neutral"
     try:
@@ -724,17 +747,47 @@ def get_live_sector_heatmap():
 
 @st.cache_data(ttl=3600)
 def get_fear_greed_index():
-    """Fetch CNN Fear & Greed index via their API."""
+    """Fetch Fear & Greed index. Tries CNN first, then alternative.me, then VIX-based estimate."""
+    # Source 1: CNN
     try:
-        r = requests.get("https://production.dataviz.cnn.io/index/fearandgreed/graphdata", timeout=10,
-                         headers={"User-Agent": "Mozilla/5.0"})
-        data = r.json()
-        score = float(data["fear_and_greed"]["score"])
-        rating = data["fear_and_greed"]["rating"].title()
-        return {"score": score, "rating": rating}
+        r = requests.get(
+            "https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+            timeout=8, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+        )
+        if r.status_code == 200 and "application/json" in r.headers.get("Content-Type", ""):
+            data = r.json()
+            score  = float(data["fear_and_greed"]["score"])
+            rating = data["fear_and_greed"]["rating"].replace("_", " ").title()
+            return {"score": score, "rating": rating, "source": "CNN"}
     except Exception as e:
-        logger.warning("get_fear_greed_index failed: %s", e)
-        return None
+        logger.debug("get_fear_greed_index CNN failed: %s", e)
+
+    # Source 2: alternative.me (crypto F&G — decent proxy)
+    try:
+        r2 = requests.get("https://api.alternative.me/fng/?limit=1", timeout=8)
+        if r2.status_code == 200:
+            d2    = r2.json()["data"][0]
+            score = float(d2["value"])
+            rating = d2["value_classification"].title()
+            return {"score": score, "rating": rating, "source": "Alt.me"}
+    except Exception as e:
+        logger.debug("get_fear_greed_index alternative.me failed: %s", e)
+
+    # Source 3: VIX-based estimate
+    try:
+        vix_df = _yf_download_with_retry("^VIX", period="2d", interval="1d")
+        if not vix_df.empty:
+            vix = float(vix_df["Close"].dropna().iloc[-1])
+            if   vix < 12: score, rating = 80, "Extreme Greed"
+            elif vix < 16: score, rating = 65, "Greed"
+            elif vix < 20: score, rating = 52, "Neutral"
+            elif vix < 28: score, rating = 35, "Fear"
+            else:          score, rating = 18, "Extreme Fear"
+            return {"score": score, "rating": rating, "source": "VIX estimate"}
+    except Exception as e:
+        logger.debug("get_fear_greed_index VIX fallback failed: %s", e)
+
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
