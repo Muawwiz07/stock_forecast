@@ -3129,7 +3129,10 @@ def fetch_data(ticker, start, end):
     if df.empty:
         return df
     # Filter by date range
-    df = df[(df.index >= pd.to_datetime(start)) & (df.index <= pd.to_datetime(end))]
+    _start_ts = pd.to_datetime(start).tz_localize(None) if pd.to_datetime(start).tzinfo is not None else pd.to_datetime(start)
+    _end_ts   = pd.to_datetime(end).tz_localize(None)   if pd.to_datetime(end).tzinfo   is not None else pd.to_datetime(end)
+    _idx = df.index.tz_localize(None) if df.index.tz is not None else df.index
+    df = df[(_idx >= _start_ts) & (_idx <= _end_ts)]
     return df
 
 def compute_rsi(series, period=14):
@@ -4859,8 +4862,9 @@ else:
             # Human-readable last-update label
             last_ts = _raw.index[-1] if not _raw.empty else None
             if last_ts is not None:
-                delta_days = (pd.Timestamp.utcnow().normalize() -
-                              pd.Timestamp(last_ts).normalize()).days
+                _last_ts_naive = pd.Timestamp(last_ts).tz_localize(None) if pd.Timestamp(last_ts).tzinfo is not None else pd.Timestamp(last_ts)
+                delta_days = (pd.Timestamp.utcnow().normalize().tz_localize(None) -
+                              _last_ts_naive.normalize()).days
                 if   delta_days == 0: label = "today"
                 elif delta_days == 1: label = "yesterday"
                 else:                 label = f"{delta_days} days ago"
