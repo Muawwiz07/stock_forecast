@@ -52,16 +52,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("stockcast")
 
-# ── Suppress Streamlit's "missing ScriptRunContext" spam that floods logs
-#    whenever uvicorn/background threads touch Python's logging system.
-#    Completely harmless — the background thread never calls Streamlit APIs.
-class _SuppressScriptRunContext(logging.Filter):
-    def filter(self, record):
-        return "ScriptRunContext" not in record.getMessage()
+# ── Suppress Streamlit's "missing ScriptRunContext" spam ──────────────────────
+# The warning is emitted from streamlit.runtime.scriptrunner.magic_funcs via the
+# ROOT logger (not a named child logger), so we must filter at the root level.
+# We also monkey-patch get_script_run_ctx to silence it at the source.
+import warnings
+warnings.filterwarnings("ignore", message=".*ScriptRunContext.*")
 
-for _noisy_logger in ("streamlit", "streamlit.runtime", "streamlit.runtime.scriptrunner",
-                      "tornado", "uvicorn", "uvicorn.error"):
-    logging.getLogger(_noisy_logger).addFilter(_SuppressScriptRunContext())
+class _SuppressScriptRunContext(logging.Filter):
+    _keywords = ("ScriptRunContext", "No runtime found", "MemoryCacheStorageManager")
+    def filter(self, record):
+        msg = record.getMessage()
+        return not any(kw in msg for kw in self._keywords)
+
+# Apply to root logger AND every named logger that could emit it
+_scrc_filter = _SuppressScriptRunContext()
+logging.root.addFilter(_scrc_filter)
+for _nl in ("streamlit", "streamlit.runtime", "streamlit.runtime.scriptrunner",
+            "streamlit.runtime.scriptrunner.magic_funcs",
+            "streamlit.runtime.caching",
+            "tornado", "tornado.access", "uvicorn", "uvicorn.error", "uvicorn.access"):
+    logging.getLogger(_nl).addFilter(_scrc_filter)
+
+# Monkey-patch: if streamlit is importable, silence at the call site
+try:
+    import streamlit.runtime.scriptrunner.magic_funcs as _mf
+    import streamlit.runtime.scriptrunner as _sr
+    # Override get_script_run_ctx to never raise/warn outside main thread
+    from streamlit.runtime.scriptrunner import add_script_run_ctx  # noqa
+except Exception:
+    pass
 
 # ══════════════════════════════════════════════════════════════════════════════
 # EMBEDDED REST API  ·  FastAPI on :8000 in a background daemon thread
@@ -411,8 +431,13 @@ _API_THREAD_STARTED = False
 def _start_api_server():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    config = uvicorn.Config(_api, host="0.0.0.0", port=_API_PORT,
-                            log_level="warning", loop="none")
+    config = uvicorn.Config(
+        _api, host="0.0.0.0", port=_API_PORT,
+        log_level="critical",   # suppress uvicorn's own startup/access logs
+        log_config=None,        # prevent uvicorn from reconfiguring the root logger
+        loop="none",
+        access_log=False,       # no per-request access log lines
+    )
     server = uvicorn.Server(config)
     loop.run_until_complete(server.serve())
 
@@ -427,6 +452,22 @@ def _ensure_api_running():
     elif already:
         _API_THREAD_STARTED = True
 
+# ── Monkey-patch Streamlit's ScriptRunContext warning at the source ────────────
+# Called AFTER the thread starts so the import chain is already resolved.
+def _patch_scriptrun_ctx():
+    """Silence 'missing ScriptRunContext' in non-main threads at the call site."""
+    try:
+        import streamlit.runtime.scriptrunner.script_run_context as _ctx_mod
+        _orig = _ctx_mod.get_script_run_ctx
+
+        def _silent_get_script_run_ctx(suppress_warning=True):
+            return _orig(suppress_warning=True)
+
+        _ctx_mod.get_script_run_ctx = _silent_get_script_run_ctx
+    except Exception:
+        pass  # Not yet importable or already patched — safe to skip
+
+_patch_scriptrun_ctx()
 _ensure_api_running()
 
 # ══════════════════════════════════════════════════════════════════════════════
