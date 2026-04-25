@@ -4010,73 +4010,165 @@ if not run_btn:
     st.markdown("<hr style='margin:.8rem 0;'>", unsafe_allow_html=True)
     st.subheader(_L["platform_features"])
     st.markdown("""
-    <div class="bento-grid">
-      <div class="bento-cell accent-blue col-8">
-        <div class="bento-icon">📈</div>
-        <div class="bento-label">AI Price Outlook</div>
-        <div class="bento-value" style="font-size:1.25rem;color:var(--accent);">XGBoost Engine</div>
-        <div class="bento-desc">Projects next-day price across 20 technical signals with 95% bootstrap confidence intervals to quantify uncertainty.</div>
-        <div class="chip-group" style="margin-top:.8rem;">
-          <span class="chip ai dot">XGBoost</span>
-          <span class="chip info dot">20 Signals</span>
-          <span class="chip info dot">Bootstrap CI</span>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:1rem 0 1.5rem;">
+
+      <!-- XGBoost Engine — full width top -->
+      <div style="grid-column:1/-1;background:linear-gradient(135deg,rgba(77,142,255,0.08) 0%,rgba(77,142,255,0.03) 100%);
+           border:1px solid rgba(77,142,255,0.2);border-top:2px solid #4d8eff;border-radius:.75rem;
+           padding:1.3rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+        <div style="font-size:2rem;line-height:1;flex-shrink:0;">📈</div>
+        <div style="flex:1;min-width:200px;">
+          <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.1em;
+               text-transform:uppercase;color:#4d8eff;margin-bottom:.3rem;">AI Price Outlook</div>
+          <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;color:#eaefff;
+               margin-bottom:.35rem;">XGBoost Engine</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;">
+            Projects next-day price across 30 technical signals — RSI, MACD, Stochastic, ADX, Williams %R, OBV — with ATR-scaled take-profit and stop-loss levels.
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.35rem;flex-shrink:0;">
+          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);
+               color:#c2d4ff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
+               padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● XGBoost</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);
+               color:#4d8eff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
+               padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● 30 Signals</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);
+               color:#4d8eff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
+               padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● ATR TP/SL</span>
         </div>
       </div>
-      <div class="bento-cell accent-green col-4 row-2">
-        <div class="bento-icon">⭐</div>
-        <div class="bento-label">Watchlist + Alerts</div>
-        <div class="bento-value" style="color:var(--emerald);">Live</div>
-        <div class="bento-sub">Real-time signal banners</div>
-        <div class="bento-desc">Save stocks, see live prices on your dashboard, get instant alerts when AI signals flip BUY ↔ SELL.</div>
-        <div style="margin-top:.7rem;"><span class="chip live dot">Live Prices</span></div>
+
+      <!-- Watchlist + Alerts -->
+      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15);
+           border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">⭐</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">Watchlist + Alerts</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
+          Save stocks, track live prices, get instant alerts when signals flip BUY ↔ SELL.
+        </div>
+        <span style="background:rgba(0,217,166,0.08);border:1px solid rgba(0,217,166,0.22);
+             color:#00d9a6;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
+             padding:.22rem .65rem;border-radius:100px;">● Live Prices</span>
       </div>
-      <div class="bento-cell accent-green col-4">
-        <div class="bento-icon">⚙</div>
-        <div class="bento-label">Explainable Signals</div>
-        <div class="bento-desc">RSI · MACD · Bollinger · MA Cross · Volume — each scored and explained in plain language.</div>
-        <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip buy dot">BUY</span><span class="chip sell dot">SELL</span><span class="chip hold dot">HOLD</span>
+
+      <!-- Explainable Signals -->
+      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15);
+           border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">⚡</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">9 Explainable Signals</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
+          RSI · MACD · Bollinger · Stochastic · Williams %R · ADX · OBV — each scored and explained.
+        </div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+          <span style="background:rgba(0,217,166,0.09);border:1px solid rgba(0,217,166,0.3);color:#00d9a6;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● BUY</span>
+          <span style="background:rgba(255,87,87,0.09);border:1px solid rgba(255,87,87,0.3);color:#ff5757;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● SELL</span>
+          <span style="background:rgba(255,203,43,0.09);border:1px solid rgba(255,203,43,0.3);color:#ffcb2b;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● HOLD</span>
         </div>
       </div>
-      <div class="bento-cell accent-yellow col-5">
-        <div class="bento-icon">📊</div>
-        <div class="bento-label">Strategy Simulator</div>
-        <div class="bento-desc">Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, and equity curve vs buy-and-hold.</div>
-        <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip warn dot">Sharpe</span><span class="chip warn dot">Drawdown</span><span class="chip warn dot">Win Rate</span>
+
+      <!-- Shariah Screen -->
+      <div style="background:rgba(194,212,255,0.03);border:1px solid rgba(194,212,255,0.12);
+           border-top:2px solid #c2d4ff;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">☪</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#c2d4ff;margin-bottom:.3rem;">Shariah Screen</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.3rem;">
+          AAOIFI Standard No.21 — business activity, debt, and cash ratios auto-screened.
+        </div>
+        <div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;color:#c2d4ff;font-weight:600;">AAOIFI · Standard No.21</div>
+      </div>
+
+      <!-- Strategy Simulator -->
+      <div style="background:rgba(255,203,43,0.03);border:1px solid rgba(255,203,43,0.15);
+           border-top:2px solid #ffcb2b;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">📊</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#ffcb2b;margin-bottom:.3rem;">Strategy Simulator</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
+          Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, equity curve.
+        </div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Sharpe</span>
+          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Drawdown</span>
         </div>
       </div>
-      <div class="bento-cell accent-purple col-3">
-        <div class="bento-icon">☪</div>
-        <div class="bento-label">Shariah Screen</div>
-        <div class="bento-value" style="font-size:1rem;color:var(--primary);">AAOIFI</div>
-        <div class="bento-sub">Standard No.21</div>
-        <div class="bento-desc" style="font-size:.72rem;">Business activity, debt, cash ratios — auto-screened.</div>
-      </div>
-      <div class="bento-cell accent-green col-4">
-        <div class="bento-icon">📰</div>
-        <div class="bento-label">News Sentiment NLP</div>
-        <div class="bento-desc">Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.</div>
-        <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip ai dot">TextBlob</span><span class="chip live dot">Live News</span>
+
+      <!-- News Sentiment NLP -->
+      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15);
+           border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">📰</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">News Sentiment NLP</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
+          Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.
+        </div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);color:#c2d4ff;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● TextBlob</span>
+          <span style="background:rgba(0,217,166,0.08);border:1px solid rgba(0,217,166,0.22);color:#00d9a6;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Live News</span>
         </div>
       </div>
-      <div class="bento-cell accent-purple col-4">
-        <div class="bento-icon">🔬</div>
-        <div class="bento-label">Model Comparison</div>
-        <div class="bento-desc">XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.</div>
-        <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip pro dot">Pro</span><span class="chip ai dot">3 Models</span>
+
+      <!-- Model Comparison + Portfolio — bottom row -->
+      <div style="background:rgba(194,212,255,0.03);border:1px solid rgba(194,212,255,0.12);
+           border-top:2px solid #c2d4ff;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">🔬</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#c2d4ff;margin-bottom:.3rem;">Model Comparison</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
+          XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.
+        </div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Pro</span>
+          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);color:#c2d4ff;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● 3 Models</span>
         </div>
       </div>
-      <div class="bento-cell accent-yellow col-4">
-        <div class="bento-icon">🏦</div>
-        <div class="bento-label">Portfolio Tracker</div>
-        <div class="bento-desc">Track holdings, unrealised P&L, sector allocation, cost basis, and transaction history.</div>
-        <div class="chip-group" style="margin-top:.7rem;">
-          <span class="chip info dot">P&amp;L</span><span class="chip info dot">Sectors</span>
+
+      <!-- Fundamentals Panel -->
+      <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.15);
+           border-top:2px solid #4d8eff;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">📋</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#4d8eff;margin-bottom:.3rem;">Fundamentals Panel</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
+          P/E, P/B, EPS growth, margins, ROE, analyst targets, short float — all in one panel.
+        </div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Valuation</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Analyst Targets</span>
         </div>
       </div>
+
+      <!-- Portfolio Tracker -->
+      <div style="background:rgba(255,203,43,0.03);border:1px solid rgba(255,203,43,0.15);
+           border-top:2px solid #ffcb2b;border-radius:.75rem;padding:1.1rem 1.25rem;">
+        <div style="font-size:1.4rem;margin-bottom:.6rem;">🏦</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
+             text-transform:uppercase;color:#ffcb2b;margin-bottom:.3rem;">Portfolio Tracker</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
+          Track holdings, unrealised P&amp;L, sector allocation, cost basis, and transaction history.
+        </div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● P&amp;L</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
+               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Sectors</span>
+        </div>
+      </div>
+
     </div>
     """, unsafe_allow_html=True)
 
@@ -4085,22 +4177,22 @@ if not run_btn:
     # Upgrade CTA — only for free users
     if not _is_pro():
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,rgba(255,212,38,0.07) 0%,rgba(77,142,255,0.05) 100%);
-             border:1px solid rgba(255,212,38,0.2);border-radius:1rem;
-             padding:1.6rem 2rem;margin-top:1.5rem;text-align:center;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.16em;
-               text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Stockcast Pro</div>
+        <div style="background:linear-gradient(135deg,rgba(255,203,43,0.06) 0%,rgba(77,142,255,0.04) 100%);
+             border:1px solid rgba(255,203,43,0.18);border-radius:.875rem;
+             padding:1.8rem 2rem;margin-top:1rem;text-align:center;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.14em;
+               text-transform:uppercase;color:#ffcb2b;margin-bottom:.5rem;font-weight:700;">Stockcast Pro</div>
           <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;
-               color:#e4eafd;letter-spacing:-.01em;margin-bottom:.4rem;">
+               color:#eaefff;letter-spacing:-.015em;margin-bottom:.4rem;">
             Unlock unlimited analyses &amp; advanced signals
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;
-               margin-bottom:1.2rem;line-height:1.6;">
+          <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#7a8299;
+               margin-bottom:1.3rem;line-height:1.6;">
             Prophet + XGBoost combo · Bootstrap CI · Multi-stock · 50 watchlist stocks
           </div>
-          <div style="display:inline-flex;gap:.6rem;align-items:center;
-               font-family:IBM Plex Mono,monospace;font-size:1.4rem;font-weight:700;color:#ffd426;">
-            $9<span style="font-size:.8rem;color:#8a8fa0;font-weight:400;">/month</span>
+          <div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:800;
+               color:#ffcb2b;margin-bottom:1.2rem;">
+            $9<span style="font-size:.82rem;color:#7a8299;font-weight:400;margin-left:3px;">/month</span>
           </div>
         </div>
         """, unsafe_allow_html=True)
