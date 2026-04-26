@@ -3483,10 +3483,8 @@ def check_shariah_compliance(ticker_sym, data, _L=None):
 
 def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
     st.markdown(f"""
-    <div style="font-family:Manrope,sans-serif;font-size:0.6rem;letter-spacing:.18em;
-         text-transform:uppercase;color:#8a8fa0;margin-bottom:.3rem;font-weight:700;">Technical Documentation</div>
-    <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800;
-         color:#e4eafd;letter-spacing:-.01em;margin-bottom:1.4rem;">
+    <div style="font-family:Manrope,sans-serif;font-size:0.6rem;letter-spacing:.18em; text-transform:uppercase;color:#8a8fa0;margin-bottom:.3rem;font-weight:700;">Technical Documentation</div>
+    <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800; color:#e4eafd;letter-spacing:-.01em;margin-bottom:1.4rem;">
          Stockcast <span style="color:#4d8eff;">·</span> How the AI Assistant Works
     </div>
     """, unsafe_allow_html=True)
@@ -3843,18 +3841,12 @@ with st.sidebar:
 
     st.markdown(f"""
     <div style="padding:1.3rem 0.85rem 0.7rem;">
-      <div style="font-family:Manrope,sans-serif;font-size:1.3rem;font-weight:800;
-           color:#eaefff;letter-spacing:-.025em;line-height:1;">
+      <div style="font-family:Manrope,sans-serif;font-size:1.3rem;font-weight:800; color:#eaefff;letter-spacing:-.025em;line-height:1;">
         Stock<span style="color:#4d8eff;">cast</span>
       </div>
-      <div style="font-size:.7rem;color:#3d4760;letter-spacing:.08em;text-transform:uppercase;
-           font-weight:700;margin-top:4px;">AI Stock Intelligence</div>
+      <div style="font-size:.7rem;color:#3d4760;letter-spacing:.08em;text-transform:uppercase; font-weight:700;margin-top:4px;">AI Stock Intelligence</div>
     </div>
-    <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.13);
-         border-left:2px solid #4d8eff;padding:.42rem .85rem;margin:.15rem 0 .4rem;
-         font-family:IBM Plex Mono,monospace;font-size:0.74rem;color:#7ab0ff;
-         letter-spacing:.025em;border-radius:0 .45rem .45rem 0;
-         display:flex;align-items:center;gap:.4rem;overflow:hidden;">
+    <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.13); border-left:2px solid #4d8eff;padding:.42rem .85rem;margin:.15rem 0 .4rem; font-family:IBM Plex Mono,monospace;font-size:0.74rem;color:#7ab0ff; letter-spacing:.025em;border-radius:0 .45rem .45rem 0; display:flex;align-items:center;gap:.4rem;overflow:hidden;">
       <span style="color:#3d4760;flex-shrink:0;font-size:.8rem;">👤</span>
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#7ab0ff;">
         {_user_email()}
@@ -3864,12 +3856,9 @@ with st.sidebar:
 
     if _is_pro_user:
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,rgba(255,203,43,0.1),rgba(255,160,0,0.06));
-             border:1px solid rgba(255,203,43,0.28);border-radius:.5rem;padding:.6rem .9rem;
-             margin:.2rem 0 .45rem;display:flex;align-items:center;justify-content:space-between;">
+        <div style="background:linear-gradient(135deg,rgba(255,203,43,0.1),rgba(255,160,0,0.06)); border:1px solid rgba(255,203,43,0.28);border-radius:.5rem;padding:.6rem .9rem; margin:.2rem 0 .45rem;display:flex;align-items:center;justify-content:space-between;">
           <div>
-            <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800;
-                 letter-spacing:.1em;text-transform:uppercase;color:#ffcb2b;">✦ Pro Plan</div>
+            <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:800; letter-spacing:.1em;text-transform:uppercase;color:#ffcb2b;">✦ Pro Plan</div>
             <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#7a8299;margin-top:2px;">
               Unlimited · {_wl_limit} watchlist stocks
             </div>
@@ -4048,13 +4037,9 @@ with st.sidebar:
             ci_bootstrap_n     = 100
             # FIX 3: Visible upgrade CTA instead of silent gating
             st.markdown(f"""
-            <div style="background:linear-gradient(135deg,rgba(255,203,43,0.06),rgba(77,142,255,0.03));
-                 border:1px solid rgba(255,203,43,0.2);border-radius:.5rem;
-                 padding:.85rem 1rem;margin:.25rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:0.8rem;font-weight:800;
-                   color:#ffcb2b;margin-bottom:.4rem;">🔒 Pro Features</div>
-              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#7a8299;
-                   line-height:1.65;margin-bottom:.45rem;">
+            <div style="background:linear-gradient(135deg,rgba(255,203,43,0.06),rgba(77,142,255,0.03)); border:1px solid rgba(255,203,43,0.2);border-radius:.5rem; padding:.85rem 1rem;margin:.25rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:0.8rem;font-weight:800; color:#ffcb2b;margin-bottom:.4rem;">🔒 Pro Features</div>
+              <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#7a8299; line-height:1.65;margin-bottom:.45rem;">
                 <span style="color:#eaefff;">Model Comparison</span> — XGB vs Prophet vs LR<br>
                 <span style="color:#eaefff;">Bootstrap CI</span> — 95% confidence ribbon<br>
                 <span style="color:#eaefff;">30-day Outlook</span> — extended forecast
@@ -4079,8 +4064,7 @@ with st.sidebar:
             compare_tickers = []
             # FIX 3: Explicit locked feature card
             st.markdown(f"""
-            <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.16);
-                 border-radius:.5rem;padding:.7rem .85rem;margin:.15rem 0;">
+            <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.16); border-radius:.5rem;padding:.7rem .85rem;margin:.15rem 0;">
               <div style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#7a8299;line-height:1.55;">
                 🔒 <span style="color:#c2d4ff;font-weight:700;">Multi-stock compare</span> — 
                 run up to 5 tickers side-by-side with Pro.
@@ -4097,10 +4081,8 @@ with st.sidebar:
     _at_limit = (not _is_pro_user) and (st.session_state.get("usage_count", 0) >= _get_limit("daily_analyses"))
     if _at_limit:
         st.markdown(f"""
-        <div style="background:rgba(255,87,87,0.05);border:1px solid rgba(255,87,87,0.18);
-             padding:.7rem .9rem;border-radius:.45rem;text-align:center;margin-bottom:.35rem;">
-          <div style="font-family:Manrope,sans-serif;font-size:.76rem;color:#ff5757;
-               font-weight:700;letter-spacing:.06em;text-transform:uppercase;">
+        <div style="background:rgba(255,87,87,0.05);border:1px solid rgba(255,87,87,0.18); padding:.7rem .9rem;border-radius:.45rem;text-align:center;margin-bottom:.35rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:.76rem;color:#ff5757; font-weight:700;letter-spacing:.06em;text-transform:uppercase;">
             🔒 Daily limit reached
           </div>
           <div style="font-family:Manrope,sans-serif;font-size:.74rem;color:#7a8299;margin-top:.25rem;">
@@ -4258,12 +4240,10 @@ if not run_btn:
     # ── Landing Dashboard ──────────────────────────────────────────────────────
     st.markdown(f"""
     <div style="margin-bottom:1.5rem;padding-top:.5rem;">
-      <div style="font-family:var(--sans);font-size:1.65rem;font-weight:800;color:#eaefff;
-           letter-spacing:-.025em;line-height:1.2;">
+      <div style="font-family:var(--sans);font-size:1.65rem;font-weight:800;color:#eaefff; letter-spacing:-.025em;line-height:1.2;">
         {_L["dashboard_title"]} <span style="color:#4d8eff;">{_L["dashboard_subtitle"]}</span>
       </div>
-      <div style="font-size:.88rem;color:#7a8299;margin-top:.5rem;font-weight:500;line-height:1.65;
-           max-width:580px;">{_L["dashboard_desc"]}</div>
+      <div style="font-size:.88rem;color:#7a8299;margin-top:.5rem;font-weight:500;line-height:1.65; max-width:580px;">{_L["dashboard_desc"]}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -4271,55 +4251,39 @@ if not run_btn:
     if st.session_state.get("show_onboarding", False):
         _user_first = _user_email().split("@")[0].title()
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,rgba(77,142,255,0.1) 0%,rgba(0,229,176,0.06) 100%);
-             border:1px solid rgba(77,142,255,0.25);border-radius:1rem;padding:1.8rem 2rem;
-             margin-bottom:1.5rem;position:relative;overflow:hidden;">
-          <div style="position:absolute;top:-20px;right:-20px;width:120px;height:120px;
-               border-radius:50%;background:radial-gradient(circle,rgba(77,142,255,0.15),transparent 70%);
-               pointer-events:none;"></div>
-          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.12em;
-               text-transform:uppercase;color:#4d8eff;margin-bottom:.4rem;font-weight:700;">
+        <div style="background:linear-gradient(135deg,rgba(77,142,255,0.1) 0%,rgba(0,229,176,0.06) 100%); border:1px solid rgba(77,142,255,0.25);border-radius:1rem;padding:1.8rem 2rem; margin-bottom:1.5rem;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:-20px;right:-20px;width:120px;height:120px; border-radius:50%;background:radial-gradient(circle,rgba(77,142,255,0.15),transparent 70%); pointer-events:none;"></div>
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.12em; text-transform:uppercase;color:#4d8eff;margin-bottom:.4rem;font-weight:700;">
             Welcome to Stockcast
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:1.2rem;font-weight:800;
-               color:#eaefff;letter-spacing:-.02em;margin-bottom:.4rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:1.2rem;font-weight:800; color:#eaefff;letter-spacing:-.02em;margin-bottom:.4rem;">
             Hi {_user_first} 👋 — Your AI stock research assistant is ready.
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.86rem;color:#7a8299;
-               margin-bottom:1.2rem;line-height:1.65;max-width:540px;">
+          <div style="font-family:Manrope,sans-serif;font-size:.86rem;color:#7a8299; margin-bottom:1.2rem;line-height:1.65;max-width:540px;">
             AI-powered stock insights for smarter decisions. Here's how to get started:
           </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.2rem;">
-            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(77,142,255,0.2);
-                 border-radius:.75rem;padding:1rem 1.1rem;">
-              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;
-                   color:#4d8eff;margin-bottom:.4rem;">01</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
-                   letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
+            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(77,142,255,0.2); border-radius:.75rem;padding:1rem 1.1rem;">
+              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700; color:#4d8eff;margin-bottom:.4rem;">01</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800; letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
                 Search a Stock
               </div>
               <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#8a8fa0;line-height:1.5;">
                 Type a company name or ticker in the sidebar search.
               </div>
             </div>
-            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(0,229,176,0.2);
-                 border-radius:.75rem;padding:1rem 1.1rem;">
-              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;
-                   color:#00e5b0;margin-bottom:.4rem;">02</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
-                   letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
+            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(0,229,176,0.2); border-radius:.75rem;padding:1rem 1.1rem;">
+              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700; color:#00e5b0;margin-bottom:.4rem;">02</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800; letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
                 Run Analysis
               </div>
               <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#8a8fa0;line-height:1.5;">
                 Click "Run Analysis" — your AI assistant will analyse 20 signals in seconds.
               </div>
             </div>
-            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(255,212,38,0.2);
-                 border-radius:.75rem;padding:1rem 1.1rem;">
-              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700;
-                   color:#ffd426;margin-bottom:.4rem;">03</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
-                   letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
+            <div style="background:rgba(8,14,28,0.6);border:1px solid rgba(255,212,38,0.2); border-radius:.75rem;padding:1rem 1.1rem;">
+              <div style="font-family:IBM Plex Mono,monospace;font-size:1.3rem;font-weight:700; color:#ffd426;margin-bottom:.4rem;">03</div>
+              <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800; letter-spacing:.08em;text-transform:uppercase;color:#e4eafd;margin-bottom:.3rem;">
                 Save to Watchlist
               </div>
               <div style="font-family:Manrope,sans-serif;font-size:.75rem;color:#8a8fa0;line-height:1.5;">
@@ -4327,8 +4291,7 @@ if not run_btn:
               </div>
             </div>
           </div>
-          <div style="margin-top:1rem;font-family:Manrope,sans-serif;font-size:.65rem;
-               color:#3e4558;letter-spacing:.04em;">
+          <div style="margin-top:1rem;font-family:Manrope,sans-serif;font-size:.65rem; color:#3e4558;letter-spacing:.04em;">
             Free Plan · {PLAN_LIMITS["free"]["daily_analyses"]} analyses per day · {PLAN_LIMITS["free"]["watchlist_stocks"]} watchlist stocks ·
             <span style="color:#4d8eff;cursor:pointer;" onclick="">Upgrade to Pro for unlimited access</span>
           </div>
@@ -4410,8 +4373,7 @@ if not run_btn:
         _wl_plan_max = _get_limit("watchlist_stocks")
         st.markdown(f"""
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;">
-          <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800;
-               letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;">
+          <div style="font-family:Manrope,sans-serif;font-size:.68rem;font-weight:800; letter-spacing:.12em;text-transform:uppercase;color:#e4eafd;">
             ⭐ {_L["watchlist_live"]}
           </div>
           <div style="display:flex;align-items:center;gap:.5rem;">
@@ -4447,18 +4409,14 @@ if not run_btn:
                     except Exception:
                         _sig_txt, _sig_conf, _sig_chip, _sig_icon = "—", 0, "hold", "◆"
                     st.markdown(f"""
-                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
-                         border-top:2px solid {_col};padding:1.1rem 1.2rem;border-radius:.75rem;
-                         transition:border-color .2s;">
+                    <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47; border-top:2px solid {_col};padding:1.1rem 1.2rem;border-radius:.75rem; transition:border-color .2s;">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;">
-                        <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em;
-                             color:#3e4558;text-transform:uppercase;font-weight:700;">{wl_sym}</div>
+                        <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.14em; color:#3e4558;text-transform:uppercase;font-weight:700;">{wl_sym}</div>
                         <span class="chip {_sig_chip}" style="font-size:.5rem;padding:.18rem .5rem;">
                           {_sig_icon} {_sig_txt}
                         </span>
                       </div>
-                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.25rem;font-weight:700;
-                           color:#e4eafd;margin:.25rem 0 .5rem;">${_px:.2f}</div>
+                      <div style="font-family:IBM Plex Mono,monospace;font-size:1.25rem;font-weight:700; color:#e4eafd;margin:.25rem 0 .5rem;">${_px:.2f}</div>
                       <div style="display:flex;justify-content:space-between;align-items:center;">
                         <span class="chip {_wl_chip} dot" style="font-size:.7rem;padding:.18rem .5rem;">
                           {_sign} {abs(_chg):.2f}%
@@ -4521,10 +4479,8 @@ if not run_btn:
                     </tr>"""
             st.markdown(f"""
             <div style="background:#0a1120;border:1px solid #1e2740;border-radius:.75rem;overflow:hidden;margin-bottom:1rem;">
-              <div style="padding:.75rem 1.1rem;background:#0f1727;border-bottom:1px solid #1e2740;
-                   display:flex;align-items:center;justify-content:space-between;">
-                <div style="font-family:Manrope,sans-serif;font-size:.62rem;font-weight:800;letter-spacing:.12em;
-                     text-transform:uppercase;color:#4d8eff;">Signal Overview</div>
+              <div style="padding:.75rem 1.1rem;background:#0f1727;border-bottom:1px solid #1e2740; display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-family:Manrope,sans-serif;font-size:.62rem;font-weight:800;letter-spacing:.12em; text-transform:uppercase;color:#4d8eff;">Signal Overview</div>
                 <span class="chip live dot" style="font-size:.5rem;padding:.18rem .55rem;">Live</span>
               </div>
               <table style="width:100%;border-collapse:collapse;">
@@ -4740,21 +4696,15 @@ if not run_btn:
     # Upgrade CTA — only for free users
     if not _is_pro():
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,rgba(255,203,43,0.06) 0%,rgba(77,142,255,0.04) 100%);
-             border:1px solid rgba(255,203,43,0.18);border-radius:.875rem;
-             padding:1.8rem 2rem;margin-top:1rem;text-align:center;">
-          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.14em;
-               text-transform:uppercase;color:#ffcb2b;margin-bottom:.5rem;font-weight:700;">Stockcast Pro</div>
-          <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;
-               color:#eaefff;letter-spacing:-.015em;margin-bottom:.4rem;">
+        <div style="background:linear-gradient(135deg,rgba(255,203,43,0.06) 0%,rgba(77,142,255,0.04) 100%); border:1px solid rgba(255,203,43,0.18);border-radius:.875rem; padding:1.8rem 2rem;margin-top:1rem;text-align:center;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;letter-spacing:.14em; text-transform:uppercase;color:#ffcb2b;margin-bottom:.5rem;font-weight:700;">Stockcast Pro</div>
+          <div style="font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800; color:#eaefff;letter-spacing:-.015em;margin-bottom:.4rem;">
             Unlock unlimited analyses &amp; advanced signals
           </div>
-          <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#7a8299;
-               margin-bottom:1.3rem;line-height:1.6;">
+          <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#7a8299; margin-bottom:1.3rem;line-height:1.6;">
             Prophet + XGBoost combo · Bootstrap CI · Multi-stock · 50 watchlist stocks
           </div>
-          <div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:800;
-               color:#ffcb2b;margin-bottom:1.2rem;">
+          <div style="font-family:IBM Plex Mono,monospace;font-size:1.5rem;font-weight:800; color:#ffcb2b;margin-bottom:1.2rem;">
             $9<span style="font-size:.82rem;color:#7a8299;font-weight:400;margin-left:3px;">/month</span>
           </div>
         </div>
@@ -4887,11 +4837,8 @@ else:
         _progress_placeholder.empty()
         _err = _data_meta.get("error", "")
         st.markdown(f"""
-        <div style="background:rgba(255,87,87,0.06);border:1px solid rgba(255,87,87,0.25);
-             border-left:4px solid #ff5f5f;border-radius:0 .75rem .75rem 0;
-             padding:1.2rem 1.6rem;margin:.8rem 0;">
-          <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.16em;
-               text-transform:uppercase;color:#ff5f5f;margin-bottom:.5rem;font-weight:700;">
+        <div style="background:rgba(255,87,87,0.06);border:1px solid rgba(255,87,87,0.25); border-left:4px solid #ff5f5f;border-radius:0 .75rem .75rem 0; padding:1.2rem 1.6rem;margin:.8rem 0;">
+          <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.16em; text-transform:uppercase;color:#ff5f5f;margin-bottom:.5rem;font-weight:700;">
             ⚠ Data unavailable — {ticker}
           </div>
           <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;line-height:1.65;">
@@ -4913,28 +4860,11 @@ else:
                    if _data_meta["missing_pct"] > 0 else "")
     _dq_ts      = _data_meta["fetched_at"].strftime("%b %d, %Y · %H:%M UTC")
     st.markdown(f"""
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
-         gap:.5rem;margin:.2rem 0 .8rem;padding:.55rem 1.1rem;
-         background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.14);border-radius:.5rem;">
-      <div style="display:flex;align-items:center;gap:.5rem;">
-        <span style="width:7px;height:7px;border-radius:50%;background:{_dq_color};display:inline-block;box-shadow:0 0 5px {_dq_color};"></span>
-        <span style="font-family:IBM Plex Mono,monospace;font-size:.68rem;color:{_dq_color};letter-spacing:.05em;">
-          Data source: <b>Yahoo Finance</b>
-          &nbsp;·&nbsp; Updated: <b>{_data_meta["last_updated_str"]}</b>
-          &nbsp;·&nbsp; {_data_meta["trading_days"]:,} trading days loaded
-          {_dq_warn}
-        </span>
-      </div>
-      <div style="display:flex;align-items:center;gap:.7rem;">
-        <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">{_dq_ts}</span>
-        <span style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2);border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace;font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not Financial Advice</span>
-      </div>
-    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin:.2rem 0 .8rem;padding:.55rem 1.1rem;background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.14);border-radius:.5rem;"><div style="display:flex;align-items:center;gap:.5rem;"><span style="width:7px;height:7px;border-radius:50%;background:{_dq_color};display:inline-block;box-shadow:0 0 5px {_dq_color};"></span><span style="font-family:IBM Plex Mono,monospace;font-size:.68rem;color:{_dq_color};letter-spacing:.05em;">Data source: <b>Yahoo Finance</b> &nbsp;·&nbsp; Updated: <b>{_data_meta["last_updated_str"]}</b> &nbsp;·&nbsp; {_data_meta["trading_days"]:,} trading days loaded {_dq_warn}</span></div><div style="display:flex;align-items:center;gap:.7rem;"><span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">{_dq_ts}</span><span style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2);border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace;font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not Financial Advice</span></div></div>
     """, unsafe_allow_html=True)
 
     st.markdown(f"""
-    <div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.3);
-         border-left:4px solid #ffd426;padding:.9rem 1.4rem;margin:.5rem 0 1rem;border-radius:0 .5rem .5rem 0;">
+    <div style="background:rgba(255,221,45,0.04);border:1px solid rgba(255,221,45,0.3); border-left:4px solid #ffd426;padding:.9rem 1.4rem;margin:.5rem 0 1rem;border-radius:0 .5rem .5rem 0;">
       <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:#ffd426;margin-bottom:.3rem;font-weight:700;">
         {_L["reality_check_title"]}
       </div>
@@ -5202,11 +5132,8 @@ else:
 
         # FIX 5: Tab orientation cue — shown once after analysis runs
         st.markdown(f"""
-        <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.15);
-             border-radius:.6rem;padding:.65rem 1.2rem;margin-bottom:.5rem;
-             display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
-          <span style="font-family:IBM Plex Mono,monospace;font-size:0.78rem;
-               color:#00e5b0;font-weight:700;">✓ Analysis complete — {ticker}</span>
+        <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.15); border-radius:.6rem;padding:.65rem 1.2rem;margin-bottom:.5rem; display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+          <span style="font-family:IBM Plex Mono,monospace;font-size:0.78rem; color:#00e5b0;font-weight:700;">✓ Analysis complete — {ticker}</span>
           <span style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;">
             <b style="color:#e4eafd;">Dashboard</b> → signals &amp; charts ·
             <b style="color:#e4eafd;">Deep Analysis</b> → forecast &amp; backtest ·
@@ -5435,10 +5362,8 @@ else:
                 _bw1, _bw2 = st.columns(2)
                 with _bw1:
                     st.markdown(f"""
-                    <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.2);
-                         border-left:4px solid #00e5b0;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
-                      <div style="font-family:Manrope,sans-serif;font-size:.7rem;letter-spacing:.14em;
-                           text-transform:uppercase;color:#00e5b0;font-weight:700;margin-bottom:.3rem;">
+                    <div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.2); border-left:4px solid #00e5b0;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.7rem;letter-spacing:.14em; text-transform:uppercase;color:#00e5b0;font-weight:700;margin-bottom:.3rem;">
                         🏆 Best Performer
                       </div>
                       <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -5456,10 +5381,8 @@ else:
                 with _bw2:
                     _ws = "+" if _worst["pl"] >= 0 else ""
                     st.markdown(f"""
-                    <div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.2);
-                         border-left:4px solid #ff5f5f;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
-                      <div style="font-family:Manrope,sans-serif;font-size:.7rem;letter-spacing:.14em;
-                           text-transform:uppercase;color:#ff5f5f;font-weight:700;margin-bottom:.3rem;">
+                    <div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.2); border-left:4px solid #ff5f5f;padding:.8rem 1.2rem;border-radius:0 .5rem .5rem 0;">
+                      <div style="font-family:Manrope,sans-serif;font-size:.7rem;letter-spacing:.14em; text-transform:uppercase;color:#ff5f5f;font-weight:700;margin-bottom:.3rem;">
                         📉 Worst Performer
                       </div>
                       <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -5628,8 +5551,7 @@ else:
                         desc       = f'{a["shares"]} shares @ ${a["price"]:.2f}' if a.get("shares") and a.get("price") else a["ticker"]
                         st.markdown(f"""
                         <div style="display:flex;gap:.8rem;padding:.7rem 0;border-bottom:1px solid #252f47;align-items:center;">
-                          <div style="width:2rem;height:2rem;border-radius:50%;background:rgba({','.join(str(int(type_color.lstrip('#')[i:i+2],16)) for i in (0,2,4))},0.15);
-                               color:{type_color};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.8rem;font-weight:700;">
+                          <div style="width:2rem;height:2rem;border-radius:50%;background:rgba({','.join(str(int(type_color.lstrip('#')[i:i+2],16)) for i in (0,2,4))},0.15); color:{type_color};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.8rem;font-weight:700;">
                             {"B" if a["type"]=="BUY" else "S" if a["type"]=="SELL" else "D"}
                           </div>
                           <div style="flex:1;">
@@ -5706,8 +5628,7 @@ else:
                 _fg_color = "#ff5f5f" if _fg_score < 30 else "#ffd426" if _fg_score < 55 else "#00e5b0"
                 _fg_pct   = f"{max(2, min(98, _fg_score)):.0f}%"
                 st.markdown(f"""
-                <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47;
-                     padding:1.4rem;text-align:center;border-radius:.5rem;">
+                <div style="background:linear-gradient(145deg,#0f1727,#141d30);border:1px solid #252f47; padding:1.4rem;text-align:center;border-radius:.5rem;">
                   <div style="font-family:IBM Plex Mono,monospace;font-size:2.8rem;font-weight:800;color:{_fg_color};">{_fg_score:.0f}</div>
                   <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:{_fg_color};margin-bottom:.8rem;">{_fg_label}</div>
                   <div style="height:6px;background:linear-gradient(90deg,#ff5f5f,#ff9f40,#ffd426,#00e5b0);border-radius:3px;position:relative;">
@@ -5738,8 +5659,7 @@ else:
             filled = int(confidence_score / 5)
             bar_html = "".join(f'<span style="display:inline-block;width:18px;height:10px;margin-right:2px;background:{conf_color};opacity:{1.0 if i<filled else 0.1};border-radius:1px;"></span>' for i in range(20))
             st.markdown(f"""
-            <div style="background:#0f1727;border:1px solid #252f47;border-left:3px solid {conf_color};
-                 padding:1.2rem 1.6rem;margin:1rem 0;border-radius:0 .5rem .5rem 0;">
+            <div style="background:#0f1727;border:1px solid #252f47;border-left:3px solid {conf_color}; padding:1.2rem 1.6rem;margin:1rem 0;border-radius:0 .5rem .5rem 0;">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
                 <div>
                   <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:#3e4558;margin-bottom:.3rem;font-weight:700;">{_L["model_conf_score"]}</div>
@@ -5826,45 +5746,30 @@ else:
             )
             _trust_ts = pd.Timestamp.utcnow().strftime("%b %d, %Y · %H:%M UTC")
             st.markdown(f"""
-            <div style="background:linear-gradient(145deg,#0d1524,#07101e);
-                 border:1px solid #1e2d45;border-left:4px solid {_vs_color};
-                 border-radius:0 .75rem .75rem 0;padding:1.3rem 1.6rem;margin:.6rem 0 1rem;">
-              <div style="display:flex;align-items:center;justify-content:space-between;
-                          flex-wrap:wrap;gap:.7rem;margin-bottom:.9rem;">
+            <div style="background:linear-gradient(145deg,#0d1524,#07101e); border:1px solid #1e2d45;border-left:4px solid {_vs_color}; border-radius:0 .75rem .75rem 0;padding:1.3rem 1.6rem;margin:.6rem 0 1rem;">
+              <div style="display:flex;align-items:center;justify-content:space-between; flex-wrap:wrap;gap:.7rem;margin-bottom:.9rem;">
                 <div>
-                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.18em;
-                        text-transform:uppercase;color:#3d4760;margin-bottom:.3rem;font-weight:700;">
+                  <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.18em; text-transform:uppercase;color:#3d4760;margin-bottom:.3rem;font-weight:700;">
                     {_L["composite_signal"]} · {ticker}
                   </div>
-                  <span style="background:rgba({_vs_rgb},0.14);border:1.5px solid {_vs_color};
-                        color:{_vs_color};font-family:IBM Plex Mono,monospace;
-                        font-size:1.4rem;font-weight:800;padding:.35rem 1.1rem;
-                        border-radius:.45rem;letter-spacing:.12em;">{verdict}</span>
+                  <span style="background:rgba({_vs_rgb},0.14);border:1.5px solid {_vs_color}; color:{_vs_color};font-family:IBM Plex Mono,monospace; font-size:1.4rem;font-weight:800;padding:.35rem 1.1rem; border-radius:.45rem;letter-spacing:.12em;">{verdict}</span>
                 </div>
                 <div style="text-align:right;">
-                  <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;
-                        font-weight:700;color:{_conf_color};">{_sig_conf}%</div>
-                  <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.13em;
-                        text-transform:uppercase;color:{_conf_color};font-weight:700;">{_conf_label}</div>
+                  <div style="font-family:IBM Plex Mono,monospace;font-size:2rem; font-weight:700;color:{_conf_color};">{_sig_conf}%</div>
+                  <div style="font-family:Manrope,sans-serif;font-size:.62rem;letter-spacing:.13em; text-transform:uppercase;color:{_conf_color};font-weight:700;">{_conf_label}</div>
                 </div>
               </div>
               <div style="margin-bottom:1rem;">{_conf_segs}</div>
-              <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.14em;
-                    text-transform:uppercase;color:#3d4760;margin-bottom:.5rem;font-weight:700;">
+              <div style="font-family:Manrope,sans-serif;font-size:.6rem;letter-spacing:.14em; text-transform:uppercase;color:#3d4760;margin-bottom:.5rem;font-weight:700;">
                 Signal Explanation
               </div>
               {_reason_html}
-              <div style="display:flex;align-items:center;justify-content:space-between;
-                          flex-wrap:wrap;gap:.5rem;margin-top:1rem;padding-top:.8rem;
-                          border-top:1px solid #1e2d45;">
+              <div style="display:flex;align-items:center;justify-content:space-between; flex-wrap:wrap;gap:.5rem;margin-top:1rem;padding-top:.8rem; border-top:1px solid #1e2d45;">
                 <span style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3d4760;letter-spacing:.06em;">
                   Data source: <b style="color:#8a8fa0;">Yahoo Finance</b>
                   &nbsp;·&nbsp; Fetched: <b style="color:#8a8fa0;">{_trust_ts}</b>
                 </span>
-                <span style="display:inline-flex;align-items:center;gap:.4rem;
-                      background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2);
-                      border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace;
-                      font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not financial advice</span>
+                <span style="display:inline-flex;align-items:center;gap:.4rem; background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2); border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace; font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not financial advice</span>
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -5879,18 +5784,13 @@ else:
                 _ac      = {"BUY": "#00e5b0", "SELL": "#ff5f5f"}.get(verdict_short, "#ffd426")
                 _ac_rgb  = ",".join(str(int(_ac.lstrip("#")[i:i+2], 16)) for i in (0, 2, 4))
                 st.markdown(f"""
-                <div style="background:rgba({_ac_rgb},0.08);border:1px solid {_ac};
-                     border-left:5px solid {_ac};border-radius:0 .6rem .6rem 0;
-                     padding:.85rem 1.4rem;margin:.4rem 0 .8rem;
-                     animation:flash-in .4s ease;">
-                  <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem;
-                        font-weight:800;color:{_ac};">
+                <div style="background:rgba({_ac_rgb},0.08);border:1px solid {_ac}; border-left:5px solid {_ac};border-radius:0 .6rem .6rem 0; padding:.85rem 1.4rem;margin:.4rem 0 .8rem; animation:flash-in .4s ease;">
+                  <div style="font-family:IBM Plex Mono,monospace;font-size:.9rem; font-weight:800;color:{_ac};">
                     🔔&nbsp; ALERT — {ticker} signal changed:
                     &nbsp;<span style="opacity:.55">{_prev_sig}</span>
                     &nbsp;→&nbsp;<b>{verdict_short}</b>
                   </div>
-                  <div style="font-family:Manrope,sans-serif;font-size:.78rem;
-                        color:#8a8fa0;margin-top:.3rem;line-height:1.5;">
+                  <div style="font-family:Manrope,sans-serif;font-size:.78rem; color:#8a8fa0;margin-top:.3rem;line-height:1.5;">
                     Confidence: <b style="color:{_ac};">{_sig_conf}%</b>
                     &nbsp;·&nbsp; AI Forecast: <b style="color:{_ac};">{xgb_pct:+.2f}%</b>
                     &nbsp;·&nbsp; Score: <b style="color:{_ac};">{total_score:+.0f} / ±135</b>
@@ -5911,20 +5811,15 @@ else:
                 _diff = last_close - alert_price
                 if last_close >= alert_price:
                     st.markdown(f"""
-                    <div style="background:rgba(0,229,176,0.07);border:1px solid #00e5b0;
-                         border-left:4px solid #00e5b0;padding:.7rem 1.2rem;margin:.3rem 0;
-                         border-radius:0 .5rem .5rem 0;">
-                      <span style="font-family:IBM Plex Mono,monospace;font-size:.8rem;
-                            color:#00e5b0;font-weight:700;">
+                    <div style="background:rgba(0,229,176,0.07);border:1px solid #00e5b0; border-left:4px solid #00e5b0;padding:.7rem 1.2rem;margin:.3rem 0; border-radius:0 .5rem .5rem 0;">
+                      <span style="font-family:IBM Plex Mono,monospace;font-size:.8rem; color:#00e5b0;font-weight:700;">
                         🎯 {ticker} at ${last_close:.2f} — AT or ABOVE your target of ${alert_price:.2f}
                       </span>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
                     st.markdown(f"""
-                    <div style="background:rgba(77,142,255,0.06);border:1px solid #4d8eff;
-                         border-left:4px solid #4d8eff;padding:.7rem 1.2rem;margin:.3rem 0;
-                         border-radius:0 .5rem .5rem 0;">
+                    <div style="background:rgba(77,142,255,0.06);border:1px solid #4d8eff; border-left:4px solid #4d8eff;padding:.7rem 1.2rem;margin:.3rem 0; border-radius:0 .5rem .5rem 0;">
                       <span style="font-family:IBM Plex Mono,monospace;font-size:.78rem;color:#adc6ff;">
                         🔔 {ticker} at ${last_close:.2f} — ${abs(_diff):.2f} below target of ${alert_price:.2f}
                       </span>
@@ -6020,9 +5915,7 @@ else:
 
             # ── Trust & credibility strip ─────────────────────────────────────
             st.markdown(f"""
-            <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;
-                 padding:.55rem 1rem;background:#080e1c;border:1px solid #1a2236;
-                 border-radius:.5rem;margin:.6rem 0 1.2rem;">
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center; padding:.55rem 1rem;background:#080e1c;border:1px solid #1a2236; border-radius:.5rem;margin:.6rem 0 1.2rem;">
               <span style="font-family:IBM Plex Mono,monospace;font-size:.7rem;color:#3e4558;font-weight:700;text-transform:uppercase;letter-spacing:.1em;">Data sources</span>
               <span style="font-size:.6rem;color:#3e4558;">·</span>
               <span style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#8a8fa0;">Yahoo Finance (OHLCV)</span>
@@ -6130,8 +6023,7 @@ else:
                     # Company description
                     if _fund.get("description"):
                         st.markdown(f"""
-                        <div style="margin-top:.8rem;background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12);
-                             border-radius:.5rem;padding:.9rem 1.2rem;">
+                        <div style="margin-top:.8rem;background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12); border-radius:.5rem;padding:.9rem 1.2rem;">
                           <div style="font-size:.7rem;font-weight:700;color:#4d8eff;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.4rem;">
                             About · {_fund.get("name",ticker)}
                           </div>
@@ -6411,12 +6303,8 @@ else:
 
             # FIX 5: Tab orientation — numbered labels + "Start here" cue
             st.markdown(f"""
-            <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.15);
-                 border-left:3px solid #4d8eff;border-radius:0 .6rem .6rem 0;
-                 padding:.65rem 1.2rem;margin-bottom:.75rem;
-                 display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
-              <span style="font-family:IBM Plex Mono,monospace;font-size:0.78rem;
-                   color:#4d8eff;font-weight:700;">📍 Start here</span>
+            <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.15); border-left:3px solid #4d8eff;border-radius:0 .6rem .6rem 0; padding:.65rem 1.2rem;margin-bottom:.75rem; display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+              <span style="font-family:IBM Plex Mono,monospace;font-size:0.78rem; color:#4d8eff;font-weight:700;">📍 Start here</span>
               <span style="font-family:Manrope,sans-serif;font-size:0.78rem;color:#8a8fa0;">
                 Begin with <b style="color:#e4eafd;">01 Macro Risk</b> for market context,
                 then work across. <b style="color:#e4eafd;">05 Signal Alert</b> and
