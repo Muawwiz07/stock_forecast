@@ -481,42 +481,29 @@ def render_signal_card(
         <div style="background:{c['bg']};border:1.5px solid {c['border']};
                     border-left:5px solid {c['border']};border-radius:0 .75rem .75rem 0;
                     padding:1.4rem 1.8rem;margin-bottom:1rem;">
-            <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                        letter-spacing:.18em;text-transform:uppercase;color:#3d4760;
-                        margin-bottom:.6rem;">{header_label}</div>
-            <div style="display:flex;align-items:center;justify-content:space-between;
-                        flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
-                <div style="font-family:IBM Plex Mono,monospace;font-size:2.4rem;
-                            font-weight:800;color:{c['text']};letter-spacing:.08em;line-height:1;">
+            <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800; letter-spacing:.18em;text-transform:uppercase;color:#3d4760; margin-bottom:.6rem;">{header_label}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between; flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
+                <div style="font-family:IBM Plex Mono,monospace;font-size:2.4rem; font-weight:800;color:{c['text']};letter-spacing:.08em;line-height:1;">
                     {c['emoji']}&nbsp;{sig}
                 </div>
                 <div style="text-align:right;">
-                    <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;
-                                font-weight:700;color:{c['text']};">{conf_int}%</div>
-                    <div style="font-family:Manrope,sans-serif;font-size:.6rem;
-                                letter-spacing:.14em;text-transform:uppercase;
-                                color:{c['text']};font-weight:700;margin-top:.1rem;">{conf_label}</div>
+                    <div style="font-family:IBM Plex Mono,monospace;font-size:2rem; font-weight:700;color:{c['text']};">{conf_int}%</div>
+                    <div style="font-family:Manrope,sans-serif;font-size:.6rem; letter-spacing:.14em;text-transform:uppercase; color:{c['text']};font-weight:700;margin-top:.1rem;">{conf_label}</div>
                 </div>
             </div>
             <div style="margin-bottom:1.1rem;">{bar_html}</div>
             <div style="display:flex;gap:1.8rem;flex-wrap:wrap;">
                 <div>
-                    <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
-                                text-transform:uppercase;color:#3d4760;font-weight:700;">Trend</div>
-                    <div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;
-                                color:{trend_color};font-weight:700;margin-top:.2rem;">{trend}</div>
+                    <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em; text-transform:uppercase;color:#3d4760;font-weight:700;">Trend</div>
+                    <div style="font-family:IBM Plex Mono,monospace;font-size:.78rem; color:{trend_color};font-weight:700;margin-top:.2rem;">{trend}</div>
                 </div>
                 <div>
-                    <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
-                                text-transform:uppercase;color:#3d4760;font-weight:700;">Sentiment</div>
-                    <div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;
-                                color:{sent_color};font-weight:700;margin-top:.2rem;">{sent}</div>
+                    <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em; text-transform:uppercase;color:#3d4760;font-weight:700;">Sentiment</div>
+                    <div style="font-family:IBM Plex Mono,monospace;font-size:.78rem; color:{sent_color};font-weight:700;margin-top:.2rem;">{sent}</div>
                 </div>
                 <div>
-                    <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em;
-                                text-transform:uppercase;color:#3d4760;font-weight:700;">Volatility</div>
-                    <div style="font-family:IBM Plex Mono,monospace;font-size:.78rem;
-                                color:{vol_color};font-weight:700;margin-top:.2rem;">{volatility}</div>
+                    <div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.14em; text-transform:uppercase;color:#3d4760;font-weight:700;">Volatility</div>
+                    <div style="font-family:IBM Plex Mono,monospace;font-size:.78rem; color:{vol_color};font-weight:700;margin-top:.2rem;">{volatility}</div>
                 </div>
             </div>
             {conflict_html}
@@ -528,14 +515,9 @@ def render_signal_card(
     # ── 2. AI Insight Box ─────────────────────────────────────────────────────
     st.markdown(
         f"""
-        <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.2);
-                    border-left:4px solid #4d8eff;border-radius:0 .75rem .75rem 0;
-                    padding:1.1rem 1.5rem;margin-bottom:.8rem;">
-            <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                        letter-spacing:.16em;text-transform:uppercase;color:#4d8eff;
-                        margin-bottom:.5rem;">💡 AI Insight</div>
-            <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#b8c4d8;
-                        line-height:1.7;">{insight_text}</div>
+        <div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.2); border-left:4px solid #4d8eff;border-radius:0 .75rem .75rem 0; padding:1.1rem 1.5rem;margin-bottom:.8rem;">
+            <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800; letter-spacing:.16em;text-transform:uppercase;color:#4d8eff; margin-bottom:.5rem;">💡 AI Insight</div>
+            <div style="font-family:Manrope,sans-serif;font-size:.84rem;color:#b8c4d8; line-height:1.7;">{insight_text}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -559,11 +541,8 @@ def render_signal_card(
 
     st.markdown(
         f"""
-        <div style="background:#0f1727;border:1px solid #1e2d45;
-                    border-radius:.6rem;padding:.9rem 1.2rem;">
-            <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-                        letter-spacing:.16em;text-transform:uppercase;color:#3d4760;
-                        margin-bottom:.5rem;">Reason</div>
+        <div style="background:#0f1727;border:1px solid #1e2d45; border-radius:.6rem;padding:.9rem 1.2rem;">
+            <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800; letter-spacing:.16em;text-transform:uppercase;color:#3d4760; margin-bottom:.5rem;">Reason</div>
             {rows_html}
         </div>
         """,
