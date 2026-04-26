@@ -78,7 +78,7 @@ def generate_signal(df: pd.DataFrame, sentiment_score: float) -> dict:
     else:
         recent_avg = float(close.iloc[-5:].mean())
         prior_avg  = float(close.iloc[-10:-5].mean())
-        trend_pct  = (recent_avg - prior_avg) / prior_avg * 100
+        trend_pct  = (recent_avg - prior_avg) / prior_avg * 100 if prior_avg != 0 else 0.0
 
         # Normalise into [-1, +1] using a ±5% scale (tanh-like soft clamp)
         momentum_score = float(np.tanh(trend_pct / 3.0))
@@ -98,7 +98,7 @@ def generate_signal(df: pd.DataFrame, sentiment_score: float) -> dict:
         )
 
     last_price = float(close.iloc[-1])
-    ma_gap_pct = (last_price - ma20) / ma20 * 100
+    ma_gap_pct = (last_price - ma20) / ma20 * 100 if ma20 != 0 else 0.0
 
     # Normalise into [-1, +1] using a ±8% scale
     ma_score = float(np.tanh(ma_gap_pct / 5.0))
@@ -441,9 +441,7 @@ def render_signal_card(
 
     # Confidence bar
     bar_html = "".join(
-        f'<span style="display:inline-block;width:20px;height:9px;margin-right:2px;'
-        f'border-radius:2px;background:{c["border"]};'
-        f'opacity:{1.0 if i < bar_filled else 0.12};"></span>'
+        f'<span style="display:inline-block;width:20px;height:9px;margin-right:2px;' f'border-radius:2px;background:{c["border"]};' f'opacity:{1.0 if i < bar_filled else 0.12};"></span>'
         for i in range(20)
     )
 
@@ -465,12 +463,9 @@ def render_signal_card(
     header_label = f"SIGNAL · {ticker}" if ticker else "SIGNAL"
 
     conflict_html = (
-        '<div style="display:inline-flex;align-items:center;gap:.35rem;'
-        'background:rgba(255,212,38,0.1);border:1px solid rgba(255,212,38,0.35);'
-        'border-radius:2rem;padding:.2rem .7rem;margin-top:.7rem;">'
+        '<div style="display:inline-flex;align-items:center;gap:.35rem;' 'background:rgba(255,212,38,0.1);border:1px solid rgba(255,212,38,0.35);' 'border-radius:2rem;padding:.2rem .7rem;margin-top:.7rem;">'
         '<span style="font-size:.65rem;color:#ffd426;">⚠</span>'
-        '<span style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:700;'
-        'color:#ffd426;letter-spacing:.06em;">TREND–SENTIMENT CONFLICT</span>'
+        '<span style="font-family:Manrope,sans-serif;font-size:.65rem;font-weight:700;' 'color:#ffd426;letter-spacing:.06em;">TREND–SENTIMENT CONFLICT</span>'
         '</div>'
         if conflict else ""
     )
@@ -478,9 +473,7 @@ def render_signal_card(
     # ── 1. Signal Card ────────────────────────────────────────────────────────
     st.markdown(
         f"""
-        <div style="background:{c['bg']};border:1.5px solid {c['border']};
-                    border-left:5px solid {c['border']};border-radius:0 .75rem .75rem 0;
-                    padding:1.4rem 1.8rem;margin-bottom:1rem;">
+        <div style="background:{c['bg']};border:1.5px solid {c['border']}; border-left:5px solid {c['border']};border-radius:0 .75rem .75rem 0; padding:1.4rem 1.8rem;margin-bottom:1rem;">
             <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800; letter-spacing:.18em;text-transform:uppercase;color:#3d4760; margin-bottom:.6rem;">{header_label}</div>
             <div style="display:flex;align-items:center;justify-content:space-between; flex-wrap:wrap;gap:1rem;margin-bottom:1rem;">
                 <div style="font-family:IBM Plex Mono,monospace;font-size:2.4rem; font-weight:800;color:{c['text']};letter-spacing:.08em;line-height:1;">
@@ -531,9 +524,7 @@ def render_signal_card(
         ("Signal Conflict", "Yes ⚠" if conflict else "None detected",  "#ffd426" if conflict else "#3e4558"),
     ]
     rows_html = "".join(
-        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-        f'padding:.38rem 0;border-bottom:1px solid #1e2740;'
-        f'font-family:IBM Plex Mono,monospace;font-size:.72rem;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;' f'padding:.38rem 0;border-bottom:1px solid #1e2740;' f'font-family:IBM Plex Mono,monospace;font-size:.72rem;">'
         f'<span style="color:#3e4558;">{label}</span>'
         f'<span style="color:{color};font-weight:700;">{value}</span></div>'
         for label, value, color in _reason_rows
@@ -1521,12 +1512,9 @@ def _build_digest_html(user_email: str, watchlist: list) -> str:
     <!DOCTYPE html>
     <html>
     <body style="margin:0;padding:0;background:#080e1c;font-family:Manrope,sans-serif;">
-      <div style="max-width:560px;margin:32px auto;background:#0f1727;border-radius:12px;
-                  border:1px solid #252f47;overflow:hidden;">
-        <div style="background:linear-gradient(135deg,#0f1727,#141d30);padding:28px 32px;
-                    border-bottom:2px solid #4d8eff;">
-          <div style="font-family:monospace;font-size:11px;letter-spacing:2px;
-                      text-transform:uppercase;color:#4d8eff;margin-bottom:6px;">Stockcast · Daily Digest</div>
+      <div style="max-width:560px;margin:32px auto;background:#0f1727;border-radius:12px; border:1px solid #252f47;overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#0f1727,#141d30);padding:28px 32px; border-bottom:2px solid #4d8eff;">
+          <div style="font-family:monospace;font-size:11px;letter-spacing:2px; text-transform:uppercase;color:#4d8eff;margin-bottom:6px;">Stockcast · Daily Digest</div>
           <div style="font-size:22px;font-weight:800;color:#e4eafd;">Good morning ☀</div>
           <div style="font-size:13px;color:#8a8fa0;margin-top:4px;">{date_str} · Your watchlist summary</div>
         </div>
@@ -1545,9 +1533,7 @@ def _build_digest_html(user_email: str, watchlist: list) -> str:
             </thead>
             <tbody>{rows_html}</tbody>
           </table>
-          <div style="margin-top:20px;padding:14px 18px;background:rgba(255,212,38,0.05);
-                      border:1px solid rgba(255,212,38,0.2);border-radius:8px;
-                      font-size:11px;color:#8a8fa0;line-height:1.6;">
+          <div style="margin-top:20px;padding:14px 18px;background:rgba(255,212,38,0.05); border:1px solid rgba(255,212,38,0.2);border-radius:8px; font-size:11px;color:#8a8fa0;line-height:1.6;">
             ⚠ This digest is for educational and research purposes only. Not financial advice.
           </div>
         </div>
@@ -3512,10 +3498,8 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
     _acc_html += "</div>"
     st.markdown(_acc_html, unsafe_allow_html=True)
     st.markdown("""
-    <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.2);
-         border-left:3px solid #ff5f5f;padding:1rem 1.5rem;margin-top:.5rem;border-radius:0 0.5rem 0.5rem 0;">
-      <div style="font-family:Manrope,sans-serif;font-size:0.63rem;letter-spacing:.14em;
-           text-transform:uppercase;color:#ff5f5f;margin-bottom:.4rem;font-weight:700;">⚠ Key Limitations</div>
+    <div style="background:rgba(255,107,107,0.04);border:1px solid rgba(255,107,107,0.2); border-left:3px solid #ff5f5f;padding:1rem 1.5rem;margin-top:.5rem;border-radius:0 0.5rem 0.5rem 0;">
+      <div style="font-family:Manrope,sans-serif;font-size:0.63rem;letter-spacing:.14em; text-transform:uppercase;color:#ff5f5f;margin-bottom:.4rem;font-weight:700;">⚠ Key Limitations</div>
       <div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.7;">
         This assistant analyses price and volume patterns. It works best when combined with your own
         market knowledge, recent news, and broader context.
@@ -3649,10 +3633,8 @@ if st.session_state.get("show_upgrade_modal"):
     # Header
     st.markdown("""
     <div style="text-align:center;padding:2rem 0 1.5rem;">
-      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.2em;
-           text-transform:uppercase;color:#ffd426;margin-bottom:.6rem;">Stockcast Pro</div>
-      <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800;
-           color:#e4eafd;letter-spacing:-.03em;line-height:1.2;margin-bottom:.5rem;">
+      <div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;letter-spacing:.2em; text-transform:uppercase;color:#ffd426;margin-bottom:.6rem;">Stockcast Pro</div>
+      <div style="font-family:Manrope,sans-serif;font-size:2rem;font-weight:800; color:#e4eafd;letter-spacing:-.03em;line-height:1.2;margin-bottom:.5rem;">
         Unlock the full<br>AI Stock Assistant
       </div>
       <div style="font-family:Manrope,sans-serif;font-size:.9rem;color:#8a8fa0;line-height:1.6;">
@@ -3666,10 +3648,8 @@ if st.session_state.get("show_upgrade_modal"):
 
     with col_free:
         st.markdown("""
-        <div style="background:#0f1727;border:1px solid #252f47;border-radius:1rem;
-             padding:1.4rem 1.5rem;height:100%;">
-          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-               letter-spacing:.14em;text-transform:uppercase;color:#8a8fa0;margin-bottom:1rem;">
+        <div style="background:#0f1727;border:1px solid #252f47;border-radius:1rem; padding:1.4rem 1.5rem;height:100%;">
+          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800; letter-spacing:.14em;text-transform:uppercase;color:#8a8fa0;margin-bottom:1rem;">
             Free — $0
           </div>
           <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#8a8fa0;line-height:2;">
@@ -3688,15 +3668,9 @@ if st.session_state.get("show_upgrade_modal"):
 
     with col_pro:
         st.markdown("""
-        <div style="background:linear-gradient(145deg,rgba(255,212,38,0.08),#0a0f1e);
-             border:2px solid rgba(255,212,38,0.4);border-radius:1rem;
-             padding:1.4rem 1.5rem;height:100%;position:relative;">
-          <div style="position:absolute;top:-1px;right:1.2rem;background:#ffd426;
-               color:#080e1c;font-family:Manrope,sans-serif;font-size:.7rem;
-               font-weight:800;letter-spacing:.08em;text-transform:uppercase;
-               padding:.22rem .75rem;border-radius:0 0 .5rem .5rem;">BEST VALUE</div>
-          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800;
-               letter-spacing:.14em;text-transform:uppercase;color:#ffd426;margin-bottom:1rem;">
+        <div style="background:linear-gradient(145deg,rgba(255,212,38,0.08),#0a0f1e); border:2px solid rgba(255,212,38,0.4);border-radius:1rem; padding:1.4rem 1.5rem;height:100%;position:relative;">
+          <div style="position:absolute;top:-1px;right:1.2rem;background:#ffd426; color:#080e1c;font-family:Manrope,sans-serif;font-size:.7rem; font-weight:800;letter-spacing:.08em;text-transform:uppercase; padding:.22rem .75rem;border-radius:0 0 .5rem .5rem;">BEST VALUE</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.6rem;font-weight:800; letter-spacing:.14em;text-transform:uppercase;color:#ffd426;margin-bottom:1rem;">
             Pro — $9/mo
           </div>
           <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#e4eafd;line-height:2;">
@@ -3741,8 +3715,7 @@ if st.session_state.get("show_upgrade_modal"):
             st.rerun()
 
     st.markdown("""
-    <div style="text-align:center;margin-top:1rem;font-family:Manrope,sans-serif;
-         font-size:.65rem;color:#3e4558;line-height:1.7;">
+    <div style="text-align:center;margin-top:1rem;font-family:Manrope,sans-serif; font-size:.65rem;color:#3e4558;line-height:1.7;">
       ⚠ Payments not yet live — Razorpay / Stripe integration coming soon.<br>
       Upgrade grants immediate access for testing purposes only.
     </div>
@@ -3854,11 +3827,8 @@ with st.sidebar:
         _limit_banner = ""
         if _usage_count >= _daily_limit:
             _limit_banner = f"""
-            <div style="background:rgba(255,87,87,0.06);border:1px solid rgba(255,87,87,0.18);
-                 border-left:3px solid #ff5757;padding:.5rem .85rem;margin:.3rem 0;
-                 border-radius:0 .45rem .45rem 0;">
-              <div style="font-family:Manrope,sans-serif;font-size:.76rem;font-weight:800;
-                   color:#ff5757;margin-bottom:.15rem;">🔒 Daily limit reached</div>
+            <div style="background:rgba(255,87,87,0.06);border:1px solid rgba(255,87,87,0.18); border-left:3px solid #ff5757;padding:.5rem .85rem;margin:.3rem 0; border-radius:0 .45rem .45rem 0;">
+              <div style="font-family:Manrope,sans-serif;font-size:.76rem;font-weight:800; color:#ff5757;margin-bottom:.15rem;">🔒 Daily limit reached</div>
               <div style="font-family:Manrope,sans-serif;font-size:.73rem;color:#7a8299;line-height:1.4;">
                 Resets at midnight UTC · Upgrade for unlimited.
               </div>
@@ -4165,8 +4135,7 @@ with st.sidebar:
     _pro_badge    = "✦ Pro · delivered 6AM daily" if _is_pro() else "Free · weekdays 7AM UTC"
 
     st.markdown(
-        f'<div style="background:{_email_bg};border:1px solid {_email_border};'
-        f'border-radius:.6rem;padding:.8rem 1rem;margin:.4rem 0;">'
+        f'<div style="background:{_email_bg};border:1px solid {_email_border};' f'border-radius:.6rem;padding:.8rem 1rem;margin:.4rem 0;">'
         f'<div style="display:flex;align-items:center;justify-content:space-between;">'
         f'<div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;color:#e4eafd;">📧 Daily Email Digest</div>'
         f'<div style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:{_email_color};font-weight:700;">{_email_status}</div>'
@@ -4200,10 +4169,7 @@ with st.sidebar:
     st.markdown("---")
     if _is_pro():
         st.markdown(
-            '<div style="background:linear-gradient(90deg,rgba(255,212,38,0.08),rgba(77,142,255,0.05));'
-            'border:1px solid rgba(255,212,38,0.25);border-radius:.5rem;padding:.55rem .9rem;'
-            'font-family:Manrope,sans-serif;font-size:.63rem;font-weight:700;color:#ffd426;'
-            'text-align:center;letter-spacing:.04em;">✦ Pro Plan Active</div>',
+            '<div style="background:linear-gradient(90deg,rgba(255,212,38,0.08),rgba(77,142,255,0.05));' 'border:1px solid rgba(255,212,38,0.25);border-radius:.5rem;padding:.55rem .9rem;' 'font-family:Manrope,sans-serif;font-size:.63rem;font-weight:700;color:#ffd426;' 'text-align:center;letter-spacing:.04em;">✦ Pro Plan Active</div>',
             unsafe_allow_html=True
         )
     else:
@@ -4441,9 +4407,7 @@ if not run_btn:
                       <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.75rem;font-weight:700;color:#e4eafd;">${_wpx:,.2f}</td>
                       <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.72rem;color:{_wcol};font-weight:700;">{_warr} {abs(_wchg):.2f}%</td>
                       <td style="padding:.6rem .9rem;">
-                        <span style="background:{_wsig_bg};border:1px solid {_wsig_col}44;border-radius:100px;
-                             padding:.2rem .65rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;
-                             font-weight:800;color:{_wsig_col};letter-spacing:.06em;">{_wst}</span>
+                        <span style="background:{_wsig_bg};border:1px solid {_wsig_col}44;border-radius:100px; padding:.2rem .65rem;font-family:IBM Plex Mono,monospace;font-size:.62rem; font-weight:800;color:{_wsig_col};letter-spacing:.06em;">{_wst}</span>
                       </td>
                       <td style="padding:.6rem .9rem;font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">
                         {_wsc}%{_conf_bar}
@@ -4491,16 +4455,10 @@ if not run_btn:
         _b = _L[_bk].replace("'", "&#39;")
         with _col:
             st.markdown(
-                f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
-                f'border:1px solid #252f47;border-top:2px solid {_color};'
-                f'padding:1.3rem 1.4rem;border-radius:.6rem;min-height:140px;">'
-                f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
-                f'font-weight:700;color:{_color};margin-bottom:.5rem;">{_num}</div>'
-                f'<div style="font-family:Manrope,sans-serif;font-size:.68rem;'
-                f'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;'
-                f'font-weight:700;margin-bottom:.4rem;">{_t}</div>'
-                f'<div style="font-family:Manrope,sans-serif;font-size:.78rem;'
-                f'color:#8a8fa0;line-height:1.6;">{_b}</div>'
+                f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);' f'border:1px solid #252f47;border-top:2px solid {_color};' f'padding:1.3rem 1.4rem;border-radius:.6rem;min-height:140px;">'
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;' f'font-weight:700;color:{_color};margin-bottom:.5rem;">{_num}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.68rem;' f'letter-spacing:.1em;text-transform:uppercase;color:#e4eafd;' f'font-weight:700;margin-bottom:.4rem;">{_t}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.78rem;' f'color:#8a8fa0;line-height:1.6;">{_b}</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -4511,71 +4469,50 @@ if not run_btn:
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:1rem 0 1.5rem;">
 
       <!-- XGBoost Engine — full width top -->
-      <div style="grid-column:1/-1;background:linear-gradient(135deg,rgba(77,142,255,0.08) 0%,rgba(77,142,255,0.03) 100%);
-           border:1px solid rgba(77,142,255,0.2);border-top:2px solid #4d8eff;border-radius:.75rem;
-           padding:1.3rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+      <div style="grid-column:1/-1;background:linear-gradient(135deg,rgba(77,142,255,0.08) 0%,rgba(77,142,255,0.03) 100%); border:1px solid rgba(77,142,255,0.2);border-top:2px solid #4d8eff;border-radius:.75rem; padding:1.3rem 1.5rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
         <div style="font-size:2rem;line-height:1;flex-shrink:0;">📈</div>
         <div style="flex:1;min-width:200px;">
-          <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.1em;
-               text-transform:uppercase;color:#4d8eff;margin-bottom:.3rem;">AI Price Outlook</div>
-          <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;color:#eaefff;
-               margin-bottom:.35rem;">XGBoost Engine</div>
+          <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.1em; text-transform:uppercase;color:#4d8eff;margin-bottom:.3rem;">AI Price Outlook</div>
+          <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;color:#eaefff; margin-bottom:.35rem;">XGBoost Engine</div>
           <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;">
             Projects next-day price across 30 technical signals — RSI, MACD, Stochastic, ADX, Williams %R, OBV — with ATR-scaled take-profit and stop-loss levels.
           </div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:.35rem;flex-shrink:0;">
-          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);
-               color:#c2d4ff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
-               padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● XGBoost</span>
-          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);
-               color:#4d8eff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
-               padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● 30 Signals</span>
-          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);
-               color:#4d8eff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
-               padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● ATR TP/SL</span>
+          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2); color:#c2d4ff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700; padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● XGBoost</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25); color:#4d8eff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700; padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● 30 Signals</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25); color:#4d8eff;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700; padding:.22rem .65rem;border-radius:100px;letter-spacing:.05em;">● ATR TP/SL</span>
         </div>
       </div>
 
       <!-- Watchlist + Alerts -->
-      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15);
-           border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15); border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">⭐</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">Watchlist + Alerts</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">Watchlist + Alerts</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
           Save stocks, track live prices, get instant alerts when signals flip BUY ↔ SELL.
         </div>
-        <span style="background:rgba(0,217,166,0.08);border:1px solid rgba(0,217,166,0.22);
-             color:#00d9a6;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;
-             padding:.22rem .65rem;border-radius:100px;">● Live Prices</span>
+        <span style="background:rgba(0,217,166,0.08);border:1px solid rgba(0,217,166,0.22); color:#00d9a6;font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700; padding:.22rem .65rem;border-radius:100px;">● Live Prices</span>
       </div>
 
       <!-- Explainable Signals -->
-      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15);
-           border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15); border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">⚡</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">9 Explainable Signals</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">9 Explainable Signals</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
           RSI · MACD · Bollinger · Stochastic · Williams %R · ADX · OBV — each scored and explained.
         </div>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-          <span style="background:rgba(0,217,166,0.09);border:1px solid rgba(0,217,166,0.3);color:#00d9a6;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● BUY</span>
-          <span style="background:rgba(255,87,87,0.09);border:1px solid rgba(255,87,87,0.3);color:#ff5757;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● SELL</span>
-          <span style="background:rgba(255,203,43,0.09);border:1px solid rgba(255,203,43,0.3);color:#ffcb2b;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● HOLD</span>
+          <span style="background:rgba(0,217,166,0.09);border:1px solid rgba(0,217,166,0.3);color:#00d9a6; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● BUY</span>
+          <span style="background:rgba(255,87,87,0.09);border:1px solid rgba(255,87,87,0.3);color:#ff5757; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● SELL</span>
+          <span style="background:rgba(255,203,43,0.09);border:1px solid rgba(255,203,43,0.3);color:#ffcb2b; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● HOLD</span>
         </div>
       </div>
 
       <!-- Shariah Screen -->
-      <div style="background:rgba(194,212,255,0.03);border:1px solid rgba(194,212,255,0.12);
-           border-top:2px solid #c2d4ff;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(194,212,255,0.03);border:1px solid rgba(194,212,255,0.12); border-top:2px solid #c2d4ff;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">☪</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#c2d4ff;margin-bottom:.3rem;">Shariah Screen</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#c2d4ff;margin-bottom:.3rem;">Shariah Screen</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.3rem;">
           AAOIFI Standard No.21 — business activity, debt, and cash ratios auto-screened.
         </div>
@@ -4583,87 +4520,67 @@ if not run_btn:
       </div>
 
       <!-- Strategy Simulator -->
-      <div style="background:rgba(255,203,43,0.03);border:1px solid rgba(255,203,43,0.15);
-           border-top:2px solid #ffcb2b;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(255,203,43,0.03);border:1px solid rgba(255,203,43,0.15); border-top:2px solid #ffcb2b;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">📊</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#ffcb2b;margin-bottom:.3rem;">Strategy Simulator</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#ffcb2b;margin-bottom:.3rem;">Strategy Simulator</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
           Walk-forward backtesting — Sharpe ratio, max drawdown, win rate, profit factor, equity curve.
         </div>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Sharpe</span>
-          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Drawdown</span>
+          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Sharpe</span>
+          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Drawdown</span>
         </div>
       </div>
 
       <!-- News Sentiment NLP -->
-      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15);
-           border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(0,217,166,0.04);border:1px solid rgba(0,217,166,0.15); border-top:2px solid #00d9a6;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">📰</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">News Sentiment NLP</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#00d9a6;margin-bottom:.3rem;">News Sentiment NLP</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
           Live headlines analysed with TextBlob. Polarity scored and overlaid on signal context.
         </div>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);color:#c2d4ff;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● TextBlob</span>
-          <span style="background:rgba(0,217,166,0.08);border:1px solid rgba(0,217,166,0.22);color:#00d9a6;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Live News</span>
+          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);color:#c2d4ff; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● TextBlob</span>
+          <span style="background:rgba(0,217,166,0.08);border:1px solid rgba(0,217,166,0.22);color:#00d9a6; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Live News</span>
         </div>
       </div>
 
       <!-- Model Comparison + Portfolio — bottom row -->
-      <div style="background:rgba(194,212,255,0.03);border:1px solid rgba(194,212,255,0.12);
-           border-top:2px solid #c2d4ff;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(194,212,255,0.03);border:1px solid rgba(194,212,255,0.12); border-top:2px solid #c2d4ff;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">🔬</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#c2d4ff;margin-bottom:.3rem;">Model Comparison</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#c2d4ff;margin-bottom:.3rem;">Model Comparison</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
           XGBoost vs Prophet vs Linear Regression — RMSE, MAE, MAPE, R² side-by-side.
         </div>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Pro</span>
-          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);color:#c2d4ff;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● 3 Models</span>
+          <span style="background:rgba(255,203,43,0.08);border:1px solid rgba(255,203,43,0.25);color:#ffcb2b; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Pro</span>
+          <span style="background:rgba(194,212,255,0.08);border:1px solid rgba(194,212,255,0.2);color:#c2d4ff; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● 3 Models</span>
         </div>
       </div>
 
       <!-- Fundamentals Panel -->
-      <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.15);
-           border-top:2px solid #4d8eff;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.15); border-top:2px solid #4d8eff;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">📋</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#4d8eff;margin-bottom:.3rem;">Fundamentals Panel</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#4d8eff;margin-bottom:.3rem;">Fundamentals Panel</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
           P/E, P/B, EPS growth, margins, ROE, analyst targets, short float — all in one panel.
         </div>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Valuation</span>
-          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Analyst Targets</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Valuation</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Analyst Targets</span>
         </div>
       </div>
 
       <!-- Portfolio Tracker -->
-      <div style="background:rgba(255,203,43,0.03);border:1px solid rgba(255,203,43,0.15);
-           border-top:2px solid #ffcb2b;border-radius:.75rem;padding:1.1rem 1.25rem;">
+      <div style="background:rgba(255,203,43,0.03);border:1px solid rgba(255,203,43,0.15); border-top:2px solid #ffcb2b;border-radius:.75rem;padding:1.1rem 1.25rem;">
         <div style="font-size:1.4rem;margin-bottom:.6rem;">🏦</div>
-        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em;
-             text-transform:uppercase;color:#ffcb2b;margin-bottom:.3rem;">Portfolio Tracker</div>
+        <div style="font-family:Manrope,sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.09em; text-transform:uppercase;color:#ffcb2b;margin-bottom:.3rem;">Portfolio Tracker</div>
         <div style="font-family:Manrope,sans-serif;font-size:.82rem;color:#7a8299;line-height:1.6;margin-bottom:.7rem;">
           Track holdings, unrealised P&amp;L, sector allocation, cost basis, and transaction history.
         </div>
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
-          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● P&amp;L</span>
-          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff;
-               font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Sectors</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● P&amp;L</span>
+          <span style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.25);color:#4d8eff; font-family:IBM Plex Mono,monospace;font-size:.68rem;font-weight:700;padding:.22rem .65rem;border-radius:100px;">● Sectors</span>
         </div>
       </div>
 
@@ -4735,8 +4652,7 @@ else:
         """Render an inline progress bar with step label."""
         pct = int(step / total * 100)
         _progress_placeholder.markdown(f"""
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:.75rem;
-             padding:1.1rem 1.4rem;margin:.5rem 0;">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:.75rem; padding:1.1rem 1.4rem;margin:.5rem 0;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
             <span style="font-family:var(--mono);font-size:0.78rem;color:var(--t1);font-weight:600;">
               {label}
@@ -4746,13 +4662,11 @@ else:
             </span>
           </div>
           <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:{pct}%;background:linear-gradient(90deg,#4d8eff,#00e5b0);
-                 border-radius:3px;transition:width .4s ease;"></div>
+            <div style="height:100%;width:{pct}%;background:linear-gradient(90deg,#4d8eff,#00e5b0); border-radius:3px;transition:width .4s ease;"></div>
           </div>
           <div style="display:flex;gap:1.2rem;margin-top:.8rem;flex-wrap:wrap;">
             {"".join(
-              f'<span style="font-family:var(--mono);font-size:0.72rem;'
-              f'color:{"var(--emerald)" if i < step else "var(--accent)" if i == step else "var(--t4)"};">'
+              f'<span style="font-family:var(--mono);font-size:0.72rem;' f'color:{"var(--emerald)" if i < step else "var(--accent)" if i == step else "var(--t4)"};">'
               f'{"✓" if i < step else "●" if i == step else "○"} {lbl}</span>'
               for i, lbl in enumerate([
                 "Fetching data", "Computing signals", "Building matrix",
@@ -5560,15 +5474,10 @@ else:
             for _mcol, (name, price, chg, col) in zip([_mc1, _mc2, _mc3, _mc4], mkt_data):
                 with _mcol:
                     st.markdown(
-                        f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);'
-                        f'border:1px solid #252f47;border-top:2px solid {col};'
-                        f'padding:1rem 1.1rem;border-radius:.6rem;margin-bottom:.5rem;">'
-                        f'<div style="font-size:.7rem;font-weight:700;color:#8a8fa0;'
-                        f'letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem;">{name}</div>'
-                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;'
-                        f'font-weight:700;color:#e4eafd;line-height:1.1;">{price}</div>'
-                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;'
-                        f'color:{col};font-weight:700;margin-top:.25rem;">{chg}</div>'
+                        f'<div style="background:linear-gradient(145deg,#0f1727,#141d30);' f'border:1px solid #252f47;border-top:2px solid {col};' f'padding:1rem 1.1rem;border-radius:.6rem;margin-bottom:.5rem;">'
+                        f'<div style="font-size:.7rem;font-weight:700;color:#8a8fa0;' f'letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem;">{name}</div>'
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.2rem;' f'font-weight:700;color:#e4eafd;line-height:1.1;">{price}</div>'
+                        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.7rem;' f'color:{col};font-weight:700;margin-top:.25rem;">{chg}</div>'
                         f'</div>',
                         unsafe_allow_html=True
                     )
@@ -5585,13 +5494,9 @@ else:
                             _sname, _schg, _scol_color = sectors[_si]
                             with _scol:
                                 st.markdown(
-                                    f'<div style="background:#0f1727;border:1px solid #252f47;'
-                                    f'border-left:2px solid {_scol_color};padding:.6rem .8rem;'
-                                    f'border-radius:0 .5rem .5rem 0;margin-bottom:.4rem;">'
-                                    f'<div style="font-size:.7rem;font-weight:700;color:#8a8fa0;'
-                                    f'text-transform:uppercase;margin-bottom:.2rem;">{_sname}</div>'
-                                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.85rem;'
-                                    f'font-weight:700;color:{_scol_color};">{_schg}</div>'
+                                    f'<div style="background:#0f1727;border:1px solid #252f47;' f'border-left:2px solid {_scol_color};padding:.6rem .8rem;' f'border-radius:0 .5rem .5rem 0;margin-bottom:.4rem;">'
+                                    f'<div style="font-size:.7rem;font-weight:700;color:#8a8fa0;' f'text-transform:uppercase;margin-bottom:.2rem;">{_sname}</div>'
+                                    f'<div style="font-family:IBM Plex Mono,monospace;font-size:.85rem;' f'font-weight:700;color:{_scol_color};">{_schg}</div>'
                                     f'</div>',
                                     unsafe_allow_html=True
                                 )
@@ -5711,16 +5616,13 @@ else:
             _vs_color = {"BUY": "#00e5b0", "SELL": "#ff5f5f", "HOLD": "#ffd426"}.get(verdict_short, "#8a8fa0")
             _vs_rgb   = ",".join(str(int(_vs_color.lstrip("#")[i:i+2], 16)) for i in (0, 2, 4))
             _conf_segs = "".join(
-                f'<span style="display:inline-block;width:16px;height:8px;margin-right:2px;'
-                f'border-radius:1px;background:{_conf_color};'
-                f'opacity:{1.0 if i < int(_sig_conf / 5) else 0.1};"></span>'
+                f'<span style="display:inline-block;width:16px;height:8px;margin-right:2px;' f'border-radius:1px;background:{_conf_color};' f'opacity:{1.0 if i < int(_sig_conf / 5) else 0.1};"></span>'
                 for i in range(20)
             )
             _reason_html = "".join(
                 f'<div style="display:flex;align-items:flex-start;gap:.5rem;margin-bottom:.35rem;">'
                 f'<span style="color:{_vs_color};flex-shrink:0;margin-top:.1rem;">▸</span>'
-                f'<span style="font-family:Manrope,sans-serif;font-size:.79rem;'
-                f'color:#b8c4d8;line-height:1.55;">{_r}</span></div>'
+                f'<span style="font-family:Manrope,sans-serif;font-size:.79rem;' f'color:#b8c4d8;line-height:1.55;">{_r}</span></div>'
                 for _r in _sig_reasons
             )
             _trust_ts = pd.Timestamp.utcnow().strftime("%b %d, %Y · %H:%M UTC")
@@ -6172,8 +6074,7 @@ else:
             # ── Halal / Shariah ────────────────────────────────────────────────
             if run_halal_check:
                 st.markdown("""
-                <div style="background:rgba(0,229,176,0.03);border:1px solid rgba(0,229,176,0.15);border-left:4px solid #00e5b0;
-                     padding:.8rem 1.4rem;margin:1.5rem 0 .5rem;display:flex;align-items:center;gap:1rem;border-radius:0 .5rem .5rem 0;">
+                <div style="background:rgba(0,229,176,0.03);border:1px solid rgba(0,229,176,0.15);border-left:4px solid #00e5b0; padding:.8rem 1.4rem;margin:1.5rem 0 .5rem;display:flex;align-items:center;gap:1rem;border-radius:0 .5rem .5rem 0;">
                   <div style="font-size:1.4rem;">☪</div>
                   <div>
                     <div style="font-family:Manrope,sans-serif;font-size:.63rem;letter-spacing:.15em;text-transform:uppercase;color:#00e5b0;font-weight:700;">Halal / Shariah Compliance Screen</div>
@@ -6265,8 +6166,7 @@ else:
         with startup_tab:
             st.markdown("""
             <div style="margin-bottom:1.4rem;">
-              <div style="font-family:Manrope,sans-serif;font-size:1.9rem;font-weight:800;
-                   letter-spacing:-.03em;color:#e4eafd;">Startup <span style="color:#4d8eff;">Hub</span></div>
+              <div style="font-family:Manrope,sans-serif;font-size:1.9rem;font-weight:800; letter-spacing:-.03em;color:#e4eafd;">Startup <span style="color:#4d8eff;">Hub</span></div>
               <div style="font-size:.82rem;color:#8a8fa0;margin-top:.35rem;line-height:1.65;max-width:680px;">
                 Six intelligence tools built for founders — macro risk scanner, treasury optimizer,
                 competitor radar, sector benchmarks, signal alerts, and investor-ready reports.
@@ -6299,8 +6199,7 @@ else:
 
             # ── HUB 1: MACRO RISK SCANNER ─────────────────────────────────────────
             with hub1:
-                st.markdown('''<div style="background:rgba(77,142,255,0.06);border:1px solid rgba(77,142,255,0.2);
-                     border-left:4px solid #4d8eff;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                st.markdown('''<div style="background:rgba(77,142,255,0.06);border:1px solid rgba(77,142,255,0.2); border-left:4px solid #4d8eff;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#4d8eff;margin-bottom:.25rem;">Macroeconomic Risk Scanner</div>
                   <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">Live composite score from VIX, S&amp;P momentum, Fear &amp; Greed, and bond market.
                     Verdict: <b style="color:#e4eafd;">RAISE NOW · PROCEED · CAUTION · WAIT</b></div>
@@ -6314,8 +6213,7 @@ else:
 
                 _h1a, _h1b = st.columns([1, 2])
                 with _h1a:
-                    st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#080e1c);
-                         border:2px solid {_mc};border-radius:1.2rem;padding:2rem 1.5rem;text-align:center;">
+                    st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#080e1c); border:2px solid {_mc};border-radius:1.2rem;padding:2rem 1.5rem;text-align:center;">
                       <div style="font-size:.7rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#3e4558;margin-bottom:.5rem;">Market Climate</div>
                       <div style="font-family:IBM Plex Mono,monospace;font-size:4rem;font-weight:700;color:{_mc};line-height:1;">{_ms:.0f}</div>
                       <div style="font-size:.68rem;color:#3e4558;margin-bottom:.9rem;">/100</div>
@@ -6341,9 +6239,7 @@ else:
                         _fcb = "#00e5b0" if _fc > 0 else "#ff5f5f" if _fc < 0 else "#1e2740"
                         _fcs = "+" if _fc > 0 else ""
                         st.markdown(
-                            f'<div style="display:flex;align-items:center;justify-content:space-between;'
-                            f'padding:.5rem .9rem;background:#0f1727;border-left:2px solid {_fcb};'
-                            f'border-radius:0 .35rem .35rem 0;margin-bottom:.25rem;">'
+                            f'<div style="display:flex;align-items:center;justify-content:space-between;' f'padding:.5rem .9rem;background:#0f1727;border-left:2px solid {_fcb};' f'border-radius:0 .35rem .35rem 0;margin-bottom:.25rem;">'
                             f'<div style="font-size:.72rem;color:#8a8fa0;">{_fl}</div>'
                             f'<div style="font-family:IBM Plex Mono,monospace;font-size:.72rem;font-weight:700;color:{_fcc};">{_fcs}{_fc}</div>'
                             f'</div>',
@@ -6364,8 +6260,7 @@ else:
 
             # ── HUB 2: TREASURY OPTIMIZER ─────────────────────────────────────────
             with hub2:
-                st.markdown('''<div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18);
-                     border-left:4px solid #00e5b0;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                st.markdown('''<div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18); border-left:4px solid #00e5b0;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.25rem;">Treasury / Cash Reserve Optimizer</div>
                   <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">Don't let idle startup cash earn nothing. Compare low-risk ETF options optimized for your runway horizon.</div>
                 </div>''', unsafe_allow_html=True)
@@ -6380,8 +6275,7 @@ else:
                 _auto = "Dividend / Income" if _riskp=="Income-focused" else _hmap.get(_horiz,"Ultra-safe (T-Bills)") if _riskp=="Capital preservation" else _hmap.get(_horiz,"Short-term Bonds")
                 _tp   = TREASURY_PROFILES[_auto]
 
-                st.markdown(f'''<div style="background:linear-gradient(135deg,rgba(0,229,176,0.08),rgba(77,142,255,0.04));
-                     border:1px solid rgba(0,229,176,0.25);border-radius:.75rem;padding:1rem 1.4rem;margin:.6rem 0 1rem;">
+                st.markdown(f'''<div style="background:linear-gradient(135deg,rgba(0,229,176,0.08),rgba(77,142,255,0.04)); border:1px solid rgba(0,229,176,0.25);border-radius:.75rem;padding:1rem 1.4rem;margin:.6rem 0 1rem;">
                   <div style="font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.3rem;">✦ Recommended Strategy</div>
                   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
                     <div>
@@ -6442,8 +6336,7 @@ else:
 
             # ── HUB 3: COMPETITOR TRACKER ─────────────────────────────────────────
             with hub3:
-                st.markdown('''<div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.18);
-                     border-left:4px solid #ffd426;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                st.markdown('''<div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.18); border-left:4px solid #ffd426;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#ffd426;margin-bottom:.25rem;">Competitor Stock Tracker · B2B Intel</div>
                   <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">Monitor public competitors in real time — price, market cap, P/E, and 52-week positioning. Your analysis ticker is always included.</div>
                 </div>''', unsafe_allow_html=True)
@@ -6515,8 +6408,7 @@ else:
 
             # ── HUB 4: SECTOR BENCHMARK ───────────────────────────────────────────
             with hub4:
-                st.markdown('''<div style="background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.2);
-                     border-left:4px solid #adc6ff;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                st.markdown('''<div style="background:rgba(173,198,255,0.06);border:1px solid rgba(173,198,255,0.2); border-left:4px solid #adc6ff;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#adc6ff;margin-bottom:.25rem;">Pre-IPO · Sector Benchmark Mode</div>
                   <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">Generate a public comps table for your sector — the comparable companies table VCs ask for in every pitch.</div>
                 </div>''', unsafe_allow_html=True)
@@ -6563,11 +6455,8 @@ else:
                 # FIX 5: Context guard — show dependency message if no signal data yet
                 if _sh_comp is None:
                     st.markdown("""
-                    <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2);
-                         border-left:3px solid #ffd426;border-radius:0 .6rem .6rem 0;
-                         padding:.85rem 1.3rem;margin-bottom:1rem;">
-                      <div style="font-family:Manrope,sans-serif;font-size:0.84rem;font-weight:700;
-                           color:#ffd426;margin-bottom:.3rem;">⚠ Analysis required</div>
+                    <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2); border-left:3px solid #ffd426;border-radius:0 .6rem .6rem 0; padding:.85rem 1.3rem;margin-bottom:1rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:0.84rem;font-weight:700; color:#ffd426;margin-bottom:.3rem;">⚠ Analysis required</div>
                       <div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.5;">
                         Signal data isn't available yet. Run a full analysis from the sidebar first,
                         then return here to send an email alert.
@@ -6575,8 +6464,7 @@ else:
                     </div>
                     """, unsafe_allow_html=True)
 
-                st.markdown('''<div style="background:rgba(255,95,95,0.05);border:1px solid rgba(255,95,95,0.18);
-                     border-left:4px solid #ff5f5f;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                st.markdown('''<div style="background:rgba(255,95,95,0.05);border:1px solid rgba(255,95,95,0.18); border-left:4px solid #ff5f5f;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#ff5f5f;margin-bottom:.25rem;">Signal Alert · Email Automation</div>
                   <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">Send yourself an instant AI signal email. Requires SMTP credentials in Streamlit secrets.</div>
                 </div>''', unsafe_allow_html=True)
@@ -6592,8 +6480,7 @@ else:
 
                     _sp1, _sp2 = st.columns([1,2])
                     with _sp1:
-                        st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#141d30);
-                             border:2px solid {_sa_c};border-radius:.9rem;padding:1.5rem;text-align:center;">
+                        st.markdown(f'''<div style="background:linear-gradient(145deg,#0f1727,#141d30); border:2px solid {_sa_c};border-radius:.9rem;padding:1.5rem;text-align:center;">
                           <div style="font-size:.7rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#3e4558;margin-bottom:.4rem;">Current Signal</div>
                           <div style="font-family:IBM Plex Mono,monospace;font-size:2rem;font-weight:800;color:{_sa_c};letter-spacing:.04em;">{_sa_sig}</div>
                           <div style="font-family:IBM Plex Mono,monospace;font-size:.82rem;color:#8a8fa0;margin-top:.3rem;">{_sa_sco:+.0f} / ±100</div>
@@ -6643,8 +6530,7 @@ else:
                         st.warning(f"Signal Engine card unavailable: {_se_hub5_err}")
                 # ────────────────────────────────────────────────────────
 
-                st.markdown('''<div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12);
-                     border-radius:.5rem;padding:.8rem 1.2rem;margin-top:1rem;">
+                st.markdown('''<div style="background:rgba(77,142,255,0.04);border:1px solid rgba(77,142,255,0.12); border-radius:.5rem;padding:.8rem 1.2rem;margin-top:1rem;">
                   <div style="font-size:.62rem;font-weight:700;color:#4d8eff;margin-bottom:.4rem;">SMTP Setup (Streamlit secrets.toml)</div>
                   <pre style="font-family:IBM Plex Mono,monospace;font-size:.65rem;color:#3e4558;background:transparent;margin:0;line-height:1.7;">SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
@@ -6657,11 +6543,8 @@ SMTP_PASS = "your-app-password"</pre>
                 # FIX 5: Context guard for report tab
                 if _sh_comp is None:
                     st.markdown("""
-                    <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2);
-                         border-left:3px solid #ffd426;border-radius:0 .6rem .6rem 0;
-                         padding:.85rem 1.3rem;margin-bottom:1rem;">
-                      <div style="font-family:Manrope,sans-serif;font-size:0.84rem;font-weight:700;
-                           color:#ffd426;margin-bottom:.3rem;">⚠ Analysis required</div>
+                    <div style="background:rgba(255,212,38,0.05);border:1px solid rgba(255,212,38,0.2); border-left:3px solid #ffd426;border-radius:0 .6rem .6rem 0; padding:.85rem 1.3rem;margin-bottom:1rem;">
+                      <div style="font-family:Manrope,sans-serif;font-size:0.84rem;font-weight:700; color:#ffd426;margin-bottom:.3rem;">⚠ Analysis required</div>
                       <div style="font-family:Manrope,sans-serif;font-size:0.82rem;color:#8a8fa0;line-height:1.5;">
                         Signal and model data isn't ready. Run a full analysis first,
                         then return here to download the investor report CSV.
@@ -6669,8 +6552,7 @@ SMTP_PASS = "your-app-password"</pre>
                     </div>
                     """, unsafe_allow_html=True)
 
-                st.markdown('''<div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18);
-                     border-left:4px solid #00e5b0;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
+                st.markdown('''<div style="background:rgba(0,229,176,0.05);border:1px solid rgba(0,229,176,0.18); border-left:4px solid #00e5b0;padding:.85rem 1.3rem;margin-bottom:1.2rem;border-radius:0 .6rem .6rem 0;">
                   <div style="font-size:.6rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#00e5b0;margin-bottom:.25rem;">Investor-Ready Report Generator</div>
                   <div style="font-size:.8rem;color:#8a8fa0;line-height:1.6;">One-click CSV export — price data, model quality, signal intelligence, and risk metrics. Ready for pitch decks or treasury memos.</div>
                 </div>''', unsafe_allow_html=True)
@@ -6741,4 +6623,3 @@ st.markdown(f"""
   </div>
 </div>
 """, unsafe_allow_html=True)
-
