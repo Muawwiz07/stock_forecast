@@ -4917,10 +4917,8 @@ else:
          gap:.5rem;margin:.2rem 0 .8rem;padding:.55rem 1.1rem;
          background:rgba(0,229,176,0.04);border:1px solid rgba(0,229,176,0.14);border-radius:.5rem;">
       <div style="display:flex;align-items:center;gap:.5rem;">
-        <span style="width:7px;height:7px;border-radius:50%;background:{_dq_color};
-              display:inline-block;box-shadow:0 0 5px {_dq_color};"></span>
-        <span style="font-family:IBM Plex Mono,monospace;font-size:.68rem;
-              color:{_dq_color};letter-spacing:.05em;">
+        <span style="width:7px;height:7px;border-radius:50%;background:{_dq_color};display:inline-block;box-shadow:0 0 5px {_dq_color};"></span>
+        <span style="font-family:IBM Plex Mono,monospace;font-size:.68rem;color:{_dq_color};letter-spacing:.05em;">
           Data source: <b>Yahoo Finance</b>
           &nbsp;·&nbsp; Updated: <b>{_data_meta["last_updated_str"]}</b>
           &nbsp;·&nbsp; {_data_meta["trading_days"]:,} trading days loaded
@@ -4929,10 +4927,7 @@ else:
       </div>
       <div style="display:flex;align-items:center;gap:.7rem;">
         <span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">{_dq_ts}</span>
-        <span style="display:inline-flex;align-items:center;gap:.4rem;
-              background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2);
-              border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace;
-              font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not Financial Advice</span>
+        <span style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(255,87,87,0.07);border:1px solid rgba(255,87,87,0.2);border-radius:2rem;padding:.22rem .75rem;font-family:IBM Plex Mono,monospace;font-size:.63rem;color:rgba(255,87,87,0.7);">⚠ Not Financial Advice</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
