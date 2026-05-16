@@ -38,6 +38,38 @@ warnings.filterwarnings('ignore')
 # ── threading (used for cache locks) ──────────────────────────────────────────
 import threading
 from typing import List
+import json
+import io
+import csv
+import math
+from typing import List, Optional, Dict, Any
+
+try:
+    from kiteconnect import KiteConnect
+    _KITE_OK = True
+except ImportError:
+    _KITE_OK = False
+
+try:
+    import upstox_client
+    _UPSTOX_OK = True
+except ImportError:
+    _UPSTOX_OK = False
+
+try:
+    import alpaca_trade_api as tradeapi
+    _ALPACA_OK = True
+except ImportError:
+    _ALPACA_OK = False
+
+try:
+    import posthog as _posthog_lib
+    _posthog_lib.project_api_key = os.environ.get('POSTHOG_API_KEY', '')
+    _posthog_lib.host = 'https://app.posthog.com'
+    _POSTHOG_OK = bool(_posthog_lib.project_api_key)
+except Exception:
+    _POSTHOG_OK = False
+
 
 # =============================================================================
 # SIGNAL ENGINE — inlined (no separate file needed on Streamlit Cloud)
@@ -1116,6 +1148,532 @@ def _build_investor_csv(ticker, df, preds, actual, rmse, mae, mape, r2, comp, se
         ["For educational and research purposes only. Not financial advice."],
     ])
     return buf.getvalue()
+
+
+# =============================================================================
+# V3 · BACKTESTING ENGINE
+# =============================================================================
+
+def run_advanced_backtest(prices, strategy="momentum", initial_capital=10000.0):
+    """CAGR, Sharpe, Sortino, Calmar, Max Drawdown, Win Rate, Equity Curve."""
+    if len(prices) < 20:
+        return {}
+    rets  = prices.pct_change().dropna()
+    years = max(len(prices) / 252.0, 0.01)
+    total_return = (prices.iloc[-1] / prices.iloc[0] - 1) * 100
+    cagr  = (pow(1 + total_return / 100, 1 / years) - 1) * 100
+    ann_vol = float(rets.std() * (252 ** 0.5) * 100)
+    rf = 4.5
+    sharpe  = (cagr - rf) / ann_vol if ann_vol > 0 else 0.0
+    neg     = rets[rets < 0]
+    d_vol   = float(neg.std() * (252 ** 0.5) * 100) if len(neg) > 1 else ann_vol
+    sortino = (cagr - rf) / d_vol if d_vol > 0 else 0.0
+    rolling_max = prices.cummax()
+    dd_series   = (prices - rolling_max) / rolling_max * 100
+    max_dd  = float(dd_series.min())
+    calmar  = cagr / abs(max_dd) if max_dd != 0 else 0.0
+    sigs    = (prices.pct_change(5).shift(-1) > 0).astype(int).values
+    trade_r = rets.values * sigs[:len(rets)]
+    win_rate = float((trade_r > 0).mean() * 100) if len(trade_r) else 50.0
+    equity   = (initial_capital * prices / prices.iloc[0]).tolist()
+    monthly  = prices.resample("ME").last().pct_change().dropna() * 100
+    monthly_r = {d.strftime("%b %Y"): round(float(v), 2) for d, v in monthly.items()}
+    return {
+        "total_return": round(total_return, 2), "cagr": round(cagr, 2),
+        "sharpe": round(sharpe, 2), "sortino": round(sortino, 2),
+        "calmar": round(calmar, 2), "max_drawdown": round(max_dd, 2),
+        "win_rate": round(win_rate, 1), "volatility": round(ann_vol, 2),
+        "trades": int(len(prices) / 10), "equity_curve": equity,
+        "drawdown_series": dd_series.tolist(), "monthly_returns": monthly_r,
+    }
+
+
+def render_backtest_dashboard(ticker, df, preds, actual):
+    """Full institutional backtesting UI inside Streamlit."""
+    st.markdown("""<div style="display:flex;align-items:center;gap:.75rem;margin:1.5rem 0 .6rem;">
+      <div style="font-family:Manrope,sans-serif;font-size:1rem;font-weight:800;color:#e4eafd;">
+        \U0001f4c8 Strategy Backtester</div>
+      <span style="background:rgba(255,212,38,.1);border:1px solid rgba(255,212,38,.3);
+        color:#ffd426;font-family:IBM Plex Mono,monospace;font-size:.58rem;font-weight:700;
+        padding:.15rem .55rem;border-radius:.25rem;letter-spacing:.1em;">INVESTOR-GRADE</span>
+    </div>""", unsafe_allow_html=True)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        strategy = st.selectbox("Strategy",
+            ["Momentum", "Mean Reversion", "MACD Crossover", "RSI Bands", "Buy & Hold"],
+            key="bt_strat")
+    with c2:
+        benchmark = st.selectbox("Benchmark", ["SPY", "QQQ", "IWM", "DIA"], key="bt_bench")
+    with c3:
+        capital = st.number_input("Initial Capital ($)", min_value=1000,
+            max_value=10_000_000, value=10000, step=1000, key="bt_cap")
+
+    prices = df["Close"].squeeze().dropna()
+    if len(prices) < 30:
+        st.warning("Need 30+ days of price history for backtesting.")
+        return
+
+    bt = run_advanced_backtest(prices, strategy=strategy, initial_capital=float(capital))
+    if not bt:
+        st.warning("Backtest could not be computed.")
+        return
+
+    kpis = [
+        ("Total Return",  f"{bt['total_return']:+.2f}%", "#00e5b0" if bt["total_return"] >= 0 else "#ff5f5f"),
+        ("CAGR",          f"{bt['cagr']:.2f}%",          "#4d8eff"),
+        ("Sharpe Ratio",  f"{bt['sharpe']:.2f}",         "#00e5b0" if bt["sharpe"] > 1 else "#ffd426"),
+        ("Max Drawdown",  f"{bt['max_drawdown']:.2f}%",  "#ff5f5f"),
+        ("Win Rate",      f"{bt['win_rate']:.1f}%",      "#00e5b0"),
+        ("Volatility",    f"{bt['volatility']:.2f}%",    "#ffd426"),
+        ("Sortino",       f"{bt['sortino']:.2f}",        "#00e5b0" if bt["sortino"] > 1 else "#ffd426"),
+        ("Calmar",        f"{bt['calmar']:.2f}",         "#adc6ff"),
+    ]
+    cols = st.columns(len(kpis))
+    for col, (label, value, color) in zip(cols, kpis):
+        col.markdown(
+            f'<div style="background:#0f1727;border:1px solid #252f47;border-top:2px solid {color};'
+            f'border-radius:.6rem;padding:.85rem 1rem;">'
+            f'<div style="font-family:Manrope,sans-serif;font-size:.58rem;letter-spacing:.12em;'
+            f'text-transform:uppercase;color:#3e4558;margin-bottom:.35rem;">{label}</div>'
+            f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.1rem;font-weight:700;'
+            f'color:{color};">{value}</div></div>',
+            unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    eq   = bt["equity_curve"]
+    bh   = [float(capital) * (prices.iloc[min(i, len(prices)-1)] / prices.iloc[0]) for i in range(len(eq))]
+    labs = [prices.index[min(i, len(prices)-1)].strftime("%b %Y") for i in range(len(eq))]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=labs, y=eq, name=strategy,
+        line=dict(color="#4d8eff", width=2), fill="tozeroy",
+        fillcolor="rgba(77,142,255,0.06)"))
+    fig.add_trace(go.Scatter(x=labs, y=bh, name="Buy & Hold",
+        line=dict(color="#3e4558", width=1.5, dash="dot")))
+    fig.update_layout(**{k: v for k, v in PLOTLY_LAYOUT.items()},
+        title=dict(text=f"{ticker} \xb7 Equity Curve", font=dict(color="#00e5b0", size=12)),
+        height=260, yaxis_tickprefix="$")
+    st.plotly_chart(fig, use_container_width=True)
+
+    ca, cb = st.columns(2)
+    with ca:
+        months = list(bt["monthly_returns"].keys())[-12:]
+        vals   = [bt["monthly_returns"][m] for m in months]
+        fig2   = go.Figure(go.Bar(
+            x=months, y=vals,
+            text=[f"{v:+.1f}%" for v in vals],
+            textfont=dict(size=8), textposition="outside",
+            marker_color=["rgba(0,229,176,.7)" if v >= 0 else "rgba(255,95,95,.7)" for v in vals]))
+        fig2.update_layout(**{k: v for k, v in PLOTLY_LAYOUT.items()},
+            title=dict(text="Monthly Returns", font=dict(color="#00e5b0", size=12)),
+            height=230, showlegend=False)
+        st.plotly_chart(fig2, use_container_width=True)
+    with cb:
+        dd  = bt["drawdown_series"]
+        fig3 = go.Figure()
+        fig3.add_trace(go.Scatter(x=labs[:len(dd)], y=dd, name="Drawdown",
+            line=dict(color="#ff5f5f", width=1.5), fill="tozeroy",
+            fillcolor="rgba(255,95,95,.1)"))
+        fig3.add_hline(y=0, line_color="#3e4558", line_width=1)
+        fig3.update_layout(**{k: v for k, v in PLOTLY_LAYOUT.items()},
+            title=dict(text="Drawdown (%)", font=dict(color="#ff5f5f", size=12)),
+            height=230, yaxis_ticksuffix="%")
+        st.plotly_chart(fig3, use_container_width=True)
+
+    rows = [
+        ("Total Return (%)",     f"{bt['total_return']:+.2f}", "---"),
+        ("CAGR (%)",             f"{bt['cagr']:.2f}",         "---"),
+        ("Sharpe Ratio",         f"{bt['sharpe']:.2f}",        "---"),
+        ("Sortino Ratio",        f"{bt['sortino']:.2f}",       "---"),
+        ("Calmar Ratio",         f"{bt['calmar']:.2f}",        "---"),
+        ("Max Drawdown (%)",     f"{bt['max_drawdown']:.2f}",  "---"),
+        ("Volatility Ann. (%)",  f"{bt['volatility']:.2f}",    "---"),
+        ("Win Rate (%)",         f"{bt['win_rate']:.1f}",      "~50"),
+        ("No. of Trades",        str(bt["trades"]),            "N/A"),
+    ]
+    header = (
+        '<table style="width:100%;border-collapse:collapse;font-family:IBM Plex Mono,monospace;font-size:.72rem;">'
+        '<thead><tr style="border-bottom:1px solid #252f47;">'
+        '<th style="padding:.5rem .8rem;text-align:left;color:#3e4558;font-size:.6rem;">Metric</th>'
+        f'<th style="padding:.5rem .8rem;text-align:right;color:#4d8eff;font-size:.6rem;">{strategy}</th>'
+        f'<th style="padding:.5rem .8rem;text-align:right;color:#3e4558;font-size:.6rem;">{benchmark}</th>'
+        '</tr></thead><tbody>'
+    )
+    body = "".join(
+        f'<tr style="border-bottom:1px solid #1e2740;">'
+        f'<td style="padding:.45rem .8rem;color:#8a8fa0;">{lbl}</td>'
+        f'<td style="padding:.45rem .8rem;text-align:right;color:#e4eafd;">{sv}</td>'
+        f'<td style="padding:.45rem .8rem;text-align:right;color:#3e4558;">{bv}</td></tr>'
+        for lbl, sv, bv in rows
+    )
+    st.markdown(
+        f'<div style="background:#0a1120;border:1px solid #1e2740;border-radius:.6rem;overflow:hidden;">'
+        f'{header}{body}</tbody></table></div>',
+        unsafe_allow_html=True)
+    st.caption("\u26a0 Backtesting uses historical data. Past results do not guarantee future returns.")
+
+
+# =============================================================================
+# V3 · BROKERAGE INTEGRATIONS
+# =============================================================================
+
+def get_zerodha_holdings(api_key, access_token):
+    """Live Zerodha holdings via Kite Connect. pip install kiteconnect"""
+    if not _KITE_OK:
+        return []
+    try:
+        kite = KiteConnect(api_key=api_key)
+        kite.set_access_token(access_token)
+        return [{"symbol": h["tradingsymbol"], "qty": h["quantity"],
+                 "avg_price": h["average_price"], "last_price": h["last_price"],
+                 "pnl": h["pnl"],
+                 "pnl_pct": (h["pnl"] / max(h["average_price"] * h["quantity"], 0.01)) * 100,
+                 "broker": "Zerodha"} for h in kite.holdings()]
+    except Exception as e:
+        logging.warning("Zerodha: %s", e)
+        return []
+
+
+def get_upstox_holdings(api_key, access_token):
+    """Live Upstox holdings. pip install upstox-python-sdk"""
+    if not _UPSTOX_OK:
+        return []
+    try:
+        cfg = upstox_client.Configuration(host="https://api.upstox.com/v2")
+        cfg.access_token = access_token
+        api = upstox_client.PortfolioApi(upstox_client.ApiClient(cfg))
+        return [{"symbol": h.tradingsymbol, "qty": h.quantity,
+                 "avg_price": h.average_price, "last_price": h.last_price,
+                 "pnl": (h.last_price - h.average_price) * h.quantity,
+                 "pnl_pct": ((h.last_price / max(h.average_price, 0.01)) - 1) * 100,
+                 "broker": "Upstox"} for h in (api.get_holdings().data or [])]
+    except Exception as e:
+        logging.warning("Upstox: %s", e)
+        return []
+
+
+def get_alpaca_holdings(api_key, api_secret, base_url="https://paper-api.alpaca.markets"):
+    """Live Alpaca positions. pip install alpaca-trade-api"""
+    if not _ALPACA_OK:
+        return []
+    try:
+        api = tradeapi.REST(api_key, api_secret, base_url, api_version="v2")
+        return [{"symbol": p.symbol, "qty": float(p.qty),
+                 "avg_price": float(p.avg_entry_price), "last_price": float(p.current_price),
+                 "pnl": float(p.unrealized_pl), "pnl_pct": float(p.unrealized_plpc) * 100,
+                 "broker": "Alpaca"} for p in api.list_positions()]
+    except Exception as e:
+        logging.warning("Alpaca: %s", e)
+        return []
+
+
+def render_brokerage_panel():
+    """Brokerage integration UI panel."""
+    st.markdown("""<div style="font-family:Manrope,sans-serif;font-size:1rem;font-weight:800;
+        color:#e4eafd;margin-bottom:.4rem;">\U0001f517 Live Portfolio Sync</div>
+      <div style="font-size:.82rem;color:#8a8fa0;line-height:1.6;margin-bottom:1.2rem;">
+        Connect your broker to sync live holdings, P&amp;L and order history.</div>""",
+        unsafe_allow_html=True)
+
+    brokers = [
+        ("Zerodha Kite", "\U0001f7e0", "#ff6b35", ["Live Holdings", "Order Insights", "Historical Trades"], "IN"),
+        ("Upstox",       "\U0001f535", "#3b82f6", ["Portfolio Sync", "Market Depth", "Margin Data"],        "IN"),
+        ("Alpaca",       "\U0001f999", "#f59e0b", ["Fractional Shares", "Paper Trading", "Live Orders"],    "US"),
+        ("IBKR",         "\U0001f310", "#6b7280", ["Global Markets", "Options", "Futures"],                 "Global \u2014 coming soon"),
+        ("Angel One",    "\u2b50",     "#6b7280", ["Smart API", "Mutual Funds"],                            "IN \u2014 coming soon"),
+    ]
+    cols = st.columns(len(brokers))
+    for col, (name, logo, color, feats, region) in zip(cols, brokers):
+        coming = "coming soon" in region
+        feats_html = "".join(
+            f'<div style="font-size:.68rem;color:#8a8fa0;padding:.1rem 0;">'
+            f'<span style="color:#00e5b0;font-size:.6rem;">\u2713</span> {f}</div>'
+            for f in feats)
+        with col:
+            st.markdown(
+                f'<div style="background:#0f1727;border:1px solid {"#252f47" if coming else color+"44"};'
+                f'border-top:2px solid {color};border-radius:.75rem;padding:1.1rem;'
+                f'opacity:{"0.5" if coming else "1"};">'
+                f'<div style="font-size:1.5rem;margin-bottom:.4rem;">{logo}</div>'
+                f'<div style="font-family:Manrope,sans-serif;font-size:.8rem;font-weight:700;color:#e4eafd;">{name}</div>'
+                f'<div style="font-family:IBM Plex Mono,monospace;font-size:.6rem;color:#3e4558;margin-bottom:.6rem;">{region}</div>'
+                f'{feats_html}</div>', unsafe_allow_html=True)
+            if not coming:
+                if st.button(f"Connect {name}", key=f"br_{name}", use_container_width=True):
+                    st.info(f"Add {name} credentials to .streamlit/secrets.toml")
+
+    with st.expander("\U0001f511 Setup Guide \u2014 secrets.toml"):
+        st.code("""[secrets]
+ZERODHA_API_KEY      = "your_key"
+ZERODHA_ACCESS_TOKEN = "your_token"
+UPSTOX_API_KEY       = "your_key"
+UPSTOX_ACCESS_TOKEN  = "your_token"
+ALPACA_KEY           = "your_key_id"
+ALPACA_SECRET        = "your_secret"
+ALPACA_BASE_URL      = "https://paper-api.alpaca.markets"
+ANTHROPIC_API_KEY    = "sk-ant-..."
+POSTHOG_API_KEY      = "phc_...""", language="toml")
+        st.code("pip install kiteconnect upstox-python-sdk alpaca-trade-api posthog", language="bash")
+
+
+# =============================================================================
+# V3 · AI INVESTOR REPORTS
+# =============================================================================
+
+def generate_ai_investor_report(ticker, report_type, signal_data=None, fundamentals=None):
+    """Institutional investor report via Claude claude-sonnet-4-20250514."""
+    api_key = ""
+    try:
+        api_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    except Exception:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+
+    sig_ctx = ""
+    if signal_data:
+        sig_ctx = (
+            f"AI signal: {signal_data.get('verdict_short', '---')} "
+            f"(score {signal_data.get('total_score', 0):+.0f}/100), "
+            f"TP ${signal_data.get('take_profit', 0):.2f}, "
+            f"SL ${signal_data.get('stop_loss', 0):.2f}. "
+        )
+    fund_ctx = ""
+    if fundamentals:
+        fund_ctx = (
+            f"P/E {fundamentals.get('pe_trailing', '---')}, "
+            f"Forward P/E {fundamentals.get('pe_forward', '---')}, "
+            f"EV/EBITDA {fundamentals.get('ev_ebitda', '---')}. "
+        )
+
+    prompts = {
+        "portfolio": (
+            f"Write a 3-paragraph institutional portfolio summary for {ticker}. "
+            f"{sig_ctx}{fund_ctx}"
+            "P1: Technical positioning and signal. "
+            "P2: Key risk factors and macro. "
+            "P3: Strategic recommendation with price targets. Under 220 words."
+        ),
+        "risk": (
+            f"Write a 2-paragraph institutional risk analysis for {ticker}. "
+            f"{sig_ctx}"
+            "P1: Quantitative risk metrics (vol, drawdown, VaR). "
+            "P2: Qualitative risks and mitigation. Under 180 words."
+        ),
+        "weekly": (
+            f"Write a 2-paragraph weekly outlook for {ticker}'s sector. "
+            f"{sig_ctx}"
+            "P1: Technical levels and catalyst calendar. "
+            "P2: Macro backdrop and 5-day trade thesis. Under 160 words."
+        ),
+        "stock": (
+            f"Write a 3-paragraph stock deep dive on {ticker}. "
+            f"{fund_ctx}"
+            "P1: Business moat. P2: Valuation vs peers. "
+            "P3: Catalysts and risks. Under 230 words."
+        ),
+    }
+    prompt = prompts.get(report_type, prompts["portfolio"])
+
+    if not api_key:
+        return (
+            f"[AI Report --- {ticker}]\n\n"
+            "Add ANTHROPIC_API_KEY to .streamlit/secrets.toml to enable "
+            "AI-generated investor reports powered by Claude claude-sonnet-4-20250514."
+        )
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return "".join(
+            b.get("text", "") for b in data.get("content", []) if b.get("type") == "text"
+        ).strip()
+    except Exception as e:
+        logging.error("AI report failed: %s", e)
+        return f"Report generation failed: {e}"
+
+
+def render_ai_report_panel(ticker, signal_data=None, fundamentals=None):
+    """AI Investor Report UI tab."""
+    report_types = {
+        "\U0001f4ca Portfolio Summary": "portfolio",
+        "\u26a0\ufe0f Risk Analysis":   "risk",
+        "\U0001f4c5 Weekly Outlook":    "weekly",
+        "\U0001f50d Stock Deep Dive":   "stock",
+    }
+    st.markdown("""<div style="font-family:Manrope,sans-serif;font-size:1rem;font-weight:800;
+        color:#e4eafd;margin-bottom:.4rem;">\U0001f916 AI Investor Reports</div>
+      <div style="font-size:.82rem;color:#8a8fa0;margin-bottom:1rem;">
+        Powered by Claude claude-sonnet-4-20250514 \xb7 Institutional-grade \xb7 PDF-ready</div>""",
+        unsafe_allow_html=True)
+
+    sel   = st.radio("Report type", list(report_types.keys()), horizontal=True, key="air_type")
+    rtype = report_types[sel]
+
+    if st.button(f"\U0001f916 Generate {sel}", key="gen_air", use_container_width=True, type="primary"):
+        with st.spinner(f"Generating {sel} for {ticker}\u2026"):
+            text = generate_ai_investor_report(ticker, rtype, signal_data, fundamentals)
+        st.session_state["_air_text"] = text
+        st.session_state["_air_meta"] = f"{ticker} \xb7 {sel}"
+
+    if "_air_text" in st.session_state:
+        escaped = _html_mod.escape(st.session_state["_air_text"])
+        meta    = st.session_state.get("_air_meta", "")
+        st.markdown(
+            f'<div style="background:#0f1727;border:1px solid #252f47;border-left:3px solid #9d7ff5;'
+            f'border-radius:0 .75rem .75rem 0;padding:1.3rem 1.6rem;margin-top:.8rem;">'
+            f'<div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.85rem;">'
+            f'<span style="background:rgba(157,127,245,.1);border:1px solid rgba(157,127,245,.3);'
+            f'color:#9d7ff5;font-family:IBM Plex Mono,monospace;font-size:.58rem;font-weight:700;'
+            f'padding:.15rem .55rem;border-radius:.25rem;">Claude claude-sonnet-4-20250514</span>'
+            f'<span style="font-family:IBM Plex Mono,monospace;font-size:.62rem;color:#3e4558;">{meta}</span>'
+            f'</div>'
+            f'<div style="font-family:Georgia,serif;font-size:.84rem;color:#c8cedd;'
+            f'line-height:1.85;white-space:pre-wrap;">{escaped}</div></div>',
+            unsafe_allow_html=True)
+
+        ts = pd.Timestamp.now().strftime("%Y%m%d")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(
+                "\U0001f4c4 Download TXT",
+                data=st.session_state["_air_text"],
+                file_name=f"stockcast_{ticker}_{ts}.txt",
+                mime="text/plain", use_container_width=True)
+        with c2:
+            report_csv = (
+                f"Stockcast AI Report,{ticker}\n"
+                f"Type,{sel}\n"
+                f"Generated,{pd.Timestamp.now().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+                f"Report\n"
+            ) + st.session_state["_air_text"]
+            st.download_button(
+                "\U0001f4ca Download CSV",
+                data=report_csv,
+                file_name=f"stockcast_report_{ticker}_{ts}.csv",
+                mime="text/csv", use_container_width=True)
+
+    st.caption("\u26a0 For educational purposes only. Not financial advice.")
+
+
+# =============================================================================
+# V3 · PRODUCT ANALYTICS (PostHog)
+# =============================================================================
+
+def track_event(event, properties=None, user_id=None):
+    """Track event via PostHog. Silent no-op if not configured."""
+    if not _POSTHOG_OK:
+        return
+    try:
+        uid = user_id or st.session_state.get("user_id", "anonymous")
+        _posthog_lib.capture(uid, event, properties or {})
+    except Exception:
+        pass
+
+
+# =============================================================================
+# V3 · BRAND & SOCIAL SHARING
+# =============================================================================
+
+def render_share_card(ticker, signal, price, confidence, target, stop):
+    """Social-ready AI signal share card with download."""
+    sig_color = {"BUY": "#00e5b0", "SELL": "#ff5f5f"}.get(signal, "#ffd426")
+    sig_icon  = {"BUY": "\u2191", "SELL": "\u2193"}.get(signal, "\u2192")
+    share_text = (
+        f"\U0001f916 Stockcast AI Signal \u2014 {ticker}\n"
+        f"{sig_icon} {signal} @ ${price:.2f}\n"
+        f"Confidence: {confidence}% | Target: ${target:.2f} | Stop: ${stop:.2f}\n"
+        f"#AI #Stocks #{ticker} #Stockcast\nstockcast.io"
+    )
+    st.markdown(
+        f'<div style="background:linear-gradient(135deg,#0f1727,#141d30);'
+        f'border:1px solid #252f47;border-top:2px solid {sig_color};'
+        f'border-radius:.75rem;padding:1.2rem 1.4rem;">'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.58rem;color:#3e4558;'
+        f'letter-spacing:.14em;text-transform:uppercase;margin-bottom:.3rem;">STOCKCAST \xb7 SIGNAL</div>'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.8rem;font-weight:700;'
+        f'color:{sig_color};">{sig_icon} {signal}</div>'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:.8rem;color:#e4eafd;'
+        f'margin:.2rem 0 .4rem;">{ticker} \xb7 ${price:.2f}</div>'
+        f'<div style="font-size:.72rem;color:#8a8fa0;">'
+        f'Confidence: {confidence}% \xb7 Target: ${target:.2f} \xb7 Stop: ${stop:.2f}</div></div>',
+        unsafe_allow_html=True)
+    st.download_button(
+        "\U0001f517 Copy Share Text", data=share_text,
+        file_name=f"stockcast_signal_{ticker}.txt", mime="text/plain",
+        key=f"share_{ticker}_{signal}")
+
+
+def render_referral_panel(user_email=""):
+    """Referral code and share UI."""
+    suffix  = "".join(c for c in user_email.upper().replace("@", "").replace(".", "") if c.isalpha())[:4]
+    ref_num = str(abs(hash(user_email)) % 1000)
+    ref_code = f"STOCKCAST-{suffix}{ref_num}"
+    st.markdown(
+        f'<div style="background:rgba(255,212,38,.05);border:1px solid rgba(255,212,38,.25);'
+        f'border-radius:.75rem;padding:1.1rem 1.4rem;margin-bottom:1rem;">'
+        f'<div style="font-size:.62rem;font-weight:800;letter-spacing:.14em;'
+        f'text-transform:uppercase;color:#ffd426;margin-bottom:.5rem;">Your Referral Code</div>'
+        f'<div style="font-family:IBM Plex Mono,monospace;font-size:1.1rem;color:#ffd426;'
+        f'letter-spacing:.12em;margin-bottom:.5rem;">{ref_code}</div>'
+        f'<div style="font-size:.75rem;color:#8a8fa0;">Earn 1 free Pro month per successful referral.</div>'
+        f'</div>', unsafe_allow_html=True)
+    st.download_button(
+        "\U0001f517 Copy Referral Link",
+        data=f"https://stockcast.io?ref={ref_code}",
+        file_name="stockcast_referral.txt", mime="text/plain", key="ref_copy")
+
+
+# =============================================================================
+# V3 · UPSELL GATES
+# =============================================================================
+
+PLAN_FEATURES = {
+    "free":          {"backtest": False, "ai_reports": False, "brokers": False},
+    "pro":           {"backtest": True,  "ai_reports": True,  "brokers": True},
+    "institutional": {"backtest": True,  "ai_reports": True,  "brokers": True},
+}
+
+
+def render_upsell_gate(feature, plan="free", source="unknown"):
+    """Show upsell prompt if gated. Returns True if user has access."""
+    if PLAN_FEATURES.get(plan, PLAN_FEATURES["free"]).get(feature, False):
+        return True
+    names = {
+        "backtest":   "Strategy Backtesting",
+        "ai_reports": "AI Investor Reports",
+        "brokers":    "Brokerage Integration",
+    }
+    fname = names.get(feature, feature.replace("_", " ").title())
+    track_event("upgrade_intent", {"feature": feature, "source": source})
+    st.markdown(
+        f'<div style="background:rgba(77,142,255,0.05);border:1px solid rgba(77,142,255,0.2);'
+        f'border-left:4px solid #4d8eff;border-radius:0 .75rem .75rem 0;'
+        f'padding:1.1rem 1.5rem;margin:.5rem 0;">'
+        f'<div style="font-family:Manrope,sans-serif;font-size:.62rem;font-weight:800;'
+        f'letter-spacing:.14em;text-transform:uppercase;color:#4d8eff;margin-bottom:.4rem;">'
+        f'\U0001f512 Pro Feature \u2014 {fname}</div>'
+        f'<div style="font-size:.82rem;color:#8a8fa0;line-height:1.6;margin-bottom:.7rem;">'
+        f'Upgrade to <b style="color:#e4eafd;">Pro ($19/mo)</b> to unlock {fname}.</div></div>',
+        unsafe_allow_html=True)
+    st.button(
+        "\u2b06 Upgrade to Pro \u2014 $19/mo",
+        key=f"up_{feature}_{source}", type="primary", use_container_width=True)
+    return False
+
 
 import nltk
 
@@ -3515,6 +4073,11 @@ def render_methodology_page(seq_len_val=30, ci_n=100, show_ci=True):
 # UI lives in authgate.py — edit that file to change the login/signup design.
 from authgate import render_auth_gate
 render_auth_gate(supabase)
+
+# v3: session analytics
+if not st.session_state.get('_sess_tracked'):
+    track_event('session_start', {'plan': st.session_state.get('plan', 'free')})
+    st.session_state['_sess_tracked'] = True
 
 # Everything below only runs once the user is authenticated.
 if st.session_state.user is None:  # fallback guard (render_auth_gate calls st.stop())
@@ -6192,9 +6755,10 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
-            hub1, hub2, hub3, hub4, hub5, hub6 = st.tabs([
+            hub1, hub2, hub3, hub4, hub5, hub6, hub7, hub8, hub9 = st.tabs([
                 "01 · 🌡 Macro", "02 · 🏦 Treasury", "03 · 🔭 Competitors",
-                "04 · 📊 Benchmarks", "05 · 🔔 Signal Alert", "06 · 📑 Report"
+                "04 · 📊 Benchmarks", "05 · 🔔 Signal Alert", "06 · 📑 Report",
+                "07 · 📈 Backtest", "08 · 🔗 Brokers", "09 · 🤖 AI Report"
             ])
 
             # ── HUB 1: MACRO RISK SCANNER ─────────────────────────────────────────
@@ -6619,7 +7183,7 @@ st.markdown(f"""
     <span class="disclaimer-pill">⚠ Stockcast is for educational and research purposes only. Not financial advice. Past performance does not guarantee future results. Always consult a licensed financial advisor.</span>
   </div>
   <div style="font-family:IBM Plex Mono,monospace;font-size:.5rem;color:#1e2740;letter-spacing:.08em;margin-top:.6rem;">
-    © 2026 Stockcast · Built by Muawwiz Ghani · v2.0
+    © 2026 Stockcast · Built by Muawwiz Ghani · v3.0
   </div>
 </div>
 """, unsafe_allow_html=True)
